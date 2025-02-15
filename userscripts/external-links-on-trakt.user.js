@@ -26,50 +26,49 @@
 (() => {
   'use strict';
 
+  // ==============================
+  //  Constants and Configuration
+  // ==============================
   const CONSTANTS = {
-    CACHE_DURATION: 36E5, // 1 hour in milliseconds
+    CACHE_DURATION: 36e5, // 1 hour
     SCRIPT_ID: GM.info.script.name.toLowerCase().replace(/\s/g, '-'),
     CONFIG_KEY: 'enhanced-trakt-links-config',
     TITLE: `${GM.info.script.name} Settings`,
-    SCRIPT_NAME: GM.info.script.name
+    SCRIPT_NAME: GM.info.script.name,
+    SITES: [
+      { name: 'Rotten Tomatoes', desc: 'Rotten Tomatoes reviews and ratings' },
+      { name: 'Metacritic', desc: 'Metacritic critic scores' },
+      { name: 'Letterboxd', desc: 'Letterboxd film community' },
+      { name: 'TVmaze', desc: 'TVmaze TV show information' },
+      { name: 'MyAnimeList', desc: 'MyAnimeList anime database' },
+      { name: 'AniDB', desc: 'AniDB anime information' },
+      { name: 'AniList', desc: 'AniList anime tracking' },
+      { name: 'Kitsu', desc: 'Kitsu anime library' },
+      { name: 'AniSearch', desc: 'AniSearch anime database' },
+      { name: 'LiveChart', desc: 'LiveChart anime schedule' }
+    ]
   };
 
-  // Default configuration
-  const DEFAULT_CONFIG = {
-    logging: false,
-    debugging: false,
-    'Rotten Tomatoes': true,
-    'Metacritic': true,
-    'Letterboxd': true,
-    'TVmaze': true,
-    'MyAnimeList': true,
-    'AniDB': true,
-    'AniList': true,
-    'Kitsu': true,
-    'AniSearch': true,
-    'LiveChart': true
-  };
+  const DEFAULT_CONFIG = Object.fromEntries([
+    ['logging', false],
+    ['debugging', false],
+    ...CONSTANTS.SITES.map(site => [site.name, true])
+  ]);
 
+  // ======================
+  //  Core Functionality
+  // ======================
   class TraktExternalLinks {
     constructor() {
       this.config = { ...DEFAULT_CONFIG };
       this.wikidata = null;
       this.mediaInfo = null;
-      this.linkSettings = [
-        { name: 'Rotten Tomatoes', description: 'Rotten Tomatoes reviews and ratings' },
-        { name: 'Metacritic', description: 'Metacritic critic scores' },
-        { name: 'Letterboxd', description: 'Letterboxd film community' },
-        { name: 'TVmaze', description: 'TVmaze TV show information' },
-        { name: 'MyAnimeList', description: 'MyAnimeList anime database' },
-        { name: 'AniDB', description: 'AniDB anime information' },
-        { name: 'AniList', description: 'AniList anime tracking' },
-        { name: 'Kitsu', description: 'Kitsu anime library' },
-        { name: 'AniSearch', description: 'AniSearch anime database' },
-        { name: 'LiveChart', description: 'LiveChart anime schedule' }
-      ];
+      this.linkSettings = CONSTANTS.SITES;
     }
 
-    // Logging methods
+    // ======================
+    //  Logging Methods
+    // ======================
     info(message, ...args) {
       if (this.config.logging) {
         console.info(`${CONSTANTS.SCRIPT_NAME}: INFO: ${message}`, ...args);
@@ -94,6 +93,9 @@
       }
     }
 
+    // ======================
+    //  Initialization
+    // ======================
     async init() {
       await this.loadConfig();
       this.initializeWikidata();
@@ -128,11 +130,17 @@
       this.wikidata = new Wikidata({ debug: this.config.debugging });
     }
 
+    // ======================
+    //  Event Handling
+    // ======================
     setupEventListeners() {
       NodeCreationObserver.onCreation('.sidebar .external', () => this.handleExternalLinks());
       NodeCreationObserver.onCreation('body', () => this.addSettingsMenu());
     }
 
+    // ======================
+    //  Link Management
+    // ======================
     async handleExternalLinks() {
       try {
         await this.clearExpiredCache();
@@ -204,10 +212,13 @@
       });
     }
 
+    // ======================
+    //  Cache Management
+    // ======================
     isCacheValid(cache) {
       return cache &&
-             !this.config.debugging &&
-             (Date.now() - cache.time) < CONSTANTS.CACHE_DURATION;
+        !this.config.debugging &&
+        (Date.now() - cache.time) < CONSTANTS.CACHE_DURATION;
     }
 
     linkExists(site) {
@@ -225,6 +236,9 @@
       }
     }
 
+    // ======================
+    //  Settings UI
+    // ======================
     addSettingsMenu() {
       const menuItem = `<li class="${CONSTANTS.SCRIPT_ID}"><a href="javascript:void(0)">EL Settings</a></li>`;
       $('div.user-wrapper ul.menu li.divider').last().after(menuItem);
@@ -245,7 +259,7 @@
           return `
             <div class="setting-item">
               <div class="setting-info">
-                <label for="${id}" title="${site.description}">${site.name}</label>
+                <label for="${id}" title="${site.desc}">${site.name}</label>
               </div>
               <label class="switch">
                 <input type="checkbox" id="${id}" ${this.config[site.name] ? 'checked' : ''}>
@@ -341,7 +355,9 @@
     }
   }
 
-  // Initialize the script when the document is ready
+  // ======================
+  //  Script Initialization
+  // ======================
   $(document).ready(async () => {
     const traktLinks = new TraktExternalLinks();
     await traktLinks.init();
