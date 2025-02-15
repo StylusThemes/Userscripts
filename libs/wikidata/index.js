@@ -14,14 +14,14 @@
 // ==/UserScript==
 
 this.Wikidata = class {
-  constructor(e = {}) {
-    (this._config = { endpoint: e.endpoint || "https://query.wikidata.org", debug: e.debug || !1 }),
+  constructor(config = {}) {
+    (this._config = { endpoint: config.endpoint || "https://query.wikidata.org", debug: config.debug || !1 }),
       (this._headers = { Accept: "application/sparql-results+json" }),
-      (this._debug = (e) => {
-        (this._config.debug || 200 !== e.status) && console.log(`${e.status}: ${e.finalUrl}`);
+      (this._debug = (response) => {
+        (this._config.debug || 200 !== response.status) && console.log(`${response.status}: ${response.finalUrl}`);
       }),
-      (this._property = (e) => {
-        switch (e) {
+      (this._property = (source) => {
+        switch (source) {
           case "IMDb":
             return "P345";
           case "TMDb_movie":
@@ -48,12 +48,19 @@ this.Wikidata = class {
             return "P5646";
           case "AniList":
             return "P8729";
+          case "Kitsu":
+            return "P11495";
+          case "AniSearch":
+            return "P12477";
+          case "LiveChart":
+            return "P12489";
           default:
             throw new Error("An ID source is required");
         }
       }),
-      (this._item = (e) => {
-        switch (e) {
+
+      (this._item = (type) => {
+        switch (type) {
           case "movie":
             return "Q11424";
           case "tv":
@@ -62,34 +69,41 @@ this.Wikidata = class {
             throw new Error("An ID type is required");
         }
       }),
-      (this._link = (e, t) => {
-        switch (e) {
+
+      (this._link = (site, id) => {
+        switch (site) {
           case "IMDb":
-            return { value: `https://www.imdb.com/title/${t}` };
+            return { value: `https://www.imdb.com/title/${id}` };
           case "TMDb_movie":
-            return { value: `https://www.themoviedb.org/movie/${t}` };
+            return { value: `https://www.themoviedb.org/movie/${id}` };
           case "TMDb_tv":
-            return { value: `https://www.themoviedb.org/tv/${t}` };
+            return { value: `https://www.themoviedb.org/tv/${id}` };
           case "TVDb_movie":
-            return { value: `https://thetvdb.com/dereferrer/movie/${t}` };
+            return { value: `https://thetvdb.com/dereferrer/movie/${id}` };
           case "TVDb_tv":
-            return { value: `https://thetvdb.com/dereferrer/series/${t}` };
+            return { value: `https://thetvdb.com/dereferrer/series/${id}` };
           case "Trakt":
-            return { value: `https://trakt.tv/${t}` };
+            return { value: `https://trakt.tv/${id}` };
           case "Rotten Tomatoes":
-            return { value: `https://www.rottentomatoes.com/${t}` };
+            return { value: `https://www.rottentomatoes.com/${id}` };
           case "Metacritic":
-            return { value: `https://www.metacritic.com/${t}` };
+            return { value: `https://www.metacritic.com/${id}` };
           case "Letterboxd":
-            return { value: `https://letterboxd.com/film/${t}` };
+            return { value: `https://letterboxd.com/film/${id}` };
           case "TVmaze":
-            return { value: `https://tvmaze.com/shows/${t}` };
+            return { value: `https://tvmaze.com/shows/${id}` };
           case "MyAnimeList":
-            return { value: `https://myanimelist.net/anime/${t}` };
+            return { value: `https://myanimelist.net/anime/${id}` };
           case "AniDB":
-            return { value: `https://anidb.net/anime/${t}` };
+            return { value: `https://anidb.net/anime/${id}` };
           case "AniList":
-            return { value: `https://anilist.co/anime/${t}` };
+            return { value: `https://anilist.co/anime/${id}` };
+          case "Kitsu":
+            return { value: `https://kitsu.app/anime/${id}` };
+          case "AniSearch":
+            return { value: `https://www.anisearch.com/anime/${id}` };
+          case "LiveChart":
+            return { value: `https://www.livechart.me/anime/${id}` };
         }
       });
   }
@@ -98,8 +112,9 @@ this.Wikidata = class {
     if (!id) throw new Error("An ID is required");
     const property = this._property(idSource);
     const item = this._item(itemType);
+
     const query = `
-      SELECT DISTINCT ?item ?itemLabel ?IMDb ?TMDb_movie ?TMDb_tv ?TVDb_movie ?TVDb_tv ?Trakt ?RottenTomatoes ?Metacritic ?MyAnimeList ?AniDB ?AniList ?Letterboxd ?TVmaze WHERE {
+      SELECT DISTINCT ?item ?itemLabel ?IMDb ?TMDb_movie ?TMDb_tv ?TVDb_movie ?TVDb_tv ?Trakt ?RottenTomatoes ?Metacritic ?Letterboxd ?TVmaze ?MyAnimeList ?AniDB ?AniList ?Kitsu ?AniSearch ?LiveChart WHERE {
         ?item p:${property} ?statement0.
         ?statement0 ps:${property} "${id}".
         ?item p:P31 ?statement1.
@@ -125,6 +140,9 @@ this.Wikidata = class {
         OPTIONAL { ?item wdt:P4086 ?MyAnimeList. }
         OPTIONAL { ?item wdt:P5646 ?AniDB. }
         OPTIONAL { ?item wdt:P8729 ?AniList. }
+        OPTIONAL { ?item wdt:P11495 ?Kitsu. }
+        OPTIONAL { ?item wdt:P12477 ?AniSearch. }
+        OPTIONAL { ?item wdt:P12489 ?LiveChart. }
         SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
       }
       LIMIT 1000
@@ -136,9 +154,9 @@ this.Wikidata = class {
         url: `${this._config.endpoint}/sparql?query=${encodeURIComponent(query)}`,
         headers: this._headers,
         timeout: 15e3,
-        onload: (r) => {
-          this._debug(r);
-          const results = JSON.parse(r.responseText)
+        onload: (response) => {
+          this._debug(response);
+          const results = JSON.parse(response.responseText)
             .results.bindings
             .find((item) => item[idSource].value === id);
 
@@ -171,13 +189,16 @@ this.Wikidata = class {
                 MyAnimeList: results.MyAnimeList ? this._link("MyAnimeList", results.MyAnimeList.value) : void 0,
                 AniDB: results.AniDB ? this._link("AniDB", results.AniDB.value) : void 0,
                 AniList: results.AniList ? this._link("AniList", results.AniList.value) : void 0,
+                Kitsu: results.Kitsu ? this._link("Kitsu", results.Kitsu.value) : void 0,
+                AniSearch: results.AniSearch ? this._link("AniSearch", results.AniSearch.value) : void 0,
+                LiveChart: results.LiveChart ? this._link("LiveChart", results.LiveChart.value) : void 0,
               },
               item: results.item.value,
             };
 
             // If extra properties like AniList, AniDB, or MyAnimeList are missing,
             // try to fetch them using an external API.
-            if (!data.links.AniList || !data.links.AniDB || !data.links.MyAnimeList) {
+            if ( !data.links.MyAnimeList || !data.links.AniDB || !data.links.AniList || !data.links.Kitsu || !data.links.AniSearch || !data.links.LiveChart ) {
               let externalEndpoint = null;
               let externalId = null;
               // Prefer a TMDb ID if available; otherwise fall back to TVDb.
@@ -208,9 +229,12 @@ this.Wikidata = class {
                         const mapping = {
                           themoviedb: "TMDB",
                           thetvdb: "TVDB",
-                          anilist: "AniList",
-                          anidb: "AniDB",
                           myanimelist: "MyAnimeList",
+                          anidb: "AniDB",
+                          anilist: "AniList",
+                          kitsu: "Kitsu",
+                          anisearch: "AniSearch",
+                          livechart: "LiveChart"
                         };
 
                         Object.keys(mapping).forEach((apiKey) => {
