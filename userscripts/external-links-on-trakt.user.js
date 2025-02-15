@@ -37,7 +37,17 @@
   // Default configuration
   const DEFAULT_CONFIG = {
     logging: false,
-    debugging: false
+    debugging: false,
+    'Rotten Tomatoes': true,
+    'Metacritic': true,
+    'Letterboxd': true,
+    'TVmaze': true,
+    'MyAnimeList': true,
+    'AniDB': true,
+    'AniList': true,
+    'Kitsu': true,
+    'AniSearch': true,
+    'LiveChart': true
   };
 
   class TraktExternalLinks {
@@ -45,6 +55,18 @@
       this.config = { ...DEFAULT_CONFIG };
       this.wikidata = null;
       this.mediaInfo = null;
+      this.linkSettings = [
+        { name: 'Rotten Tomatoes' },
+        { name: 'Metacritic' },
+        { name: 'Letterboxd' },
+        { name: 'TVmaze' },
+        { name: 'MyAnimeList' },
+        { name: 'AniDB' },
+        { name: 'AniList' },
+        { name: 'Kitsu' },
+        { name: 'AniSearch' },
+        { name: 'LiveChart' }
+      ];
     }
 
     // Logging methods
@@ -171,7 +193,12 @@
 
     addWikidataLinks(links) {
       Object.entries(links).forEach(([site, link]) => {
-        if (site !== 'Trakt' && link?.value && !this.linkExists(site)) {
+        if (
+          site !== 'Trakt' &&
+          link?.value &&
+          this.config[site] !== false &&
+          !this.linkExists(site)
+        ) {
           this.createLink(site, link.value);
         }
       });
@@ -212,6 +239,23 @@
     }
 
     generateSettingsModalHTML() {
+      const linkSettingsHTML = this.linkSettings
+        .map(site => {
+          const id = site.name.toLowerCase().replace(/\s+/g, '_');
+          return `
+            <div class="setting-item">
+              <div class="setting-info">
+                <label for="${id}">${site.name}</label>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="${id}" ${this.config[site.name] ? 'checked' : ''}>
+                <span class="slider"></span>
+              </label>
+            </div>
+          `;
+        })
+        .join('');
+
       return `
         <div id="${CONSTANTS.SCRIPT_ID}-config">
           <div class="modal-content">
@@ -244,6 +288,13 @@
                   </label>
                 </div>
               </div>
+
+              <div class="settings-section">
+                <h3><i class="fas fa-link"></i> Link Settings</h3>
+                <div class="link-settings-grid">
+                  ${linkSettingsHTML}
+                </div>
+              </div>
             </div>
 
             <div class="modal-footer">
@@ -256,8 +307,130 @@
     }
 
     addModalStyles() {
-      // eslint-disable-next-line max-len
-      const styles = `#${CONSTANTS.SCRIPT_ID}-config{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:9999;display:flex;justify-content:center;align-items:center}#${CONSTANTS.SCRIPT_ID}-config .modal-content{background:#2b2b2b;color:#fff;border-radius:8px;width:450px;max-width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.3)}#${CONSTANTS.SCRIPT_ID}-config .modal-header{padding:1.5rem;border-bottom:1px solid #404040;position:relative;display:flex;justify-content:space-between;align-items:center}#${CONSTANTS.SCRIPT_ID}-config .modal-header h2{margin:0;font-size:1.4rem;color:#fff}#${CONSTANTS.SCRIPT_ID}-config .close-button{background:none;border:none;color:#fff;font-size:1.5rem;cursor:pointer;padding:0 0.5rem}#${CONSTANTS.SCRIPT_ID}-config .settings-sections{padding:1.5rem;max-height:60vh;overflow-y:auto}#${CONSTANTS.SCRIPT_ID}-config .settings-section{margin-bottom:2rem}#${CONSTANTS.SCRIPT_ID}-config .settings-section h3{font-size:1.1rem;margin:0 0 1.2rem;color:#fff;display:flex;align-items:center;gap:0.5rem}#${CONSTANTS.SCRIPT_ID}-config .setting-item{display:flex;justify-content:space-between;align-items:center;padding:0.8rem 0;border-bottom:1px solid #404040}#${CONSTANTS.SCRIPT_ID}-config .setting-info{flex-grow:1;margin-right:1.5rem}#${CONSTANTS.SCRIPT_ID}-config .setting-info label{display:block;font-weight:500;margin-bottom:0.3rem}#${CONSTANTS.SCRIPT_ID}-config .description{color:#a0a0a0;font-size:0.9rem;line-height:1.4}#${CONSTANTS.SCRIPT_ID}-config .switch{flex-shrink:0}#${CONSTANTS.SCRIPT_ID}-config .modal-footer{padding:1.5rem;border-top:1px solid #404040;display:flex;gap:0.8rem;justify-content:flex-end}#${CONSTANTS.SCRIPT_ID}-config .btn{padding:0.6rem 1.2rem;border-radius:4px;border:none;cursor:pointer;font-weight:500;transition:all 0.2s ease}#${CONSTANTS.SCRIPT_ID}-config .btn.save{background:#4CAF50;color:#fff}#${CONSTANTS.SCRIPT_ID}-config .btn.warning{background:#f44336;color:#fff}#${CONSTANTS.SCRIPT_ID}-config .btn:hover{opacity:0.9}`;
+      const styles = `
+        #${CONSTANTS.SCRIPT_ID}-config {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0,0,0,0.7);
+          z-index: 9999;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+        }
+        #${CONSTANTS.SCRIPT_ID}-config .modal-content {
+          background: #2b2b2b;
+          color: #fff;
+          border-radius: 8px;
+          width: 450px;
+          max-width: 90%;
+          box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+        #${CONSTANTS.SCRIPT_ID}-config .modal-header {
+          padding: 1.5rem;
+          border-bottom: 1px solid #404040;
+          position: relative;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+        #${CONSTANTS.SCRIPT_ID}-config .modal-header h2 {
+          margin: 0;
+          font-size: 1.4rem;
+          color: #fff;
+        }
+        #${CONSTANTS.SCRIPT_ID}-config .close-button {
+          background: none;
+          border: none;
+          color: #fff;
+          font-size: 1.5rem;
+          cursor: pointer;
+          padding: 0 0.5rem;
+        }
+        #${CONSTANTS.SCRIPT_ID}-config .settings-sections {
+          padding: 1.5rem;
+          max-height: 60vh;
+          overflow-y: auto;
+        }
+        #${CONSTANTS.SCRIPT_ID}-config .settings-section {
+          margin-bottom: 2rem;
+        }
+        #${CONSTANTS.SCRIPT_ID}-config .settings-section h3 {
+          font-size: 1.1rem;
+          margin: 0 0 1.2rem;
+          color: #fff;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+        #${CONSTANTS.SCRIPT_ID}-config .setting-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 0.8rem 0;
+          border-bottom: 1px solid #404040;
+        }
+        #${CONSTANTS.SCRIPT_ID}-config .setting-info {
+          flex-grow: 1;
+          margin-right: 1.5rem;
+        }
+        #${CONSTANTS.SCRIPT_ID}-config .setting-info label {
+          display: block;
+          font-weight: 500;
+          margin-bottom: 0.3rem;
+        }
+        #${CONSTANTS.SCRIPT_ID}-config .description {
+          color: #a0a0a0;
+          font-size: 0.9rem;
+          line-height: 1.4;
+        }
+        #${CONSTANTS.SCRIPT_ID}-config .switch {
+          flex-shrink: 0;
+        }
+        #${CONSTANTS.SCRIPT_ID}-config .modal-footer {
+          padding: 1.5rem;
+          border-top: 1px solid #404040;
+          display: flex;
+          gap: 0.8rem;
+          justify-content: flex-end;
+        }
+        #${CONSTANTS.SCRIPT_ID}-config .btn {
+          padding: 0.6rem 1.2rem;
+          border-radius: 4px;
+          border: none;
+          cursor: pointer;
+          font-weight: 500;
+          transition: all 0.2s ease;
+        }
+        #${CONSTANTS.SCRIPT_ID}-config .btn.save {
+          background: #4CAF50;
+          color: #fff;
+        }
+        #${CONSTANTS.SCRIPT_ID}-config .btn.warning {
+          background: #f44336;
+          color: #fff;
+        }
+        #${CONSTANTS.SCRIPT_ID}-config .btn:hover {
+          opacity: 0.9;
+        }
+        #${CONSTANTS.SCRIPT_ID}-config .link-settings-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 0.8rem;
+        }
+        #${CONSTANTS.SCRIPT_ID}-config .link-settings-grid .setting-item {
+          background: rgba(255,255,255,0.05);
+          border-radius: 4px;
+          padding: 0.8rem;
+          border: 1px solid #404040;
+          margin: 0;
+        }
+        #${CONSTANTS.SCRIPT_ID}-config .link-settings-grid .setting-item:hover {
+          background: rgba(255,255,255,0.08);
+        }
+      `;
       $('<style>').prop('type', 'text/css').html(styles).appendTo('head');
     }
 
@@ -265,8 +438,15 @@
       $('.close-button').click(() => $(`#${CONSTANTS.SCRIPT_ID}-config`).remove());
 
       $('#save-config').click(async () => {
+        // General settings
         this.config.logging = $('#logging').is(':checked');
         this.config.debugging = $('#debugging').is(':checked');
+
+        // Link settings
+        this.linkSettings.forEach(site => {
+          const checkboxId = site.name.toLowerCase().replace(/\s+/g, '_');
+          this.config[site.name] = $(`#${checkboxId}`).is(':checked');
+        });
 
         await GM.setValue(CONSTANTS.CONFIG_KEY, this.config);
         $(`#${CONSTANTS.SCRIPT_ID}-config`).remove();
