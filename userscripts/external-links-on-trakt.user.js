@@ -35,7 +35,7 @@
     CONFIG_KEY: 'enhanced-trakt-links-config',
     TITLE: `${GM.info.script.name} Settings`,
     SCRIPT_NAME: GM.info.script.name,
-    SITES: [
+    METADATA_SITES: [
       { name: 'Rotten Tomatoes', desc: 'Provides a direct link to Rotten Tomatoes for the selected title.' },
       { name: 'Metacritic', desc: 'Provides a direct link to Metacritic for the selected title.' },
       { name: 'Letterboxd', desc: 'Provides a direct link to Letterboxd for the selected title.' },
@@ -47,13 +47,17 @@
       { name: 'Kitsu', desc: 'Provides a direct link to Kitsu for the selected title.' },
       { name: 'AniSearch', desc: 'Provides a direct link to AniSearch for the selected title.' },
       { name: 'LiveChart', desc: 'Provides a direct link to LiveChart for the selected title.' }
+    ],
+    STREAMING_SITES: [
+      { name: 'BrocoFlix', desc: 'Provides a direct link to the BrocoFlix streaming page for the selected title.' }
     ]
   };
 
   const DEFAULT_CONFIG = Object.fromEntries([
     ['logging', false],
     ['debugging', false],
-    ...CONSTANTS.SITES.map(site => [site.name, true])
+    ...CONSTANTS.METADATA_SITES.map(site => [site.name, true]),
+    ...CONSTANTS.STREAMING_SITES.map(site => [site.name, true])
   ]);
 
   // ======================
@@ -64,7 +68,10 @@
       this.config = { ...DEFAULT_CONFIG };
       this.wikidata = null;
       this.mediaInfo = null;
-      this.linkSettings = CONSTANTS.SITES;
+      this.linkSettings = [
+        ...CONSTANTS.METADATA_SITES,
+        ...CONSTANTS.STREAMING_SITES
+      ];
     }
 
     // ======================
@@ -235,6 +242,12 @@
     addCustomLinks() {
       const customLinks = [
         {
+          name: 'BrocoFlix',
+          url: () => `https://brocoflix.com/pages/info?id=${this.mediaInfo.tmdbId}&type=${this.mediaInfo.type}`,
+          condition: () => true,
+          requiredData: 'tmdbId'
+        },
+        {
           name: 'Letterboxd',
           url: () => `https://letterboxd.com/tmdb/${this.mediaInfo.tmdbId}`,
           condition: () => this.mediaInfo.type === 'movie',
@@ -304,22 +317,27 @@
     }
 
     generateSettingsModalHTML() {
-      const linkSettingsHTML = this.linkSettings
-        .map(site => {
-          const id = site.name.toLowerCase().replace(/\s+/g, '_');
-          return `
-            <div class="setting-item">
-              <div class="setting-info">
-                <label for="${id}" title="${site.desc}">${site.name}</label>
-              </div>
-              <label class="switch">
-                <input type="checkbox" id="${id}" ${this.config[site.name] ? 'checked' : ''}>
-                <span class="slider"></span>
-              </label>
-            </div>
-          `;
-        })
-        .join('');
+      const generateSection = (title, sites) => `
+        <div class="settings-section">
+          <h3><i class="fas fa-link"></i> ${title}</h3>
+          <div class="link-settings-grid">
+            ${sites.map(site => {
+              const id = site.name.toLowerCase().replace(/\s+/g, '_');
+              return `
+                <div class="setting-item">
+                  <div class="setting-info">
+                    <label for="${id}" title="${site.desc}">${site.name}</label>
+                  </div>
+                  <label class="switch">
+                    <input type="checkbox" id="${id}" ${this.config[site.name] ? 'checked' : ''}>
+                    <span class="slider"></span>
+                  </label>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
 
       return `
         <div id="${CONSTANTS.SCRIPT_ID}-config">
@@ -354,12 +372,8 @@
                 </div>
               </div>
 
-              <div class="settings-section">
-                <h3><i class="fas fa-link"></i> Link Settings</h3>
-                <div class="link-settings-grid">
-                  ${linkSettingsHTML}
-                </div>
-              </div>
+              ${generateSection('Metadata Sites', CONSTANTS.METADATA_SITES)}
+              ${generateSection('Streaming Sites', CONSTANTS.STREAMING_SITES)}
             </div>
 
             <div class="modal-footer">
@@ -383,7 +397,7 @@
         this.config.logging = $('#logging').is(':checked');
         this.config.debugging = $('#debugging').is(':checked');
 
-        this.linkSettings.forEach(site => {
+        [...CONSTANTS.METADATA_SITES, ...CONSTANTS.STREAMING_SITES].forEach(site => {
           const checkboxId = site.name.toLowerCase().replace(/\s+/g, '_');
           this.config[site.name] = $(`#${checkboxId}`).is(':checked');
         });
