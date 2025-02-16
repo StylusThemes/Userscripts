@@ -1,13 +1,13 @@
 // ==UserScript==
 // @name          External links on Trakt
-// @version       2.2.0
+// @version       3.0.0
 // @description   Adds more external links to Trakt.tv pages.
 // @author        Journey Over
 // @license       MIT
 // @match         *://trakt.tv/*
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@main/libs/wikidata/index.min.js?version=1.0.0
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@main/libs/wikidata/index.min.js?version=1.1.0
 // @require       https://cdn.jsdelivr.net/npm/node-creation-observer@1.2.0/release/node-creation-observer-latest.min.js
-// @require       https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js
+// @require       https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js
 // @grant         GM.deleteValue
 // @grant         GM.getValue
 // @grant         GM.listValues
@@ -30,7 +30,7 @@
   //  Constants and Configuration
   // ==============================
   const CONSTANTS = {
-    CACHE_DURATION: 36e5, // 1 hour
+    CACHE_DURATION: 36e5, // 1 hour in milliseconds
     SCRIPT_ID: GM.info.script.name.toLowerCase().replace(/\s/g, '-'),
     CONFIG_KEY: 'enhanced-trakt-links-config',
     TITLE: `${GM.info.script.name} Settings`,
@@ -46,13 +46,20 @@
       { name: 'AniList', desc: 'Provides a direct link to AniList for the selected title.' },
       { name: 'Kitsu', desc: 'Provides a direct link to Kitsu for the selected title.' },
       { name: 'AniSearch', desc: 'Provides a direct link to AniSearch for the selected title.' },
-      { name: 'LiveChart', desc: 'Provides a direct link to LiveChart for the selected title.' }
+      { name: 'LiveChart', desc: 'Provides a direct link to LiveChart for the selected title.' },
     ],
     STREAMING_SITES: [
-      { name: 'BrocoFlix', desc: 'Provides a direct link to the BrocoFlix streaming page for the selected title.' }
+      { name: 'BrocoFlix', desc: 'Provides a direct link to the BrocoFlix streaming page for the selected title.' },
+      { name: 'Cineby', desc: 'Provides a direct link to the Cineby streaming page for the selected title' },
+      { name: 'Freek', desc: 'Provides a direct link to the Freek streaming page for the selected title.' },
+      { name: 'P-Stream', desc: 'Provides a direct link to the P-Stream streaming page for the selected title.' },
+      { name: 'Rive', desc: 'Provides a direct link to the Rive streaming page for the selected title.' },
+      { name: 'Wovie', desc: 'Provides a direct link to the Wovie streaming page for the selected title.' },
+      { name: 'XPrime', desc: 'Provides a direct link to the XPrime streaming page for the selected title.' },
     ]
   };
 
+  // Default configuration values
   const DEFAULT_CONFIG = Object.fromEntries([
     ['logging', false],
     ['debugging', false],
@@ -65,10 +72,11 @@
   // ======================
   class TraktExternalLinks {
     constructor() {
+      // Initialize with default configuration
       this.config = { ...DEFAULT_CONFIG };
-      this.wikidata = null;
-      this.mediaInfo = null;
-      this.linkSettings = [
+      this.wikidata = null;      // Wikidata API instance
+      this.mediaInfo = null;     // Current media item metadata
+      this.linkSettings = [      // All supported link settings
         ...CONSTANTS.METADATA_SITES,
         ...CONSTANTS.STREAMING_SITES
       ];
@@ -105,6 +113,7 @@
     //  Initialization
     // ======================
     async init() {
+      // Main initialization sequence
       await this.loadConfig();
       this.initializeWikidata();
       this.logInitialization();
@@ -128,6 +137,7 @@
     }
 
     async loadConfig() {
+      // Load saved configuration from storage
       const savedConfig = await GM.getValue(CONSTANTS.CONFIG_KEY);
       if (savedConfig) {
         this.config = { ...DEFAULT_CONFIG, ...savedConfig };
@@ -135,6 +145,7 @@
     }
 
     initializeWikidata() {
+      // Initialize Wikidata API with debugging option
       this.wikidata = new Wikidata({ debug: this.config.debugging });
     }
 
@@ -142,6 +153,7 @@
     //  Event Handling
     // ======================
     setupEventListeners() {
+      // Watch for external links container and body element creation
       NodeCreationObserver.onCreation('.sidebar .external', () => this.handleExternalLinks());
       NodeCreationObserver.onCreation('body', () => this.addSettingsMenu());
     }
@@ -150,24 +162,35 @@
     //  Media Info
     // ======================
     getMediaInfo() {
+      // Extract media metadata from URL and DOM elements
       const pathParts = location.pathname.split('/');
       const type = pathParts[1] === 'movies' ? 'movie' : 'tv';
-      const imdbLink = $('#external-link-imdb');
-      const tmdbLink = $('#external-link-tmdb');
 
-      const imdbId = imdbLink.length ? imdbLink.attr('href')?.match(/tt\d+/)?.[0] : null;
-      const tmdbId = tmdbLink.length ? tmdbLink.attr('href')?.match(/\/(?:movie|tv)\/(\d+)/)?.[1] : null;
+      // Get IDs from existing external links
+      const imdbId = $('#external-link-imdb').attr('href').match(/tt\d+/)[0];
+      const tmdbId = $('#external-link-tmdb').attr('href').match(/\/(movie|tv)\/(\d+)/)[2];
 
-      const seasonsIndex = pathParts.indexOf('seasons');
-      const isSeasonPage = seasonsIndex !== -1 &&
-                          seasonsIndex < pathParts.length - 1 &&
-                          !isNaN(Number(pathParts[seasonsIndex + 1]));
+      // Extract title from URL slug
+      const slug = pathParts[2] || '';
+      const title = slug.split('-')
+        .slice(1) // Remove any leading ID
+        .join('-')
+        .replace(/-\d{4}$/, ''); // Remove year suffix
+
+      // Parse season/episode structure
+      const seasonIndex = pathParts.indexOf('seasons');
+      const episodeIndex = pathParts.indexOf('episodes');
+      const season = seasonIndex > 0 ? +pathParts[seasonIndex + 1] : null;
+      const episode = episodeIndex > 0 ? +pathParts[episodeIndex + 1] : null;
 
       return {
         type,
         imdbId,
         tmdbId,
-        isSeasonPage
+        title,
+        season: season || '1',
+        episode: episode || '1',
+        isSeasonPage: !!season && !episode
       };
     }
 
@@ -175,6 +198,7 @@
     //  Link Management
     // ======================
     async handleExternalLinks() {
+      // Main link processing pipeline
       try {
         await this.clearExpiredCache();
         this.mediaInfo = this.getMediaInfo();
@@ -192,6 +216,7 @@
     }
 
     createLink(name, url) {
+      // Create new external link element if it doesn't exist
       const linkId = `external-link-${name.toLowerCase().replace(/\s/g, '_')}`;
 
       if (!this.linkExists(name)) {
@@ -201,7 +226,11 @@
       }
     }
 
+    // ======================
+    //  Wikidata Integration
+    // ======================
     async processWikidataLinks() {
+      // Handle Wikidata links with caching
       const cache = await GM.getValue(this.mediaInfo.imdbId);
 
       if (this.isCacheValid(cache)) {
@@ -211,6 +240,7 @@
       }
 
       try {
+        // Fetch fresh data from Wikidata API
         const data = await this.wikidata.links(this.mediaInfo.imdbId, 'IMDb', this.mediaInfo.type);
         await GM.setValue(this.mediaInfo.imdbId, {
           links: data.links,
@@ -225,6 +255,7 @@
     }
 
     addWikidataLinks(links) {
+      // Add links from Wikidata data, filtering out anime sites for season pages
       const animeSites = new Set(['MyAnimeList', 'AniDB', 'AniList', 'Kitsu', 'AniSearch', 'LiveChart']);
       Object.entries(links).forEach(([site, link]) => {
         if (
@@ -239,14 +270,12 @@
       });
     }
 
+    // ======================
+    //  Custom Link Builders
+    // ======================
     addCustomLinks() {
+      // Define custom link templates and conditions
       const customLinks = [
-        {
-          name: 'BrocoFlix',
-          url: () => `https://brocoflix.com/pages/info?id=${this.mediaInfo.tmdbId}&type=${this.mediaInfo.type}`,
-          condition: () => true,
-          requiredData: 'tmdbId'
-        },
         {
           name: 'Letterboxd',
           url: () => `https://letterboxd.com/tmdb/${this.mediaInfo.tmdbId}`,
@@ -258,6 +287,66 @@
           url: () => {
             const path = this.mediaInfo.type === 'movie' ? 'movies' : 'shows';
             return `https://mediux.pro/${path}/${this.mediaInfo.tmdbId}`;
+          },
+          condition: () => true,
+          requiredData: 'tmdbId'
+        },
+        {
+          name: 'BrocoFlix',
+          url: () => `https://brocoflix.com/pages/info?id=${this.mediaInfo.tmdbId}&type=${this.mediaInfo.type}`,
+          condition: () => true,
+          requiredData: 'tmdbId'
+        },
+        {
+          name: 'Cineby',
+          url: () => {
+            const show = this.mediaInfo.type === 'tv' ? `/${this.mediaInfo.season}/${this.mediaInfo.episode}` : '';
+            return `https://www.cineby.app/${this.mediaInfo.type}/${this.mediaInfo.tmdbId}${show}`;
+          },
+          condition: () => true,
+          requiredData: 'tmdbId'
+        },
+        {
+          name: 'Freek',
+          url: () => {
+            const show = this.mediaInfo.type === 'tv' ? `?season=${this.mediaInfo.season}&ep=${this.mediaInfo.episode}` : '';
+            return `https://freek.to/watch/${this.mediaInfo.type}/${this.mediaInfo.tmdbId}${show}`;
+          },
+          condition: () => true,
+          requiredData: 'tmdbId'
+        },
+        {
+          name: 'P-Stream',
+          url: () => {
+            const show = this.mediaInfo.type === 'tv' ? `/${this.mediaInfo.season}/${this.mediaInfo.episode}` : '';
+            return `https://iframe.pstream.org/embed/tmdb-${this.mediaInfo.type}-${this.mediaInfo.tmdbId}${show}`;
+          },
+          condition: () => true,
+          requiredData: 'tmdbId'
+        },
+        {
+          name: 'Rive',
+          url: () => {
+            const show = this.mediaInfo.type === 'tv' ? `&season=${this.mediaInfo.season}&episode=${this.mediaInfo.episode}` : '';
+            return `https://rivestream.live/watch?type=${this.mediaInfo.type}&id=${this.mediaInfo.tmdbId}${show}`;
+          },
+          condition: () => true,
+          requiredData: 'tmdbId'
+        },
+        {
+          name: 'Wovie',
+          url: () => {
+            const show = this.mediaInfo.type === 'tv' ? `?season=${this.mediaInfo.season}&episode=${this.mediaInfo.episode}` : '';
+            return `https://wovie.vercel.app/play/${this.mediaInfo.type}/${this.mediaInfo.tmdbId}/${this.mediaInfo.title}${show}`;
+          },
+          condition: () => true,
+          requiredData: 'tmdbId'
+        },
+        {
+          name: 'XPrime',
+          url: () => {
+            const show = this.mediaInfo.type === 'tv' ? `/${this.mediaInfo.season}/${this.mediaInfo.episode}` : '';
+            return `https://xprime.tv/watch/${this.mediaInfo.tmdbId}${show}`;
           },
           condition: () => true,
           requiredData: 'tmdbId'
@@ -290,6 +379,7 @@
     }
 
     async clearExpiredCache() {
+      // Clear expired cache entries
       const values = await GM.listValues();
       for (const value of values) {
         if (value === CONSTANTS.CONFIG_KEY) continue;
@@ -304,6 +394,7 @@
     //  Settings UI
     // ======================
     addSettingsMenu() {
+      // Add settings menu item to user navigation
       const menuItem = `<li class="${CONSTANTS.SCRIPT_ID}"><a href="javascript:void(0)">EL Settings</a></li>`;
       $('div.user-wrapper ul.menu li.divider').last().after(menuItem);
       $(`.${CONSTANTS.SCRIPT_ID}`).click(() => this.openSettingsModal());
@@ -424,6 +515,7 @@
   //  Script Initialization
   // ======================
   $(document).ready(async () => {
+    // Start the main application
     const traktLinks = new TraktExternalLinks();
     await traktLinks.init();
   });
