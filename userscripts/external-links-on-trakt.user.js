@@ -160,9 +160,15 @@
       const imdbLink = $('#external-link-imdb');
       const imdbId = imdbLink.length ? imdbLink.attr('href')?.match(/tt\d+/)?.[0] : null;
 
+      const seasonsIndex = pathParts.indexOf('seasons');
+      const isSeasonPage = seasonsIndex !== -1
+        && seasonsIndex < pathParts.length - 1
+        && !isNaN(Number(pathParts[seasonsIndex + 1]));
+
       return {
         type,
-        imdbId
+        imdbId,
+        isSeasonPage
       };
     }
 
@@ -200,12 +206,14 @@
     }
 
     addWikidataLinks(links) {
+      const animeSites = new Set(['MyAnimeList', 'AniDB', 'AniList', 'Kitsu', 'AniSearch', 'LiveChart']);
       Object.entries(links).forEach(([site, link]) => {
         if (
           site !== 'Trakt' &&
           link?.value &&
           this.config[site] !== false &&
-          !this.linkExists(site)
+          !this.linkExists(site) &&
+          !(this.mediaInfo.isSeasonPage && animeSites.has(site))
         ) {
           this.createLink(site, link.value);
         }
