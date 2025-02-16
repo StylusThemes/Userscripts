@@ -36,16 +36,17 @@
     TITLE: `${GM.info.script.name} Settings`,
     SCRIPT_NAME: GM.info.script.name,
     SITES: [
-      { name: 'Rotten Tomatoes', desc: 'Rotten Tomatoes reviews and ratings' },
-      { name: 'Metacritic', desc: 'Metacritic critic scores' },
-      { name: 'Letterboxd', desc: 'Letterboxd film community' },
-      { name: 'TVmaze', desc: 'TVmaze TV show information' },
-      { name: 'MyAnimeList', desc: 'MyAnimeList anime database' },
-      { name: 'AniDB', desc: 'AniDB anime information' },
-      { name: 'AniList', desc: 'AniList anime tracking' },
-      { name: 'Kitsu', desc: 'Kitsu anime library' },
-      { name: 'AniSearch', desc: 'AniSearch anime database' },
-      { name: 'LiveChart', desc: 'LiveChart anime schedule' }
+      { name: 'Rotten Tomatoes', desc: 'Provides a direct link to Rotten Tomatoes for the selected title.' },
+      { name: 'Metacritic', desc: 'Provides a direct link to Metacritic for the selected title.' },
+      { name: 'Letterboxd', desc: 'Provides a direct link to Letterboxd for the selected title.' },
+      { name: 'TVmaze', desc: 'Provides a direct link to TVmaze for the selected title.' },
+      { name: 'Mediux', desc: 'Provides a direct link to the Mediux Poster site for the selected title.' },
+      { name: 'MyAnimeList', desc: 'Provides a direct link to MyAnimeList for the selected title.' },
+      { name: 'AniDB', desc: 'Provides a direct link to AniDB for the selected title.' },
+      { name: 'AniList', desc: 'Provides a direct link to AniList for the selected title.' },
+      { name: 'Kitsu', desc: 'Provides a direct link to Kitsu for the selected title.' },
+      { name: 'AniSearch', desc: 'Provides a direct link to AniSearch for the selected title.' },
+      { name: 'LiveChart', desc: 'Provides a direct link to LiveChart for the selected title.' }
     ]
   };
 
@@ -139,33 +140,8 @@
     }
 
     // ======================
-    //  Link Management
+    //  Media Info
     // ======================
-    async handleExternalLinks() {
-      try {
-        await this.clearExpiredCache();
-        this.mediaInfo = this.getMediaInfo();
-
-        if (this.mediaInfo.imdbId) {
-          await this.processWikidataLinks();
-        }
-
-        if (
-          this.mediaInfo.type === 'movie' &&
-          this.config.Letterboxd !== false &&
-          !this.linkExists('Letterboxd') &&
-          this.mediaInfo.tmdbId
-        ) {
-          this.createLink(
-            'Letterboxd',
-            `https://letterboxd.com/tmdb/${this.mediaInfo.tmdbId}`
-          );
-        }
-      } catch (error) {
-        this.error(`Failed handling external links: ${error.message}`);
-      }
-    }
-
     getMediaInfo() {
       const pathParts = location.pathname.split('/');
       const type = pathParts[1] === 'movies' ? 'movie' : 'tv';
@@ -186,6 +162,26 @@
         tmdbId,
         isSeasonPage
       };
+    }
+
+    // ======================
+    //  Link Management
+    // ======================
+    async handleExternalLinks() {
+      try {
+        await this.clearExpiredCache();
+        this.mediaInfo = this.getMediaInfo();
+
+        if (this.mediaInfo.imdbId) {
+          await this.processWikidataLinks();
+        }
+
+        if (this.mediaInfo.tmdbId || this.mediaInfo.imdbId) {
+          this.addCustomLinks();
+        }
+      } catch (error) {
+        this.error(`Failed handling external links: ${error.message}`);
+      }
     }
 
     createLink(name, url) {
@@ -232,6 +228,37 @@
           !(this.mediaInfo.isSeasonPage && animeSites.has(site))
         ) {
           this.createLink(site, link.value);
+        }
+      });
+    }
+
+    addCustomLinks() {
+      const customLinks = [
+        {
+          name: 'Letterboxd',
+          url: () => `https://letterboxd.com/tmdb/${this.mediaInfo.tmdbId}`,
+          condition: () => this.mediaInfo.type === 'movie',
+          requiredData: 'tmdbId'
+        },
+        {
+          name: 'Mediux',
+          url: () => {
+            const path = this.mediaInfo.type === 'movie' ? 'movies' : 'shows';
+            return `https://mediux.pro/${path}/${this.mediaInfo.tmdbId}`;
+          },
+          condition: () => true,
+          requiredData: 'tmdbId'
+        }
+      ];
+
+      customLinks.forEach(linkConfig => {
+        if (
+          this.config[linkConfig.name] !== false &&
+          !this.linkExists(linkConfig.name) &&
+          this.mediaInfo[linkConfig.requiredData] &&
+          linkConfig.condition()
+        ) {
+          this.createLink(linkConfig.name, linkConfig.url());
         }
       });
     }
