@@ -149,6 +149,18 @@
         if (this.mediaInfo.imdbId) {
           await this.processWikidataLinks();
         }
+
+        if (
+          this.mediaInfo.type === 'movie' &&
+          this.config.Letterboxd !== false &&
+          !this.linkExists('Letterboxd') &&
+          this.mediaInfo.tmdbId
+        ) {
+          this.createLink(
+            'Letterboxd',
+            `https://letterboxd.com/tmdb/${this.mediaInfo.tmdbId}`
+          );
+        }
       } catch (error) {
         this.error(`Failed handling external links: ${error.message}`);
       }
@@ -158,16 +170,20 @@
       const pathParts = location.pathname.split('/');
       const type = pathParts[1] === 'movies' ? 'movie' : 'tv';
       const imdbLink = $('#external-link-imdb');
+      const tmdbLink = $('#external-link-tmdb');
+
       const imdbId = imdbLink.length ? imdbLink.attr('href')?.match(/tt\d+/)?.[0] : null;
+      const tmdbId = tmdbLink.length ? tmdbLink.attr('href')?.match(/\/(?:movie|tv)\/(\d+)/)?.[1] : null;
 
       const seasonsIndex = pathParts.indexOf('seasons');
-      const isSeasonPage = seasonsIndex !== -1
-        && seasonsIndex < pathParts.length - 1
-        && !isNaN(Number(pathParts[seasonsIndex + 1]));
+      const isSeasonPage = seasonsIndex !== -1 &&
+                          seasonsIndex < pathParts.length - 1 &&
+                          !isNaN(Number(pathParts[seasonsIndex + 1]));
 
       return {
         type,
         imdbId,
+        tmdbId,
         isSeasonPage
       };
     }
