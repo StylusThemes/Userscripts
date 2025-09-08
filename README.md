@@ -11,7 +11,8 @@ To use these scripts, you need a userscript manager browser extension.
 1.  **Install a Userscript Manager:** Choose one for your browser:
     *   [Violentmonkey](https://violentmonkey.github.io/)
     *   [Tampermonkey](https://www.tampermonkey.net/)
-    *   [Greasemonkey](https://www.greasemonkey.net/)
+    *   [Greasemonkey](https://www.greasespot.net) (Firefox only)
+    *   [Userscripts](https://apps.apple.com/app/userscripts/id1463298887) (Safari only)
 
 2.  **Install a Script:** Click one of the `Install` links in the table below. Your userscript manager will open a new tab and prompt you to confirm the installation.
 

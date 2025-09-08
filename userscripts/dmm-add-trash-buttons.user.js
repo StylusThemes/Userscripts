@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          DMM - Add Trash Guide Regex Buttons
-// @version       2.4.1
+// @version       2.4.2
 // @description   Adds buttons to Debrid Media Manager for applying Trash Guide regex patterns.
 // @author        Journey Over
 // @license       MIT
@@ -216,8 +216,12 @@
       .${p}-quality-button:focus{outline:1px solid rgba(59,130,246,.5);}
       .${p}-quality-label{color:#e6f0ff;cursor:pointer;white-space:nowrap;}
       .${p}-logic-selector{margin-right:.75rem;padding-right:.75rem;border-right:1px solid rgba(148,163,184,.15);display:flex;align-items:center;}
-      .${p}-logic-select{background:#1f2937;color:#e6f0ff;border:1px solid rgba(148,163,184,.4);border-radius:4px;padding:.2rem .4rem;font-size:11px;cursor:pointer;}
-      .${p}-logic-select:focus{outline:1px solid rgba(59,130,246,.5);}
+      .${p}-logic-toggle{display:inline-flex;border:1px solid rgba(148,163,184,.4);border-radius:.375rem;overflow:hidden;}
+      .${p}-logic-option{background:#1f2937;color:#e6f0ff;border:none;padding:.25rem .5rem;font-size:12px;cursor:pointer;transition:all 0.2s ease;line-height:1;display:flex;align-items:center;position:relative;}
+      .${p}-logic-option:hover{background:#374151;}
+      .${p}-logic-option.active{background:#3b82f6;color:#fff;border-left:1px solid #3b82f6;border-right:1px solid #3b82f6;margin-left:-1px;margin-right:-1px;z-index:1;}
+      .${p}-logic-option:focus{outline:1px solid rgba(59,130,246,.5);}
+
       .${p}-help-icon{background:#1f2937;color:#e6f0ff;border:1px solid rgba(148,163,184,.4);border-radius:50%;width:16px;height:16px;font-size:11px;cursor:help;margin-left:.25rem;display:inline-flex;align-items:center;justify-content:center;font-weight:bold;}
       .${p}-help-icon:hover{background:#374151;}
       h2.line-clamp-2{display:block!important;-webkit-line-clamp:unset!important;-webkit-box-orient:unset!important;overflow:visible!important;text-overflow:unset!important;white-space:normal!important;} //untruncates titles so they are easier to read
@@ -298,13 +302,14 @@
       const logicSelector = document.createElement('div');
       logicSelector.className = `${CONFIG.CSS_CLASS_PREFIX}-logic-selector`;
 
-      const logicSelect = document.createElement('select');
-      logicSelect.className = `${CONFIG.CSS_CLASS_PREFIX}-logic-select`;
+      const logicSelect = document.createElement('div');
+      logicSelect.className = `${CONFIG.CSS_CLASS_PREFIX}-logic-toggle`;
+      logicSelect.setAttribute('tabindex', '0');
       logicSelect.innerHTML = `
-        <option value="or">OR</option>
-        <option value="and">AND</option>
+        <button type="button" class="${CONFIG.CSS_CLASS_PREFIX}-logic-option active" data-mode="or">OR</button>
+        <button type="button" class="${CONFIG.CSS_CLASS_PREFIX}-logic-option" data-mode="and">AND</button>
       `;
-      logicSelect.addEventListener('change', (e) => this.onLogicChange(e.target.value === 'and'));
+      logicSelect.addEventListener('click', (e) => this.onLogicToggle(e));
 
       // Add help icon
       const helpIcon = document.createElement('button');
@@ -362,8 +367,35 @@
       });
 
       if (this.logicSelect) {
-        this.logicSelect.value = this.useAndLogic ? 'and' : 'or';
+        const allOptions = this.logicSelect.querySelectorAll(`.${CONFIG.CSS_CLASS_PREFIX}-logic-option`);
+        allOptions.forEach(option => {
+          option.classList.remove('active');
+          if ((option.dataset.mode === 'and' && this.useAndLogic) ||
+              (option.dataset.mode === 'or' && !this.useAndLogic)) {
+            option.classList.add('active');
+          }
+        });
       }
+    }
+
+    onLogicToggle(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      // Check if clicked element is a logic option button
+      const target = e.target;
+      if (!target.classList.contains(`${CONFIG.CSS_CLASS_PREFIX}-logic-option`)) return;
+      
+      const mode = target.dataset.mode;
+      const useAndLogic = mode === 'and';
+      
+      // Update visual state
+      const allOptions = this.logicSelect.querySelectorAll(`.${CONFIG.CSS_CLASS_PREFIX}-logic-option`);
+      allOptions.forEach(option => option.classList.remove('active'));
+      target.classList.add('active');
+      
+      // Update logic
+      this.onLogicChange(useAndLogic);
     }
 
     onLogicChange(useAndLogic) {
