@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name          Hy-Vee - Auto Clip Coupons
-// @version       1.4.0
-// @description   Add a button to manually clip all coupons on the Hy-Vee coupons page.
+// @version       1.4.1
+// @description   Add a button to automatically clip all coupons on the Hy-Vee coupons page.
 // @author        Journey Over
 // @license       MIT
-// @match         *://*.hy-vee.com/deals/coupons?offerState=Available
+// @match         *://*.hy-vee.com/*
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@c185c2777d00a6826a8bf3c43bbcdcfeba5a9566/libs/utils/utils.min.js
 // @grant         none
 // @icon          https://www.google.com/s2/favicons?sz=64&domain=hy-vee.com
@@ -98,8 +98,10 @@
 
   // Initialize the script after the page loads
   function initializeScript() {
-    createClippingButton();
-    logger('Clipping button added to the page.');
+    if (window.location.href === 'https://www.hy-vee.com/deals/coupons?offerState=Available') {
+      createClippingButton();
+      logger('Clipping button added to the page.');
+    }
   }
 
   // Wait for the page to load before initializing the script
