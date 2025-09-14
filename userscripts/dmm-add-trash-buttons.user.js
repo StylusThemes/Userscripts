@@ -1,14 +1,14 @@
 // ==UserScript==
 // @name          DMM - Add Trash Guide Regex Buttons
-// @version       2.5.0
+// @version       3.0.0
 // @description   Adds buttons to Debrid Media Manager for applying Trash Guide regex patterns.
 // @author        Journey Over
 // @license       MIT
 // @match         *://debridmediamanager.com/*
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@c185c2777d00a6826a8bf3c43bbcdcfeba5a9566/libs/dmm/button-data.min.js
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@c185c2777d00a6826a8bf3c43bbcdcfeba5a9566/libs/gm/gmcompat.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@c185c2777d00a6826a8bf3c43bbcdcfeba5a9566/libs/utils/utils.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@c185c2777d00a6826a8bf3c43bbcdcfeba5a9566/libs/wikidata/index.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@daf2c0a40cf42b5bd783184e09919157bdad4873/libs/utils/utils.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@daf2c0a40cf42b5bd783184e09919157bdad4873/libs/wikidata/index.min.js
 // @grant         GM.getValue
 // @grant         GM.setValue
 // @grant         GM.xmlHttpRequest
@@ -28,17 +28,36 @@
    * Defines selectors, storage keys, and behavioral settings
    */
   const CONFIG = {
-    CONTAINER_SELECTOR: '.mb-2', // CSS selector for button container
+    // Page and DOM selectors
     RELEVANT_PAGE_RX: /debridmediamanager\.com\/(movie|show)\/[^\/]+/, // Pages where buttons should appear
+    CONTAINER_SELECTOR: '.mb-2', // CSS selector for button container
     MAX_RETRIES: 20, // Max attempts to find container on SPA pages
+
+    // Anime and IMDB selectors
+    IMDB_LINK_SELECTOR: 'a[href*="imdb.com/title/"]',
+    IMDB_ID_REGEX: /imdb\.com\/title\/(tt\d+)/,
+    ANILIST_ID_REGEX: /anilist\.co\/anime\/(\d+)/,
+    CACHE_PREFIX: 'dmm-anime-cache-',
+    CACHE_DURATION: 24 * 60 * 60 * 1000, // 24 hours in milliseconds
+
+    // UI styling
     CSS_CLASS_PREFIX: 'dmm-tg', // Prefix for all CSS classes to avoid conflicts
+
+    // Storage keys
     STORAGE_KEY: 'dmm-tg-quality-options', // Local storage key for selected quality options
     POLARITY_STORAGE_KEY: 'dmm-tg-quality-polarity', // Storage key for quality polarity (positive/negative)
     LOGIC_STORAGE_KEY: 'dmm-tg-logic-mode', // Storage key for AND/OR logic mode preference
-    CACHE_DURATION: 24 * 60 * 60 * 1000 // 24 hours in milliseconds
+
+    // Regex patterns for quality removal
+    REGEX_PATTERNS: {
+      AND_LOOKAHEAD: /\^(\(\?[\=!].*?\))+\.\*/,
+      OR_ALTERNATION: /\|\([^)]+\)$/,
+      QUALITY_GROUP: /^\([^)]+\)$/,
+      NEGATIVE_LOOKAHEAD: /^\(\?[\=!].*?\)$/
+    }
   };
 
-  // Ensure BUTTON_DATA is available and valid (loaded from external CDN)
+  // Validate BUTTON_DATA from external CDN
   const BUTTON_DATA = Array.isArray(window?.DMM_BUTTON_DATA) ? window.DMM_BUTTON_DATA : [];
 
   // Initialize Wikidata API
@@ -65,100 +84,71 @@
   const allQualityValues = QUALITY_TOKENS.flatMap(token => token.values);
 
   /**
-   * Checks if the current page is for an anime by using Wikidata to get AniList ID
-   * Also checks if the anime exists on Releases.moe
-   * @returns {Promise<{isAnime: boolean, anilistId: string | null, releasesExists: boolean}>} Object with anime status, AniList ID, and releases existence
+   * Retrieves cached anime data for an IMDB ID
+   * @param {string} imdbId - The IMDB ID
+   * @returns {Promise<Object|null>} Cached data or null
    */
-  const isAnimePage = async () => {
-    try {
-      // Get IMDB ID from the page
-      const imdbLink = qs('a[href*="imdb.com/title/"]');
-      if (!imdbLink) {
-        logger.debug('No IMDB link found on page');
-        return { isAnime: false, anilistId: null, releasesExists: false };
-      }
-      const href = imdbLink.href;
-      const match = href.match(/imdb\.com\/title\/(tt\d+)/);
-      if (!match) {
-        logger.debug('Invalid IMDB URL format');
-        return { isAnime: false, anilistId: null, releasesExists: false };
-      }
-      const imdbId = match[1];
+  const getCachedAnimeData = async (imdbId) => {
+    const cache = await GMC.getValue('cache') || {};
+    if (typeof cache !== 'object' || Array.isArray(cache)) return null;
+    const cacheKey = `${CONFIG.CACHE_PREFIX}${imdbId}`;
+    const cached = cache[cacheKey];
+    if (cached && (Date.now() - cached.timestamp) < CONFIG.CACHE_DURATION) {
+      return cached.data;
+    }
+    return null;
+  };
 
-      // Check cache first
-      const cache = await GMC.getValue('cache') || {};
-      const cacheKey = `dmm-anime-cache-${imdbId}`;
-      const cached = cache[cacheKey];
-
-      if (cached && (Date.now() - cached.timestamp) < CONFIG.CACHE_DURATION) {
-        logger.debug(`Anime cache hit for ${imdbId} (${Math.round((Date.now() - cached.timestamp) / 1000)}s old)`);
-        return cached.data;
-      }
-
-      logger.debug(`Anime cache miss for ${imdbId}, fetching from APIs`);
-
-      // Determine media type from URL
-      const url = location.href;
-      const mediaType = url.includes('/movie/') ? 'movie' : 'tv';
-
-      // Use Wikidata to get external links
-      const data = await wikidata.links(imdbId, 'IMDb', mediaType);
-
-      // Check if AniList link exists (indicates it's anime)
-      const anilistLink = data.links?.AniList?.value;
-      let result = { isAnime: false, anilistId: null, releasesExists: false };
-
-      if (anilistLink) {
-        const anilistMatch = anilistLink.match(/anilist\.co\/anime\/(\d+)/);
-        const anilistId = anilistMatch ? anilistMatch[1] : null;
-
-        if (anilistId) {
-          // Check if anime exists on Releases.moe
-          const releasesExists = await checkReleasesMoeExists(anilistId);
-          result = { isAnime: true, anilistId, releasesExists };
-          logger(`Anime detected: ${imdbId} -> AniList ${anilistId}, Releases.moe: ${releasesExists ? 'available' : 'not available'}`);
-        } else {
-          // No AniList ID found, so releases can't exist
-          result = { isAnime: true, anilistId: null, releasesExists: false };
-          logger.debug(`Anime detected: ${imdbId} but no AniList ID found`);
-        }
-      } else {
-        logger.debug(`Non-anime content: ${imdbId} (no AniList link)`);
-      }
-
-      // Cache the result
-      cache[cacheKey] = {
-        data: result,
-        timestamp: Date.now()
-      };
-
-      // Check if cleanup is needed (exactly every 24 hours)
-      const lastCleanup = await GMC.getValue('cache-last-cleanup') || 0;
-      const now = Date.now();
-      if (now - lastCleanup >= CONFIG.CACHE_DURATION) {
-        // Clean up expired entries
-        let cleanedCount = 0;
-        for (const [key, entry] of Object.entries(cache)) {
-          if (key.startsWith('dmm-anime-cache-') && (now - entry.timestamp) > CONFIG.CACHE_DURATION) {
-            delete cache[key];
-            cleanedCount++;
-          }
-        }
-        // Update last cleanup timestamp
-        await GMC.setValue('cache-last-cleanup', now);
-        if (cleanedCount > 0) {
-          logger.debug(`Cache cleanup: Removed ${cleanedCount} expired entries`);
-        }
-      }
-
-      await GMC.setValue('cache', cache);
-
-      return result;
-    } catch (error) {
-      logger.error(`Anime detection failed for ${location.href}:`, error);
+  /**
+   * Fetches anime data from APIs
+   * @param {string} imdbId - The IMDB ID
+   * @param {string} mediaType - 'movie' or 'tv'
+   * @returns {Promise<Object>} Result object with isAnime, anilistId, releasesExists
+   */
+  const fetchAnimeData = async (imdbId, mediaType) => {
+    const data = await wikidata.links(imdbId, 'IMDb', mediaType);
+    const anilistLink = data.links?.AniList?.value;
+    if (!anilistLink) {
       return { isAnime: false, anilistId: null, releasesExists: false };
     }
+    const anilistMatch = anilistLink.match(CONFIG.ANILIST_ID_REGEX);
+    const anilistId = anilistMatch ? anilistMatch[1] : null;
+    if (!anilistId) {
+      return { isAnime: true, anilistId: null, releasesExists: false };
+    }
+    const releasesExists = await checkReleasesMoeExists(anilistId);
+    return { isAnime: true, anilistId, releasesExists };
   };
+
+  /**
+   * Updates the cache with new data
+   * @param {string} imdbId - The IMDB ID
+   * @param {Object} result - The result to cache
+   */
+  const updateCache = async (imdbId, result) => {
+    let cache = await GMC.getValue('cache') || {};
+    if (typeof cache !== 'object' || Array.isArray(cache)) cache = {};
+    const cacheKey = `${CONFIG.CACHE_PREFIX}${imdbId}`;
+    cache[cacheKey] = { data: result, timestamp: Date.now() };
+    // Cleanup old entries
+    const now = Date.now();
+    const lastCleanup = await GMC.getValue('cache-last-cleanup') || 0;
+    if (now - lastCleanup >= CONFIG.CACHE_DURATION) {
+      let cleanedCount = 0;
+      for (const [key, entry] of Object.entries(cache)) {
+        if (key.startsWith(CONFIG.CACHE_PREFIX) && (now - entry.timestamp) > CONFIG.CACHE_DURATION) {
+          delete cache[key];
+          cleanedCount++;
+        }
+      }
+      await GMC.setValue('cache-last-cleanup', now);
+      if (cleanedCount > 0) {
+        logger.debug(`Cache cleanup: Removed ${cleanedCount} expired entries`);
+      }
+    }
+    await GMC.setValue('cache', cache);
+  };
+
   /**
    * Checks if an anime exists on Releases.moe
    * @param {string} anilistId - The AniList ID to check
@@ -190,55 +180,6 @@
     });
   };
 
-  // DOM utility functions for concise element selection and manipulation
-  const qs = (sel, root = document) => root.querySelector(sel);
-  const qsa = (sel, root = document) => Array.from(root.querySelectorAll(sel));
-  const isVisible = (el) => !!(el && el.offsetParent !== null && getComputedStyle(el).visibility !== 'hidden');
-
-  /**
-   * Gets the native value property setter for React input compatibility
-   * React overrides the default input.value setter, so we need the original
-   * @param {HTMLInputElement|HTMLTextAreaElement} el - Input element
-   * @returns {Function} Native setter function or null if not found
-   */
-  const getNativeValueSetter = (el) => {
-    const proto = el instanceof HTMLInputElement ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype;
-    const desc = Object.getOwnPropertyDescriptor(proto, 'value');
-    return desc && desc.set;
-  };
-
-  /**
-   * Sets input value in a React-compatible way that triggers re-renders
-   * Uses native setter and dispatches events to ensure React sees the change
-   * @param {HTMLInputElement|HTMLTextAreaElement} el - Target input element
-   * @param {string} value - Value to set
-   */
-  const setInputValueReactive = (el, value) => {
-    const nativeSetter = getNativeValueSetter(el);
-    if (nativeSetter) {
-      nativeSetter.call(el, value);
-    } else {
-      el.value = value;
-    }
-
-    // Set focus and cursor position for better UX
-    try {
-      el.focus();
-      if (typeof el.setSelectionRange === 'function') el.setSelectionRange(value.length, value.length);
-    } catch (err) { /* Ignore focus errors */ }
-
-    // Trigger events that React listens for
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-
-    // Handle React's internal value tracking if present
-    try {
-      if (el._valueTracker && typeof el._valueTracker.setValue === 'function') {
-        el._valueTracker.setValue(value);
-      }
-    } catch (err) { /* Ignore React internals errors */ }
-  };
-
   /**
    * Removes quality-related regex patterns from a base pattern
    * Handles both AND mode lookaheads (^.*(?=.*quality)) and OR mode alternations (|quality)
@@ -252,7 +193,7 @@
     let cleaned = regex;
 
     // Remove AND patterns: lookaheads at the beginning (after ^)
-    const andMatch = cleaned.match(/\^(\(\?[\=!].*?\))+\.\*/);
+    const andMatch = cleaned.match(CONFIG.REGEX_PATTERNS.AND_LOOKAHEAD);
     if (andMatch && andMatch.index === 0) {
       const matched = andMatch[0];
       const hasQuality = allQualityValues.some(q => matched.includes(q));
@@ -262,7 +203,7 @@
     }
 
     // Remove OR patterns: alternations at the end
-    const orMatch = cleaned.match(/\|\([^)]+\)$/);
+    const orMatch = cleaned.match(CONFIG.REGEX_PATTERNS.OR_ALTERNATION);
     if (orMatch) {
       const matched = orMatch[0];
       const hasQuality = allQualityValues.some(q => matched.includes(q));
@@ -272,7 +213,7 @@
     }
 
     // If the remaining string is just a quality pattern, clear it
-    if (cleaned.match(/^\([^)]+\)$/) || cleaned.match(/^\(\?[\=!].*?\)$/)) {
+    if (cleaned.match(CONFIG.REGEX_PATTERNS.QUALITY_GROUP) || cleaned.match(CONFIG.REGEX_PATTERNS.NEGATIVE_LOOKAHEAD)) {
       const hasQuality = allQualityValues.some(q => cleaned.includes(q));
       if (hasQuality) {
         cleaned = '';
@@ -353,7 +294,6 @@
       .${p}-logic-option:hover{background:#374151;}
       .${p}-logic-option.active{background:#3b82f6;color:#fff;border-left:1px solid #3b82f6;border-right:1px solid #3b82f6;margin-left:-1px;margin-right:-1px;z-index:1;}
       .${p}-logic-option:focus{outline:1px solid rgba(59,130,246,.5);}
-
       .${p}-help-icon{background:#1f2937;color:#e6f0ff;border:1px solid rgba(148,163,184,.4);border-radius:50%;width:16px;height:16px;font-size:11px;cursor:help;margin-left:.25rem;display:inline-flex;align-items:center;justify-content:center;font-weight:bold;}
       .${p}-help-icon:hover{background:#374151;}
       h2.line-clamp-2{display:block!important;-webkit-line-clamp:unset!important;-webkit-box-orient:unset!important;overflow:visible!important;text-overflow:unset!important;white-space:normal!important;} //untruncates titles so they are easier to read
@@ -443,7 +383,6 @@
       `;
       logicSelect.addEventListener('click', (e) => this.onLogicToggle(e));
 
-      // Add help icon
       const helpIcon = document.createElement('button');
       helpIcon.type = 'button';
       helpIcon.className = `${CONFIG.CSS_CLASS_PREFIX}-help-icon`;
@@ -454,7 +393,6 @@
       logicSelector.appendChild(helpIcon);
       this.logicSelect = logicSelect;
 
-      // Quality token buttons
       const grid = document.createElement('div');
       grid.className = `${CONFIG.CSS_CLASS_PREFIX}-quality-grid`;
 
@@ -514,25 +452,22 @@
       e.preventDefault();
       e.stopPropagation();
 
-      // Check if clicked element is a logic option button
       const target = e.target;
       if (!target.classList.contains(`${CONFIG.CSS_CLASS_PREFIX}-logic-option`)) return;
 
       const mode = target.dataset.mode;
       const useAndLogic = mode === 'and';
 
-      // Update visual state
       const allOptions = this.logicSelect.querySelectorAll(`.${CONFIG.CSS_CLASS_PREFIX}-logic-option`);
       allOptions.forEach(option => option.classList.remove('active'));
       target.classList.add('active');
 
-      // Update logic
       this.onLogicChange(useAndLogic);
     }
 
     onLogicChange(useAndLogic) {
       // Clean existing patterns before switching modes
-      const target = this.findTargetInput();
+      const target = findTargetInput(this.container);
       if (target) {
         const currentValue = target.value || '';
         const cleanedValue = removeQualityFromRegex(currentValue);
@@ -576,43 +511,73 @@
     onToggleOption(key, btn) {
       const isActive = btn.classList.contains('active');
       const isNegative = btn.classList.contains('negative');
+      const isSelected = this.selectedOptions.includes(key);
 
+      // Determine next state based on current state and logic mode
       if (!isActive && !isNegative) {
-        // Currently off -> positive (or just on in OR mode)
-        btn.classList.add('active');
-        if (!this.selectedOptions.includes(key)) this.selectedOptions.push(key);
-        // Only set polarity in AND mode
-        if (this.useAndLogic) {
-          this.qualityPolarity.set(key, true); // positive
-        }
+        // Off -> On (positive in AND mode, just active in OR mode)
+        this._activateOption(key, btn);
       } else if (isActive && !isNegative) {
         if (this.useAndLogic) {
-          // Currently positive -> negative (only in AND mode)
-          btn.classList.add('negative');
-          this.qualityPolarity.set(key, false); // negative
+          // Positive -> Negative (only in AND mode)
+          this._makeNegative(key, btn);
         } else {
-          // Currently on -> off (in OR mode)
-          btn.classList.remove('active');
-          const idx = this.selectedOptions.indexOf(key);
-          if (idx > -1) this.selectedOptions.splice(idx, 1);
+          // On -> Off (in OR mode)
+          this._deactivateOption(key, btn);
         }
       } else {
-        // Currently negative -> off (only possible in AND mode)
-        btn.classList.remove('active');
-        btn.classList.remove('negative');
-        const idx = this.selectedOptions.indexOf(key);
-        if (idx > -1) this.selectedOptions.splice(idx, 1);
-        this.qualityPolarity.delete(key);
+        // Negative -> Off (only possible in AND mode)
+        this._deactivateOption(key, btn);
       }
 
+      this._saveOptions();
+      this.updateInputWithQualityOptions();
+    }
+
+    /**
+     * Activate an option (add to selected and make positive)
+     */
+    _activateOption(key, btn) {
+      btn.classList.add('active');
+      if (!this.selectedOptions.includes(key)) {
+        this.selectedOptions.push(key);
+      }
+      if (this.useAndLogic) {
+        this.qualityPolarity.set(key, true); // positive
+      }
+    }
+
+    /**
+     * Make an option negative (only in AND mode)
+     */
+    _makeNegative(key, btn) {
+      btn.classList.add('negative');
+      this.qualityPolarity.set(key, false); // negative
+    }
+
+    /**
+     * Deactivate an option (remove from selected and clean up)
+     */
+    _deactivateOption(key, btn) {
+      btn.classList.remove('active');
+      btn.classList.remove('negative');
+      const idx = this.selectedOptions.indexOf(key);
+      if (idx > -1) {
+        this.selectedOptions.splice(idx, 1);
+      }
+      this.qualityPolarity.delete(key);
+    }
+
+    /**
+     * Save current options to storage
+     */
+    _saveOptions() {
       try {
         GMC.setValue(CONFIG.STORAGE_KEY, JSON.stringify(this.selectedOptions));
         GMC.setValue(CONFIG.POLARITY_STORAGE_KEY, JSON.stringify(Object.fromEntries(this.qualityPolarity)));
       } catch (err) {
         logger.error('Failed to save quality options:', err);
       }
-
-      this.updateInputWithQualityOptions();
     }
 
     /**
@@ -622,7 +587,7 @@
      * OR mode: Appends |quality to allow any quality
      */
     updateInputWithQualityOptions() {
-      const target = this.findTargetInput();
+      const target = findTargetInput(this.container);
       if (!target) return;
 
       const currentValue = target.value || '';
@@ -662,27 +627,6 @@
       }
     }
 
-    /**
-     * Finds the target input element using priority-based search
-     * Prefers #query, falls back to container inputs, then any visible input
-     */
-    findTargetInput() {
-      // Primary target: #query input
-      let target = qs('#query');
-      if (target && isVisible(target)) return target;
-
-      // Secondary: inputs within our container
-      if (this.container) {
-        target = this.container.querySelector('input, textarea');
-        if (target && isVisible(target)) return target;
-      }
-
-      // Fallback: any visible input
-      const candidates = qsa('input, textarea');
-      target = candidates.find(isVisible) || null;
-      return target;
-    }
-
     cleanup() {
       this.buttons.clear();
       this.qualityPolarity.clear();
@@ -703,7 +647,6 @@
       this.openMenu = null;
       this.qualityManager = new QualityManager();
 
-      // Bind event handlers for proper 'this' context
       this.documentClickHandler = this.onDocumentClick.bind(this);
       this.resizeHandler = this.onWindowResize.bind(this);
       this.keydownHandler = this.onDocumentKeydown.bind(this);
@@ -725,11 +668,12 @@
       window.removeEventListener('resize', this.resizeHandler);
     }
 
-    async initialize(container, isAnime = false, anilistId = null, releasesExists = false) {
+    async initialize(container) {
       if (!container || this.container === container) return;
       logger.debug('ButtonManager initialized', { container: !!container, sameContainer: this.container === container });
       this.cleanup();
       this.container = container;
+      this.cachedContainer = container; // Cache for performance
 
       // Create buttons for each pattern group
       BUTTON_DATA.forEach((spec) => {
@@ -750,19 +694,10 @@
       });
 
       await this.qualityManager.initialize(container);
-      if (isAnime && anilistId && releasesExists) {
-        logger('Anime detected with Releases.moe availability', { anilistId, releasesExists });
-        this.createReleasesMoeButton(`https://releases.moe/${anilistId}/`);
-      } else if (isAnime && anilistId && !releasesExists) {
-        logger.debug('Anime detected but not available on Releases.moe', { anilistId });
-      } else if (isAnime && !anilistId) {
-        logger.debug('Anime detected but no AniList ID found');
-      } else {
-        logger.debug('Non-anime content detected');
-      }
       logger.debug('Created dropdown buttons:', { count: this.dropdowns.size });
 
-      // Set up global event listeners for menu management
+      await this.detectAnimeForCurrentPage();
+
       document.addEventListener('click', this.documentClickHandler, true);
       document.addEventListener('keydown', this.keydownHandler);
       window.addEventListener('resize', this.resizeHandler);
@@ -809,16 +744,16 @@
       menu.className = `${CONFIG.CSS_CLASS_PREFIX}-menu`;
       menu.dataset.owner = name;
 
-      items.forEach((it) => {
-        const item = document.createElement('div');
-        item.className = `${CONFIG.CSS_CLASS_PREFIX}-item`;
-        item.textContent = it.name || it.value || 'apply';
-        item.addEventListener('click', (ev) => {
+      items.forEach((item) => {
+        const menuItem = document.createElement('div');
+        menuItem.className = `${CONFIG.CSS_CLASS_PREFIX}-item`;
+        menuItem.textContent = item.name || item.value || 'apply';
+        menuItem.addEventListener('click', (ev) => {
           ev.stopPropagation();
-          this.onSelectPattern(it.value, it.name);
+          this.onSelectPattern(item.value, item.name);
           this.closeOpenMenu();
         });
-        menu.appendChild(item);
+        menu.appendChild(menuItem);
       });
 
       return menu;
@@ -886,7 +821,7 @@
      * @param {string} name - The display name of the selected pattern
      */
     onSelectPattern(value, name) {
-      let target = this.findTargetInput();
+      let target = findTargetInput(this.cachedContainer || this.container);
 
       if (!target) {
         logger.error('Could not find target input element:', { name, value });
@@ -907,27 +842,72 @@
     }
 
     /**
-     * Finds target input using same logic as QualityManager
+     * Detects if the current page is for an anime and creates Releases.moe button if applicable
      */
-    findTargetInput() {
-      let target = qs('#query');
-      if (!target || !isVisible(target)) {
-        if (this.container) {
-          target = this.container.querySelector('input, textarea');
-          if (target && !isVisible(target)) target = null;
+    async detectAnimeForCurrentPage() {
+      try {
+        const imdbLink = qs(CONFIG.IMDB_LINK_SELECTOR);
+        if (!imdbLink) {
+          logger.debug('No IMDB link found on page');
+          return;
         }
-        if (!target) {
-          const candidates = qsa('input, textarea');
-          target = candidates.find(isVisible) || null;
+        const href = imdbLink.href;
+        const match = href.match(CONFIG.IMDB_ID_REGEX);
+        if (!match) {
+          logger.debug('Invalid IMDB URL format');
+          return;
         }
+        const imdbId = match[1];
+
+        // Check cache first
+        const cachedData = await getCachedAnimeData(imdbId);
+        if (cachedData) {
+          logger.debug(`Anime cache hit for ${imdbId} (${Math.round((Date.now() - cachedData.timestamp) / 1000)}s old)`);
+          this.handleAnimeResult(cachedData);
+          return;
+        }
+
+        logger.debug(`Anime cache miss for ${imdbId}, fetching from APIs`);
+
+        const url = location.href;
+        const mediaType = url.includes('/movie/') ? 'movie' : 'tv';
+        const result = await fetchAnimeData(imdbId, mediaType);
+        await updateCache(imdbId, result);
+        this.handleAnimeResult(result);
+      } catch (error) {
+        logger.error(`Anime detection failed for ${location.href}:`, error);
       }
-      return target;
+    }
+
+    /**
+     * Handles the result of anime detection
+     * @param {Object} result - The result object
+     */
+    handleAnimeResult(result) {
+      const { isAnime, anilistId, releasesExists } = result;
+      if (isAnime && anilistId && releasesExists) {
+        logger.debug('Anime detected with Releases.moe availability', { anilistId, releasesExists });
+        this.createReleasesMoeButton(`https://releases.moe/${anilistId}/`);
+      } else if (isAnime && anilistId && !releasesExists) {
+        logger.debug('Anime detected but not available on Releases.moe', { anilistId });
+      } else if (isAnime && !anilistId) {
+        logger.debug('Anime detected but no AniList ID found');
+      } else {
+        logger.debug('Non-anime content detected');
+      }
     }
 
     /**
      * Creates the Releases.moe button element
      */
     createReleasesMoeButton(link) {
+      // Check if button already exists to prevent duplicates
+      const existingButton = qs('a[href*="releases.moe"]');
+      if (existingButton) {
+        logger.debug('Releases.moe button already exists, skipping creation');
+        return;
+      }
+
       logger.debug('Created Releases.moe button:', { link });
       const button = document.createElement('a');
       button.href = link;
@@ -958,6 +938,7 @@
       this.mutationObserver = null;
       this.debouncedCheck = debounce(this.checkPage.bind(this), 150);
       this.lastProcessedUrl = null;
+      this.cachedContainer = null; // Cache for container element
 
       this.setupHistoryHooks();
       this.setupMutationObserver();
@@ -998,7 +979,7 @@
      * Sets up mutation observer to detect DOM changes
      * Only triggers on significant content changes to avoid spam
      */
-   setupMutationObserver() {
+    setupMutationObserver() {
       if (this.mutationObserver) this.mutationObserver.disconnect();
       this.mutationObserver = new MutationObserver((mutations) => {
         for (const m of mutations) {
@@ -1015,7 +996,6 @@
      * Checks current page and initializes buttons if on relevant page
      * Uses retry mechanism for SPA pages that load content asynchronously
      * Only activates on movie/show detail pages in DMM
-     * Relies on isAnimePage()'s persistent GM storage cache for efficiency
      */
     async checkPage() {
       const url = location.href;
@@ -1029,13 +1009,16 @@
 
       // Early exit if we've already processed this exact URL
       if (url === this.lastProcessedUrl) {
-        //logger.debug('Skipping duplicate check for same URL:', { url });
         this.lastUrl = url;
         return;
       }
 
       // Wait for container element to be available
-      const container = qs(CONFIG.CONTAINER_SELECTOR);
+      let container = this.cachedContainer;
+      if (!container || !document.contains(container)) {
+        container = qs(CONFIG.CONTAINER_SELECTOR);
+        this.cachedContainer = container;
+      }
       if (!container) {
         if (this.retry < CONFIG.MAX_RETRIES) {
           this.retry++;
@@ -1048,16 +1031,7 @@
 
       this.retry = 0;
 
-      // Run anime detection for this new URL
-      logger.debug('Checking anime status for page:', { url });
-      const { isAnime, anilistId, releasesExists } = await isAnimePage();
-      logger.debug('Anime detection result:', {
-        url,
-        isAnime,
-        anilistId,
-        releasesExists
-      });
-      await this.buttonManager.initialize(container, isAnime, anilistId, releasesExists);
+      await this.buttonManager.initialize(container);
       this.lastProcessedUrl = url;
       this.lastUrl = url;
     }
@@ -1068,11 +1042,6 @@
    * Creates the PageManager instance which handles all userscript functionality
    * Only initializes if BUTTON_DATA is available (loaded from CDN)
    */
-  function ready(fn) {
-    if (document.readyState !== 'loading') fn();
-    else document.addEventListener('DOMContentLoaded', fn);
-  }
-
   ready(() => {
     try {
       if (!BUTTON_DATA.length) return;
