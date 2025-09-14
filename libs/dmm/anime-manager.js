@@ -7,6 +7,9 @@
 // @license      MIT
 // @version      1.0.0
 // @homepageURL  https://github.com/StylusThemes/Userscripts
+// ==/UserLibrary==
+// @connect      releases.moe
+// @grant        GM.xmlHttpRequest
 // ==/UserScript==
 
 (function() {
@@ -158,7 +161,14 @@
      * @param {string} link - The Releases.moe URL
      */
     createReleasesMoeButton(link) {
+      // Check if a Releases.moe button already exists to prevent duplicates
+      const existingButton = document.querySelector('a[href*="releases.moe"]');
+      if (existingButton) {
+        return;
+      }
+
       this.logger.debug('Created Releases.moe button:', { link });
+
       const button = document.createElement('a');
       button.href = link;
       button.target = '_blank';
