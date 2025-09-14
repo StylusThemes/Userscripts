@@ -5,7 +5,7 @@
 // @name         @journeyover/wikidata
 // @description  Wikidata for my userscripts
 // @license      MIT
-// @version      1.1.2
+// @version      1.1.3
 // @homepageURL  https://github.com/StylusThemes/Userscripts
 // ==/UserLibrary==
 // @connect      query.wikidata.org
@@ -234,7 +234,7 @@ this.Wikidata = class {
             if (!data.links.MyAnimeList || !data.links.AniDB || !data.links.AniList || !data.links.Kitsu || !data.links.AniSearch || !data.links.LiveChart) {
               let externalEndpoint = null;
               let externalId = null;
-              // Prefer a TMDb ID if available; otherwise fall back to TVDb.
+              // Prefer a TMDb ID if available; otherwise fall back to TVDb, then IMDb.
               if (results.TMDb_movie) {
                 externalEndpoint = "themoviedb";
                 externalId = results.TMDb_movie.value;
@@ -247,6 +247,9 @@ this.Wikidata = class {
               } else if (results.TVDb_tv) {
                 externalEndpoint = "thetvdb";
                 externalId = results.TVDb_tv.value;
+              } else if (results.IMDb) {
+                externalEndpoint = "imdb";
+                externalId = results.IMDb.value;
               }
 
               if (externalEndpoint && externalId) {
@@ -262,6 +265,7 @@ this.Wikidata = class {
                         const mapping = {
                           themoviedb: "TMDB",
                           thetvdb: "TVDB",
+                          imdb: "IMDb",
                           myanimelist: "MyAnimeList",
                           anidb: "AniDB",
                           anilist: "AniList",
@@ -276,6 +280,7 @@ this.Wikidata = class {
                             data.links[linkKey] =
                               apiKey === "themoviedb" ? this._link(itemType === "movie" ? "TMDb_movie" : "TMDb_tv", extInfo[apiKey]) :
                               apiKey === "thetvdb" ? this._link(itemType === "movie" ? "TVDb_movie" : "TVDb_tv", extInfo[apiKey]) :
+                              apiKey === "imdb" ? this._link("IMDb", extInfo[apiKey]) :
                               this._link(linkKey, extInfo[apiKey]);
                           }
                         });
