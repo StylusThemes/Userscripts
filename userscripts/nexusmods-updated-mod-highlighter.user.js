@@ -40,14 +40,14 @@
       /** Color schemes for different highlight types */
       colors: {
         update: {
-          primary: 'rgba(0,180,255,0.8)',    // Electric blue
-          secondary: 'rgba(0,240,255,0.6)',  // Cyan
+          primary: 'rgba(0,180,255,0.8)', // Electric blue
+          secondary: 'rgba(0,240,255,0.6)', // Cyan
           glow: 'rgba(0,180,255,0.4)',
           bg: 'rgba(0,180,255,0.05)'
         },
         download: {
-          primary: 'rgba(180,0,255,0.8)',   // Electric purple
-          secondary: 'rgba(255,0,180,0.6)',  // Magenta
+          primary: 'rgba(180,0,255,0.8)', // Electric purple
+          secondary: 'rgba(255,0,180,0.6)', // Magenta
           glow: 'rgba(180,0,255,0.4)',
           bg: 'rgba(180,0,255,0.05)'
         }
@@ -128,7 +128,7 @@
    */
   function isDownloadHistoryPage() {
     return window.location.pathname.includes(PAGE_SELECTORS.DOWNLOAD_HISTORY.path) &&
-           window.location.search.includes(PAGE_SELECTORS.DOWNLOAD_HISTORY.tab);
+      window.location.search.includes(PAGE_SELECTORS.DOWNLOAD_HISTORY.tab);
   }
 
   /**
