@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          DMM - Add Trash Guide Regex Buttons
-// @version       3.0.0
+// @version       3.0.1
 // @description   Adds buttons to Debrid Media Manager for applying Trash Guide regex patterns.
 // @author        Journey Over
 // @license       MIT
@@ -103,21 +103,20 @@
    * Fetches anime data from APIs
    * @param {string} imdbId - The IMDB ID
    * @param {string} mediaType - 'movie' or 'tv'
-   * @returns {Promise<Object>} Result object with isAnime, anilistId, releasesExists
+   * @returns {Promise<Object>} Result object with isAnime, anilistId
    */
   const fetchAnimeData = async (imdbId, mediaType) => {
     const data = await wikidata.links(imdbId, 'IMDb', mediaType);
     const anilistLink = data.links?.AniList?.value;
     if (!anilistLink) {
-      return { isAnime: false, anilistId: null, releasesExists: false };
+      return { isAnime: false, anilistId: null };
     }
     const anilistMatch = anilistLink.match(CONFIG.ANILIST_ID_REGEX);
     const anilistId = anilistMatch ? anilistMatch[1] : null;
     if (!anilistId) {
-      return { isAnime: true, anilistId: null, releasesExists: false };
+      return { isAnime: true, anilistId: null };
     }
-    const releasesExists = await checkReleasesMoeExists(anilistId);
-    return { isAnime: true, anilistId, releasesExists };
+    return { isAnime: true, anilistId };
   };
 
   /**
@@ -872,8 +871,21 @@
         const url = location.href;
         const mediaType = url.includes('/movie/') ? 'movie' : 'tv';
         const result = await fetchAnimeData(imdbId, mediaType);
-        await updateCache(imdbId, result);
-        this.handleAnimeResult(result);
+        if (result.isAnime && result.anilistId) {
+          const button = this.createReleasesMoeButton(`https://releases.moe/${result.anilistId}/`);
+          checkReleasesMoeExists(result.anilistId).then(async (releasesExists) => {
+            if (!releasesExists) {
+              if (button && button.parentNode) {
+                button.parentNode.removeChild(button);
+              }
+            }
+            const fullResult = { ...result, releasesExists };
+            await updateCache(imdbId, fullResult);
+          });
+        } else {
+          const fullResult = { ...result, releasesExists: false };
+          await updateCache(imdbId, fullResult);
+        }
       } catch (error) {
         logger.error(`Anime detection failed for ${location.href}:`, error);
       }
@@ -905,7 +917,7 @@
       const existingButton = qs('a[href*="releases.moe"]');
       if (existingButton) {
         logger.debug('Releases.moe button already exists, skipping creation');
-        return;
+        return existingButton;
       }
 
       logger.debug('Created Releases.moe button:', { link });
@@ -919,8 +931,10 @@
       if (buttonContainer) {
         buttonContainer.appendChild(button);
         logger.debug('Releases.moe button added to container');
+        return button;
       } else {
         logger.warn('Releases.moe button container not found');
+        return null;
       }
     }
   }
