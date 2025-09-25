@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          Magnet Link to Real-Debrid
-// @version       2.5.0
+// @version       2.5.1
 // @description   Automatically send magnet links to Real-Debrid
 // @author        Journey Over
 // @license       MIT
@@ -21,7 +21,7 @@
 (function() {
   'use strict';
 
-  const logger = Logger('Magnet Link to Real-Debrid', { debug: false });
+  let logger;
 
   /* Constants & Utilities */
   const STORAGE_KEY = 'realDebridConfig';
@@ -32,7 +32,8 @@
     apiKey: '',
     allowedExtensions: ['mp3', 'm4b', 'mp4', 'mkv', 'cbz', 'cbr'],
     filterKeywords: ['sample', 'bloopers', 'trailer'],
-    manualFileSelection: false
+    manualFileSelection: false,
+    debugEnabled: false
   };
 
   /* Errors */
@@ -59,7 +60,7 @@
       try {
         return typeof value === 'string' ? JSON.parse(value) : value;
       } catch (err) {
-        logger.error('Config parse failed, resetting to defaults.', err);
+        logger.error('[Config] Failed to parse stored configuration, resetting to defaults.', err);
         return null;
       }
     }
@@ -85,6 +86,7 @@
       if (!Array.isArray(cfg.allowedExtensions)) errors.push('allowedExtensions must be an array');
       if (!Array.isArray(cfg.filterKeywords)) errors.push('filterKeywords must be an array');
       if (typeof cfg.manualFileSelection !== 'boolean') errors.push('manualFileSelection must be a boolean');
+      if (typeof cfg.debugEnabled !== 'boolean') errors.push('debugEnabled must be a boolean');
       return errors;
     }
   }
@@ -148,7 +150,7 @@
         // window full, wait until it expires
         const earliest = obj.windowStart;
         const waitFor = Math.max(50, windowMs - (now - earliest) + 50);
-        logger.warn(`Rate window full (${obj.count}/${RealDebridService.RATE_LIMIT}), waiting ${Math.round(waitFor)}ms`);
+        logger.warn(`[Real-Debrid API] Rate limit window full (${obj.count}/${RealDebridService.RATE_LIMIT}), waiting ${Math.round(waitFor)}ms`);
         await RealDebridService._sleep(waitFor);
         attempt += 1;
       }
@@ -180,7 +182,7 @@
         return new Promise((resolve, reject) => {
           const url = `${API_BASE}${endpoint}`;
           const payload = data ? new URLSearchParams(data).toString() : null;
-          logger.debug('[RealDebridService] request', { method, url, data, attempt });
+          logger.debug(`[Real-Debrid API] ${method} ${endpoint} (attempt ${attempt + 1})`);
 
           GMC.xmlHttpRequest({
             method,
@@ -192,7 +194,7 @@
             },
             data: payload,
             onload: (resp) => {
-              logger.debug('[RealDebridService] response', { status: resp.status });
+              logger.debug(`[Real-Debrid API] Response: ${resp.status}`);
 
               if (!resp || typeof resp.status === 'undefined') {
                 return reject(new RealDebridError('Invalid API response'));
@@ -210,7 +212,7 @@
                   })();
                   const jitter = Math.random() * 200;
                   const backoff = retryAfter ? (retryAfter * 1000) : (baseDelay * Math.pow(2, attempt) + jitter);
-                  logger.warn(`[RealDebridService] Rate limited (429). Retrying in ${Math.round(backoff)}ms (attempt ${attempt + 1}/${maxAttempts})`);
+                  logger.warn(`[Real-Debrid API] Rate limited (429). Retrying in ${Math.round(backoff)}ms (attempt ${attempt + 1}/${maxAttempts})`);
                   return setTimeout(() => {
                     attemptRequest(attempt + 1).then(resolve).catch(reject);
                   }, backoff);
@@ -223,16 +225,16 @@
                 const parsed = JSON.parse(resp.responseText.trim());
                 return resolve(parsed);
               } catch (err) {
-                logger.error('[RealDebridService] parse error', err);
+                logger.error('[Real-Debrid API] Failed to parse JSON response', err);
                 return reject(new RealDebridError(`Failed to parse API response: ${err.message}`, resp.status));
               }
             },
             onerror: (err) => {
-              logger.error('[RealDebridService] Network request failed', err);
+              logger.error('[Real-Debrid API] Network request failed', err);
               return reject(new RealDebridError('Network request failed'));
             },
             ontimeout: () => {
-              logger.warn('[RealDebridService] Request timed out');
+              logger.warn('[Real-Debrid API] Request timed out');
               return reject(new RealDebridError('Request timed out'));
             }
           });
@@ -243,22 +245,27 @@
     }
 
     async addMagnet(magnet) {
+      logger.debug('[Real-Debrid API] Adding magnet link');
       return this.#request('POST', '/torrents/addMagnet', {
         magnet
       });
     }
 
     async getTorrentInfo(torrentId) {
+      logger.debug(`[Real-Debrid API] Fetching info for torrent ${torrentId}`);
       return this.#request('GET', `/torrents/info/${torrentId}`);
     }
 
     async selectFiles(torrentId, filesCsv) {
+      const fileCount = filesCsv.split(',').length;
+      logger.debug(`[Real-Debrid API] Selecting ${fileCount} files for torrent ${torrentId}`);
       return this.#request('POST', `/torrents/selectFiles/${torrentId}`, {
         files: filesCsv
       });
     }
 
     async deleteTorrent(torrentId) {
+      logger.debug(`[Real-Debrid API] Deleting torrent ${torrentId}`);
       return this.#request('DELETE', `/torrents/delete/${torrentId}`);
     }
 
@@ -269,26 +276,26 @@
       let pageNum = 1;
       while (true) {
         try {
-          logger.debug(`[RealDebridService] Fetching torrents page ${pageNum} (limit=${limit})`);
+          logger.debug(`[Real-Debrid API] Fetching torrents page ${pageNum} (limit=${limit})`);
           const page = await this.#request('GET', `/torrents?page=${pageNum}&limit=${limit}`);
           if (!Array.isArray(page) || page.length === 0) {
-            logger.warn(`[RealDebridService] No torrents returned for page ${pageNum}`);
+            logger.warn(`[Real-Debrid API] No torrents returned for page ${pageNum}`);
             break;
           }
           all.push(...page);
           if (page.length < limit) {
-            logger.debug(`[RealDebridService] Last page reached (${pageNum}) with ${page.length} items`);
+            logger.debug(`[Real-Debrid API] Last page reached (${pageNum}) with ${page.length} items`);
             break;
           }
           pageNum += 1;
         } catch (err) {
           // If rate limited, propagate so caller can handle backoff; otherwise return what we have
           if (err instanceof RealDebridError && err.statusCode === 429) throw err;
-          logger.error('[RealDebridService] Failed to fetch existing torrents page', err);
+          logger.error('[Real-Debrid API] Failed to fetch existing torrents page', err);
           break;
         }
       }
-      logger.debug(`[RealDebridService] Fetched total ${all.length} existing torrents`);
+      logger.debug(`[Real-Debrid API] Fetched total ${all.length} existing torrents`);
       return all;
     }
   }
@@ -307,9 +314,9 @@
     async initialize() {
       try {
         this.#existing = await this.#api.getExistingTorrents();
-        logger.debug('[MagnetLinkProcessor] existing torrents', this.#existing);
+        logger.debug(`[Magnet Processor] Loaded ${this.#existing.length} existing torrents`);
       } catch (err) {
-        logger.error('[MagnetLinkProcessor] Failed to load existing torrents', err);
+        logger.error('[Magnet Processor] Failed to load existing torrents', err);
         this.#existing = [];
       }
     }
@@ -402,6 +409,7 @@
         }
       }
 
+      logger.debug(`[Magnet Processor] Selected files: ${chosen.map(id => files.find(f => f.id === id)?.path || `ID:${id}`).join(', ')}`);
       await this.#api.selectFiles(torrentId, chosen.join(','));
       return chosen.length;
     }
@@ -441,6 +449,12 @@
                   Manual File Selection
                 </label>
                 <small style="color:#96c5d8;display:block;margin-top:6px;">When enabled, will show a file selection dialog for manual selection. Filtering options will be disabled.</small>
+
+                <label style="display:flex;align-items:center;gap:8px;font-weight:600;color:#cfeeff;">
+                  <input type="checkbox" id="debugEnabled" ${currentConfig.debugEnabled ? 'checked' : ''} style="margin:0;" />
+                  Enable Debug Logging
+                </label>
+                <small style="color:#96c5d8;display:block;margin-top:6px;">When enabled, debug messages will be logged to the console.</small>
               </div>
 
               <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;">
@@ -674,7 +688,7 @@
           this._markIconAsExisting(icon, 'added');
         } catch (err) {
           UIManager.showToast(err?.message || 'Failed to process magnet', 'error');
-          logger.error(err);
+          logger.error('[Magnet Processor] Failed to process magnet link', err);
         }
       };
 
@@ -772,7 +786,7 @@
     try {
       _realDebridService = new RealDebridService(cfg.apiKey);
     } catch (err) {
-      logger.warn('RealDebridService not created:', err);
+      logger.warn('[Initialization] Failed to create Real-Debrid service', err);
       return Promise.resolve(false);
     }
 
@@ -786,7 +800,7 @@
         return true;
       })
       .catch(err => {
-        logger.warn('Failed to initialize Real-Debrid integration', err);
+        logger.warn('[Initialization] Failed to initialize Real-Debrid integration', err);
         return false;
       });
 
@@ -796,6 +810,9 @@
   /* Initialization & Menu */
   async function init() {
     try {
+      const cfg = await ConfigManager.getConfig();
+      logger = Logger('Magnet Link to Real-Debrid', { debug: cfg.debugEnabled });
+
       _integratorInstance = new PageIntegrator(null);
       _integratorInstance.addIconsTo();
       _integratorInstance.startObserving();
@@ -813,7 +830,8 @@
             apiKey: dialog.querySelector('#apiKey').value.trim(),
             allowedExtensions: dialog.querySelector('#extensions').value.split(',').map(e => e.trim()).filter(Boolean),
             filterKeywords: dialog.querySelector('#keywords').value.split(',').map(k => k.trim()).filter(Boolean),
-            manualFileSelection: dialog.querySelector('#manualFileSelection').checked
+            manualFileSelection: dialog.querySelector('#manualFileSelection').checked,
+            debugEnabled: dialog.querySelector('#debugEnabled').checked
           };
           try {
             await ConfigManager.saveConfig(newCfg);
@@ -839,7 +857,7 @@
         if (apiInput) apiInput.focus();
       });
     } catch (err) {
-      logger.error('Initialization failed:', err);
+      logger.error('[Initialization] Script initialization failed', err);
     }
   }
 
