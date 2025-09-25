@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          Magnet Link to Real-Debrid
-// @version       2.4.0
+// @version       2.5.0
 // @description   Automatically send magnet links to Real-Debrid
 // @author        Journey Over
 // @license       MIT
@@ -31,7 +31,8 @@
   const DEFAULTS = {
     apiKey: '',
     allowedExtensions: ['mp3', 'm4b', 'mp4', 'mkv', 'cbz', 'cbr'],
-    filterKeywords: ['sample', 'bloopers', 'trailer']
+    filterKeywords: ['sample', 'bloopers', 'trailer'],
+    manualFileSelection: false
   };
 
   /* Errors */
@@ -83,6 +84,7 @@
       if (!cfg || !cfg.apiKey) errors.push('API Key is missing');
       if (!Array.isArray(cfg.allowedExtensions)) errors.push('allowedExtensions must be an array');
       if (!Array.isArray(cfg.filterKeywords)) errors.push('filterKeywords must be an array');
+      if (typeof cfg.manualFileSelection !== 'boolean') errors.push('manualFileSelection must be a boolean');
       return errors;
     }
   }
@@ -256,6 +258,10 @@
       });
     }
 
+    async deleteTorrent(torrentId) {
+      return this.#request('DELETE', `/torrents/delete/${torrentId}`);
+    }
+
     async getExistingTorrents() {
       // Paginate through all torrents using limit/offset until empty or error
       const all = [];
@@ -377,8 +383,24 @@
       const info = await this.#api.getTorrentInfo(torrentId);
       const files = Array.isArray(info.files) ? info.files : [];
 
-      const chosen = this.filterFiles(files).map(f => f.id);
-      if (!chosen.length) throw new RealDebridError('No matching files found after filtering');
+      let chosen;
+      if (this.#config.manualFileSelection) {
+        chosen = await UIManager.createFileSelectionDialog(files);
+        if (chosen === null) {
+          await this.#api.deleteTorrent(torrentId);
+          throw new RealDebridError('File selection cancelled');
+        }
+        if (!chosen.length) {
+          await this.#api.deleteTorrent(torrentId);
+          throw new RealDebridError('No files selected');
+        }
+      } else {
+        chosen = this.filterFiles(files).map(f => f.id);
+        if (!chosen.length) {
+          await this.#api.deleteTorrent(torrentId);
+          throw new RealDebridError('No matching files found after filtering');
+        }
+      }
 
       await this.#api.selectFiles(torrentId, chosen.join(','));
       return chosen.length;
@@ -413,6 +435,12 @@
                   <textarea id="keywords" placeholder="sample,/trailer/" style="width:100%;margin-top:6px;padding:10px;border-radius:8px;border:1px solid rgba(125,211,252,0.12);background:#051229;color:#e6eef3;font-size:13px;min-height:84px;">${currentConfig.filterKeywords.join(',')}</textarea>
                   <small style="color:#96c5d8;display:block;margin-top:6px;">Keywords or regex-like entries (comma-separated)</small>
                 </label>
+
+                <label style="display:flex;align-items:center;gap:8px;font-weight:600;color:#cfeeff;">
+                  <input type="checkbox" id="manualFileSelection" ${currentConfig.manualFileSelection ? 'checked' : ''} style="margin:0;" />
+                  Manual File Selection
+                </label>
+                <small style="color:#96c5d8;display:block;margin-top:6px;">When enabled, will show a file selection dialog for manual selection. Filtering options will be disabled.</small>
               </div>
 
               <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;">
@@ -425,6 +453,22 @@
 
       const saveBtn = dialog.querySelector('#saveBtn');
       const cancelBtn = dialog.querySelector('#cancelBtn');
+
+      // Handle manual file selection toggle
+      const manualCheckbox = dialog.querySelector('#manualFileSelection');
+      const extensionsTextarea = dialog.querySelector('#extensions');
+      const keywordsTextarea = dialog.querySelector('#keywords');
+
+      const toggleFiltering = () => {
+        const disabled = manualCheckbox.checked;
+        extensionsTextarea.disabled = disabled;
+        keywordsTextarea.disabled = disabled;
+        extensionsTextarea.style.opacity = disabled ? '0.5' : '1';
+        keywordsTextarea.style.opacity = disabled ? '0.5' : '1';
+      };
+
+      manualCheckbox.addEventListener('change', toggleFiltering);
+      toggleFiltering(); // initial state
 
       saveBtn.addEventListener('mouseover', () => saveBtn.style.background = '#2980b9');
       saveBtn.addEventListener('mouseout', () => saveBtn.style.background = '#4db6ac');
@@ -476,6 +520,90 @@
       icon.style.marginLeft = '5px';
       icon.setAttribute(INSERTED_ICON_ATTR, '1');
       return icon;
+    }
+
+    static formatBytes(bytes) {
+      if (bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    static createFileSelectionDialog(files) {
+      return new Promise((resolve) => {
+        const dialog = document.createElement('div');
+        dialog.innerHTML = `
+          <div style="position:fixed;inset:0;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;z-index:10001;font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, Arial;">
+            <div role="dialog" aria-modal="true" style="background:#0f1724;color:#e6eef3;padding:24px;border-radius:12px;max-width:700px;width:94%;max-height:80vh;overflow-y:auto;box-shadow:0 8px 30px rgba(2,6,23,0.6);border:1px solid rgba(255,255,255,0.04);">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+                <h2 style="margin:0;font-size:18px;color:#7dd3fc;">Select Files to Add</h2>
+                <button id="cancelBtnTop" aria-label="Close" style="background:transparent;border:none;color:#9fb7c8;cursor:pointer;font-size:18px;">✕</button>
+              </div>
+
+              <div style="display:flex;gap:10px;margin-bottom:12px;">
+                <button id="selectAllBtn" style="background:#06b6d4;color:#04202a;border:none;padding:8px 12px;border-radius:6px;cursor:pointer;font-weight:600;">Select All</button>
+                <button id="selectNoneBtn" style="background:#374151;color:#e6eef3;border:none;padding:8px 12px;border-radius:6px;cursor:pointer;">Select None</button>
+              </div>
+
+              <div id="filesList" style="max-height:400px;overflow-y:auto;margin-bottom:18px;">
+                ${files.map(file => `
+                  <label style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
+                    <input type="checkbox" value="${file.id}" style="margin:0;" />
+                    <span style="flex:1;color:#cfeeff;">${file.path}</span>
+                    <span style="color:#96c5d8;font-size:12px;">${UIManager.formatBytes(file.bytes)}</span>
+                  </label>
+                `).join('')}
+              </div>
+
+              <div style="display:flex;justify-content:flex-end;gap:10px;">
+                <button id="okBtn" style="background:#16a34a;color:white;border:none;padding:10px 16px;border-radius:8px;cursor:pointer;font-weight:700;">Add Selected</button>
+                <button id="cancelBtn" style="background:transparent;color:#9fb7c8;border:1px solid rgba(159,183,200,0.08);padding:10px 16px;border-radius:8px;cursor:pointer;">Cancel</button>
+              </div>
+            </div>
+          </div>
+        `;
+
+        const selectAllBtn = dialog.querySelector('#selectAllBtn');
+        const selectNoneBtn = dialog.querySelector('#selectNoneBtn');
+        const okBtn = dialog.querySelector('#okBtn');
+        const cancelBtn = dialog.querySelector('#cancelBtn');
+        const checkboxes = dialog.querySelectorAll('input[type="checkbox"]');
+
+        selectAllBtn.addEventListener('click', () => checkboxes.forEach(cb => cb.checked = true));
+        selectNoneBtn.addEventListener('click', () => checkboxes.forEach(cb => cb.checked = false));
+
+        const close = () => {
+          if (dialog.parentNode) dialog.parentNode.removeChild(dialog);
+          document.removeEventListener('keydown', escHandler);
+        };
+
+        const escHandler = (e) => {
+          if (e.key === 'Escape') {
+            close();
+            resolve(null);
+          }
+        };
+        document.addEventListener('keydown', escHandler);
+
+        okBtn.addEventListener('click', () => {
+          const selected = Array.from(checkboxes).filter(cb => cb.checked).map(cb => parseInt(cb.value));
+          close();
+          resolve(selected);
+        });
+
+        cancelBtn.addEventListener('click', () => {
+          close();
+          resolve(null);
+        });
+        const cancelTop = dialog.querySelector('#cancelBtnTop');
+        if (cancelTop) cancelTop.addEventListener('click', () => {
+          close();
+          resolve(null);
+        });
+
+        document.body.appendChild(dialog);
+      });
     }
   }
 
@@ -684,7 +812,8 @@
           const newCfg = {
             apiKey: dialog.querySelector('#apiKey').value.trim(),
             allowedExtensions: dialog.querySelector('#extensions').value.split(',').map(e => e.trim()).filter(Boolean),
-            filterKeywords: dialog.querySelector('#keywords').value.split(',').map(k => k.trim()).filter(Boolean)
+            filterKeywords: dialog.querySelector('#keywords').value.split(',').map(k => k.trim()).filter(Boolean),
+            manualFileSelection: dialog.querySelector('#manualFileSelection').checked
           };
           try {
             await ConfigManager.saveConfig(newCfg);
