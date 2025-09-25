@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          DMM - Add Trash Guide Regex Buttons
-// @version       3.1.0
+// @version       3.1.1
 // @description   Adds buttons to Debrid Media Manager for applying Trash Guide regex patterns.
 // @author        Journey Over
 // @license       MIT
@@ -34,8 +34,6 @@
     MAX_RETRIES: 20, // Max attempts to find container on SPA pages
 
     // Anime and IMDB selectors
-    IMDB_LINK_SELECTOR: 'a[href*="imdb.com/title/"]',
-    IMDB_ID_REGEX: /imdb\.com\/title\/(tt\d+)/,
     ANILIST_ID_REGEX: /anilist\.co\/anime\/(\d+)/,
     CACHE_PREFIX: 'dmm-anime-cache-',
     CACHE_DURATION: 24 * 60 * 60 * 1000, // 24 hours in milliseconds
@@ -854,25 +852,20 @@
      */
     async detectExternalLinksForCurrentPage() {
       try {
-        const imdbLink = qs(CONFIG.IMDB_LINK_SELECTOR);
-        if (!imdbLink) {
-          logger.debug('No IMDB link found on page');
+        // Extract IMDB ID directly from the URL path
+        const urlMatch = location.pathname.match(/\/(movie|show)\/(tt\d+)/);
+        if (!urlMatch) {
+          logger.debug('Could not extract IMDB ID from URL:', location.pathname);
           return;
         }
-        const href = imdbLink.href;
-        const match = href.match(CONFIG.IMDB_ID_REGEX);
-        if (!match) {
-          logger.debug('Invalid IMDB URL format');
-          return;
-        }
-        const imdbId = match[1];
+        const mediaType = urlMatch[1]; // 'movie' or 'show'
+        const imdbId = urlMatch[2]; // IMDB ID like 'tt0111161'
 
-        const url = location.href;
-        const mediaType = url.includes('/movie/') ? 'movie' : 'show';
-        const wikidataMediaType = url.includes('/movie/') ? 'movie' : 'tv';
+        const wikidataMediaType = mediaType === 'movie' ? 'movie' : 'tv';
+        const traktMediaType = mediaType === 'movie' ? 'movie' : 'show';
 
         // Create Trakt button for all content
-        this.createTraktButton(imdbId, mediaType);
+        this.createTraktButton(imdbId, traktMediaType);
 
         // Detect anime and create Releases.moe button if applicable
         await this.detectAnimeForCurrentPage(imdbId, wikidataMediaType);
