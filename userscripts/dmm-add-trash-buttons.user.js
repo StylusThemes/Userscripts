@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          DMM - Add Trash Guide Regex Buttons
-// @version       3.0.1
+// @version       3.1.0
 // @description   Adds buttons to Debrid Media Manager for applying Trash Guide regex patterns.
 // @author        Journey Over
 // @license       MIT
@@ -44,9 +44,11 @@
     CSS_CLASS_PREFIX: 'dmm-tg', // Prefix for all CSS classes to avoid conflicts
 
     // Storage keys
-    STORAGE_KEY: 'dmm-tg-quality-options', // Local storage key for selected quality options
-    POLARITY_STORAGE_KEY: 'dmm-tg-quality-polarity', // Storage key for quality polarity (positive/negative)
-    LOGIC_STORAGE_KEY: 'dmm-tg-logic-mode', // Storage key for AND/OR logic mode preference
+    QUALITY_OPTIONS_KEY: 'dmm-tg-quality-options', // Local storage key for selected quality options
+    QUALITY_POLARITY_KEY: 'dmm-tg-quality-polarity', // Storage key for quality polarity (positive/negative)
+    LOGIC_MODE_KEY: 'dmm-tg-logic-mode', // Storage key for AND/OR logic mode preference
+    CACHE_KEY: 'cache',
+    CACHE_LAST_CLEANUP_KEY: 'cache-last-cleanup',
 
     // Regex patterns for quality removal
     REGEX_PATTERNS: {
@@ -89,7 +91,7 @@
    * @returns {Promise<Object|null>} Cached data or null
    */
   const getCachedAnimeData = async (imdbId) => {
-    const cache = await GMC.getValue('cache') || {};
+    const cache = await GMC.getValue(CONFIG.CACHE_KEY) || {};
     if (typeof cache !== 'object' || Array.isArray(cache)) return null;
     const cacheKey = `${CONFIG.CACHE_PREFIX}${imdbId}`;
     const cached = cache[cacheKey];
@@ -102,7 +104,7 @@
   /**
    * Fetches anime data from APIs
    * @param {string} imdbId - The IMDB ID
-   * @param {string} mediaType - 'movie' or 'tv'
+   * @param {string} mediaType - 'movie' or 'tv' (for Wikidata API)
    * @returns {Promise<Object>} Result object with isAnime, anilistId
    */
   const fetchAnimeData = async (imdbId, mediaType) => {
@@ -125,13 +127,13 @@
    * @param {Object} result - The result to cache
    */
   const updateCache = async (imdbId, result) => {
-    let cache = await GMC.getValue('cache') || {};
+    let cache = await GMC.getValue(CONFIG.CACHE_KEY) || {};
     if (typeof cache !== 'object' || Array.isArray(cache)) cache = {};
     const cacheKey = `${CONFIG.CACHE_PREFIX}${imdbId}`;
     cache[cacheKey] = { data: result, timestamp: Date.now() };
     // Cleanup old entries
     const now = Date.now();
-    const lastCleanup = await GMC.getValue('cache-last-cleanup') || 0;
+    const lastCleanup = await GMC.getValue(CONFIG.CACHE_LAST_CLEANUP_KEY) || 0;
     if (now - lastCleanup >= CONFIG.CACHE_DURATION) {
       let cleanedCount = 0;
       for (const [key, entry] of Object.entries(cache)) {
@@ -140,12 +142,12 @@
           cleanedCount++;
         }
       }
-      await GMC.setValue('cache-last-cleanup', now);
+      await GMC.setValue(CONFIG.CACHE_LAST_CLEANUP_KEY, now);
       if (cleanedCount > 0) {
         logger.debug(`Cache cleanup: Removed ${cleanedCount} expired entries`);
       }
     }
-    await GMC.setValue('cache', cache);
+    await GMC.setValue(CONFIG.CACHE_KEY, cache);
   };
 
   /**
@@ -263,12 +265,12 @@
   };
 
   /**
-   * Injects CSS styles for the UI components
-   * Creates a cohesive dark theme that matches DMM's design
+   * Generates CSS styles for the UI components
+   * @returns {string} CSS string for injection
    */
-  (function injectStyles() {
+  const generateStyles = () => {
     const p = CONFIG.CSS_CLASS_PREFIX;
-    const css = `
+    return `
       .${p}-btn{cursor:pointer;display:inline-flex;align-items:center;gap:.35rem;margin-right:.5rem;padding:.25rem .5rem;font-size:12px;line-height:1;border-radius:.375rem;color:#e6f0ff;background:rgba(15,23,42,.5);border:1px solid rgba(59,130,246,.55);box-shadow:none;user-select:none;white-space:nowrap;}
       .${p}-btn:hover{background:rgba(59,130,246,.08);}
       .${p}-btn:focus{outline:2px solid rgba(59,130,246,.18);outline-offset:2px;}
@@ -295,10 +297,17 @@
       .${p}-logic-option:focus{outline:1px solid rgba(59,130,246,.5);}
       .${p}-help-icon{background:#1f2937;color:#e6f0ff;border:1px solid rgba(148,163,184,.4);border-radius:50%;width:16px;height:16px;font-size:11px;cursor:help;margin-left:.25rem;display:inline-flex;align-items:center;justify-content:center;font-weight:bold;}
       .${p}-help-icon:hover{background:#374151;}
-      h2.line-clamp-2{display:block!important;-webkit-line-clamp:unset!important;-webkit-box-orient:unset!important;overflow:visible!important;text-overflow:unset!important;white-space:normal!important;} //untruncates titles so they are easier to read
+      h2.line-clamp-2{display:block!important;-webkit-line-clamp:unset!important;-webkit-box-orient:unset!important;overflow:visible!important;text-overflow:unset!important;white-space:normal!important;}
     `;
+  };
+
+  /**
+   * Injects CSS styles for the UI components
+   * Creates a cohesive dark theme that matches DMM's design
+   */
+  (function injectStyles() {
     const style = document.createElement('style');
-    style.textContent = css;
+    style.textContent = generateStyles();
     document.head.appendChild(style);
   })();
 
@@ -339,14 +348,14 @@
      */
     async loadPersistedSettings() {
       try {
-        const stored = await GMC.getValue(CONFIG.STORAGE_KEY, null);
+        const stored = await GMC.getValue(CONFIG.QUALITY_OPTIONS_KEY, null);
         this.selectedOptions = stored ? JSON.parse(stored) : [];
 
-        const polarityStored = await GMC.getValue(CONFIG.POLARITY_STORAGE_KEY, null);
+        const polarityStored = await GMC.getValue(CONFIG.QUALITY_POLARITY_KEY, null);
         const polarityData = polarityStored ? JSON.parse(polarityStored) : {};
         this.qualityPolarity = new Map(Object.entries(polarityData));
 
-        const logicStored = await GMC.getValue(CONFIG.LOGIC_STORAGE_KEY, null);
+        const logicStored = await GMC.getValue(CONFIG.LOGIC_MODE_KEY, null);
         this.useAndLogic = logicStored ? JSON.parse(logicStored) : false;
       } catch (err) {
         logger.error('Failed to load quality options:', err);
@@ -491,7 +500,7 @@
       });
 
       try {
-        GMC.setValue(CONFIG.LOGIC_STORAGE_KEY, JSON.stringify(this.useAndLogic));
+        GMC.setValue(CONFIG.LOGIC_MODE_KEY, JSON.stringify(this.useAndLogic));
       } catch (err) {
         logger.error('Failed to save logic mode:', err);
       }
@@ -572,8 +581,8 @@
      */
     _saveOptions() {
       try {
-        GMC.setValue(CONFIG.STORAGE_KEY, JSON.stringify(this.selectedOptions));
-        GMC.setValue(CONFIG.POLARITY_STORAGE_KEY, JSON.stringify(Object.fromEntries(this.qualityPolarity)));
+        GMC.setValue(CONFIG.QUALITY_OPTIONS_KEY, JSON.stringify(this.selectedOptions));
+        GMC.setValue(CONFIG.QUALITY_POLARITY_KEY, JSON.stringify(Object.fromEntries(this.qualityPolarity)));
       } catch (err) {
         logger.error('Failed to save quality options:', err);
       }
@@ -695,7 +704,7 @@
       await this.qualityManager.initialize(container);
       logger.debug('Created dropdown buttons:', { count: this.dropdowns.size });
 
-      await this.detectAnimeForCurrentPage();
+      await this.detectExternalLinksForCurrentPage();
 
       document.addEventListener('click', this.documentClickHandler, true);
       document.addEventListener('keydown', this.keydownHandler);
@@ -841,9 +850,9 @@
     }
 
     /**
-     * Detects if the current page is for an anime and creates Releases.moe button if applicable
+     * Detects external links for the current page (Trakt, Releases.moe, etc.)
      */
-    async detectAnimeForCurrentPage() {
+    async detectExternalLinksForCurrentPage() {
       try {
         const imdbLink = qs(CONFIG.IMDB_LINK_SELECTOR);
         if (!imdbLink) {
@@ -858,36 +867,49 @@
         }
         const imdbId = match[1];
 
-        // Check cache first
-        const cachedData = await getCachedAnimeData(imdbId);
-        if (cachedData) {
-          logger.debug(`Anime cache hit for ${imdbId} (${Math.round((Date.now() - cachedData.timestamp) / 1000)}s old)`);
-          this.handleAnimeResult(cachedData);
-          return;
-        }
-
-        logger.debug(`Anime cache miss for ${imdbId}, fetching from APIs`);
-
         const url = location.href;
-        const mediaType = url.includes('/movie/') ? 'movie' : 'tv';
-        const result = await fetchAnimeData(imdbId, mediaType);
-        if (result.isAnime && result.anilistId) {
-          const button = this.createReleasesMoeButton(`https://releases.moe/${result.anilistId}/`);
-          checkReleasesMoeExists(result.anilistId).then(async (releasesExists) => {
-            if (!releasesExists) {
-              if (button && button.parentNode) {
-                button.parentNode.removeChild(button);
-              }
-            }
-            const fullResult = { ...result, releasesExists };
-            await updateCache(imdbId, fullResult);
-          });
-        } else {
-          const fullResult = { ...result, releasesExists: false };
-          await updateCache(imdbId, fullResult);
-        }
+        const mediaType = url.includes('/movie/') ? 'movie' : 'show';
+        const wikidataMediaType = url.includes('/movie/') ? 'movie' : 'tv';
+
+        // Create Trakt button for all content
+        this.createTraktButton(imdbId, mediaType);
+
+        // Detect anime and create Releases.moe button if applicable
+        await this.detectAnimeForCurrentPage(imdbId, wikidataMediaType);
       } catch (error) {
-        logger.error(`Anime detection failed for ${location.href}:`, error);
+        logger.error(`External links detection failed for ${location.href}:`, error);
+      }
+    }
+
+    /**
+     * Detects if the current page is for an anime and creates Releases.moe button if applicable
+     */
+    async detectAnimeForCurrentPage(imdbId, mediaType) {
+      // Check cache first
+      const cachedData = await getCachedAnimeData(imdbId);
+      if (cachedData) {
+        logger.debug(`Anime cache hit for ${imdbId} (${Math.round((Date.now() - cachedData.timestamp) / 1000)}s old)`);
+        this.handleAnimeResult(cachedData);
+        return;
+      }
+
+      logger.debug(`Anime cache miss for ${imdbId}, fetching from APIs`);
+
+      const result = await fetchAnimeData(imdbId, mediaType);
+      if (result.isAnime && result.anilistId) {
+        const button = this.createReleasesMoeButton(result.anilistId);
+        checkReleasesMoeExists(result.anilistId).then(async (releasesExists) => {
+          if (!releasesExists) {
+            if (button && button.parentNode) {
+              button.parentNode.removeChild(button);
+            }
+          }
+          const fullResult = { ...result, releasesExists };
+          await updateCache(imdbId, fullResult);
+        });
+      } else {
+        const fullResult = { ...result, releasesExists: false };
+        await updateCache(imdbId, fullResult);
       }
     }
 
@@ -899,7 +921,7 @@
       const { isAnime, anilistId, releasesExists } = result;
       if (isAnime && anilistId && releasesExists) {
         logger.debug('Anime detected with Releases.moe availability', { anilistId, releasesExists });
-        this.createReleasesMoeButton(`https://releases.moe/${anilistId}/`);
+        this.createReleasesMoeButton(anilistId);
       } else if (isAnime && anilistId && !releasesExists) {
         logger.debug('Anime detected but not available on Releases.moe', { anilistId });
       } else if (isAnime && !anilistId) {
@@ -910,32 +932,73 @@
     }
 
     /**
-     * Creates the Releases.moe button element
+     * Creates a generic external link button
+     * @param {Object} options - Button configuration options
+     * @param {string} options.link - The URL for the button
+     * @param {string} options.iconUrl - The favicon URL
+     * @param {string} options.iconAlt - Alt text for the icon
+     * @param {string} options.label - Button text label
+     * @param {string} options.className - CSS classes for styling
+     * @param {string} options.existingSelector - Selector to check for existing buttons
+     * @param {string} options.debugName - Name for debug logging
+     * @returns {HTMLElement|null} The created button or null if container not found
      */
-    createReleasesMoeButton(link) {
+    createExternalLinkButton({ link, iconUrl, iconAlt, label, className, existingSelector, debugName }) {
       // Check if button already exists to prevent duplicates
-      const existingButton = qs('a[href*="releases.moe"]');
+      const existingButton = qs(existingSelector);
       if (existingButton) {
-        logger.debug('Releases.moe button already exists, skipping creation');
+        logger.debug(`${debugName} button already exists, skipping creation`);
         return existingButton;
       }
 
-      logger.debug('Created Releases.moe button:', { link });
+      logger.debug(`Created ${debugName} button:`, { link });
       const button = document.createElement('a');
       button.href = link;
       button.target = '_blank';
-      button.className = 'mb-1 mr-2 mt-0 rounded border-2 border-orange-500 bg-orange-900/30 px-2 py-1 text-sm text-orange-100 transition-colors hover:bg-orange-800/50';
-      button.innerHTML = '<b>Releases.moe</b>';
+      button.className = className;
+      button.innerHTML = `<b class="inline-flex items-center"><img src="${iconUrl}" class="mr-1 h-3 w-3" alt="${iconAlt}">${label}</b>`;
 
       const buttonContainer = qs('.grid > div:last-child');
       if (buttonContainer) {
         buttonContainer.appendChild(button);
-        logger.debug('Releases.moe button added to container');
+        logger.debug(`${debugName} button added to container`);
         return button;
       } else {
-        logger.warn('Releases.moe button container not found');
+        logger.warn(`${debugName} button container not found`);
         return null;
       }
+    }
+
+    /**
+     * Creates the Releases.moe button element
+     */
+    createReleasesMoeButton(anilistId) {
+      const link = `https://releases.moe/${anilistId}/`;
+      return this.createExternalLinkButton({
+        link,
+        iconUrl: 'https://www.google.com/s2/favicons?sz=64&domain=releases.moe',
+        iconAlt: 'SeaDex icon',
+        label: 'SeaDex',
+        className: 'mb-1 mr-2 mt-0 rounded border-2 border-pink-500 bg-pink-900/30 p-1 text-xs text-pink-100 transition-colors hover:bg-pink-800/50',
+        existingSelector: 'a[href*="releases.moe"]',
+        debugName: 'Releases.moe'
+      });
+    }
+
+    /**
+     * Creates the Trakt.tv button element
+     */
+    createTraktButton(imdbId, mediaType) {
+      const link = `https://trakt.tv/${mediaType}s/${imdbId}`;
+      return this.createExternalLinkButton({
+        link,
+        iconUrl: 'https://www.google.com/s2/favicons?sz=64&domain=trakt.tv',
+        iconAlt: 'Trakt icon',
+        label: 'Trakt',
+        className: 'mb-1 mr-2 mt-0 rounded border-2 border-red-500 bg-red-900/30 p-1 text-xs text-red-100 transition-colors hover:bg-red-800/50',
+        existingSelector: 'a[href*="trakt.tv"]',
+        debugName: 'Trakt.tv'
+      });
     }
   }
 
