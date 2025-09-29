@@ -985,7 +985,7 @@
       const link = `https://trakt.tv/${mediaType}s/${imdbId}`;
       return this.createExternalLinkButton({
         link,
-        iconUrl: 'https://www.google.com/s2/favicons?sz=64&domain=trakt.tv',
+        iconUrl: 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/trakt.svg',
         iconAlt: 'Trakt icon',
         label: 'Trakt',
         className: 'mb-1 mr-2 mt-0 rounded border-2 border-red-500 bg-red-900/30 p-1 text-xs text-red-100 transition-colors hover:bg-red-800/50',

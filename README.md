@@ -31,6 +31,7 @@ Here is a list of the scripts currently available in this repository.
 | Magnet Link to Real-Debrid | Automatically send magnet links to Real-Debrid | [Install](https://raw.githubusercontent.com/StylusThemes/Userscripts/main/userscripts/magnet-link-to-real-debrid.user.js) |
 | Mediux - Yaml Fixes | Adds fixes and functions to Mediux | [Install](https://raw.githubusercontent.com/StylusThemes/Userscripts/main/userscripts/mediux-yaml-fixes.user.js) |
 | MyAnimeList - Add Trakt link | Add trakt link to MyAnimeList anime pages | [Install](https://raw.githubusercontent.com/StylusThemes/Userscripts/main/userscripts/myanimelist-add-trakt-link.user.js) |
+| AniList - Add Trakt link | Add trakt link to AniList anime pages | [Install](https://raw.githubusercontent.com/StylusThemes/Userscripts/main/userscripts/anilist-add-trakt-link.user.js) |
 | Nexus Mod - Updated Mod Highlighter | Highlight mods that have updated since you last downloaded them | [Install](https://raw.githubusercontent.com/StylusThemes/Userscripts/main/userscripts/nexusmods-updated-mod-highlighter.user.js) |
 | Nyaa - Tweaks | Redirects to English-translated anime and formats timestamps in 12-hour time. | [Install](https://raw.githubusercontent.com/StylusThemes/Userscripts/main/userscripts/nyaa-tweaks.user.js) |
 | ThePosterDB - Easy Links | Makes it easier to copy data from ThePosterDB | [Install](https://raw.githubusercontent.com/StylusThemes/Userscripts/main/userscripts/theposterdb-easy-links.user.js) |
