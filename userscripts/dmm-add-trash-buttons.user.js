@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          DMM - Add Trash Guide Regex Buttons
-// @version       3.1.4
+// @version       3.1.5
 // @description   Adds buttons to Debrid Media Manager for applying Trash Guide regex patterns.
 // @author        Journey Over
 // @license       MIT
@@ -295,9 +295,9 @@
       .${p}-logic-option:focus{outline:1px solid rgba(59,130,246,.5);}
       .${p}-help-icon{background:#1f2937;color:#e6f0ff;border:1px solid rgba(148,163,184,.4);border-radius:50%;width:16px;height:16px;font-size:11px;cursor:help;margin-left:.25rem;display:inline-flex;align-items:center;justify-content:center;font-weight:bold;}
       .${p}-help-icon:hover{background:#374151;}
-      // DMM Fixes below
-      h2.line-clamp-2{display:block!important;-webkit-line-clamp:unset!important;-webkit-box-orient:unset!important;overflow:visible!important;text-overflow:unset!important;white-space:normal!important;} // show full title without truncation
-      .max-w-2xl{max-width: min-content;} // media info better fit to width
+      /* DMM Fixes below */
+      h2.line-clamp-2{display:block!important;-webkit-line-clamp:unset!important;-webkit-box-orient:unset!important;overflow:visible!important;text-overflow:unset!important;white-space:normal!important;} /* show full title without truncation */
+      .max-w-2xl{max-width: min-content;} /* media info better fit to width */
     `;
   };
 
@@ -456,7 +456,7 @@
       }
     }
 
-    onLogicToggle(e) {
+    async onLogicToggle(e) {
       e.preventDefault();
       e.stopPropagation();
 
@@ -470,10 +470,10 @@
       allOptions.forEach(option => option.classList.remove('active'));
       target.classList.add('active');
 
-      this.onLogicChange(useAndLogic);
+      await this.onLogicChange(useAndLogic);
     }
 
-    onLogicChange(useAndLogic) {
+    async onLogicChange(useAndLogic) {
       // Clean existing patterns before switching modes
       const target = findTargetInput(this.container);
       if (target) {
@@ -500,7 +500,7 @@
       });
 
       try {
-        GMC.setValue(CONFIG.LOGIC_MODE_KEY, JSON.stringify(this.useAndLogic));
+        await GMC.setValue(CONFIG.LOGIC_MODE_KEY, JSON.stringify(this.useAndLogic));
       } catch (err) {
         logger.error('Failed to save logic mode:', err);
       }
@@ -578,10 +578,10 @@
     /**
      * Save current options to storage
      */
-    _saveOptions() {
+    async _saveOptions() {
       try {
-        GMC.setValue(CONFIG.QUALITY_OPTIONS_KEY, JSON.stringify(this.selectedOptions));
-        GMC.setValue(CONFIG.QUALITY_POLARITY_KEY, JSON.stringify(Object.fromEntries(this.qualityPolarity)));
+        await GMC.setValue(CONFIG.QUALITY_OPTIONS_KEY, JSON.stringify(this.selectedOptions));
+        await GMC.setValue(CONFIG.QUALITY_POLARITY_KEY, JSON.stringify(Object.fromEntries(this.qualityPolarity)));
       } catch (err) {
         logger.error('Failed to save quality options:', err);
       }
@@ -653,6 +653,7 @@
       this.container = null;
       this.openMenu = null;
       this.qualityManager = new QualityManager();
+      this.listenersAttached = false;
 
       this.documentClickHandler = this.onDocumentClick.bind(this);
       this.resizeHandler = this.onWindowResize.bind(this);
@@ -670,9 +671,12 @@
       this.openMenu = null;
 
       // Remove global event listeners
-      document.removeEventListener('click', this.documentClickHandler, true);
-      document.removeEventListener('keydown', this.keydownHandler);
-      window.removeEventListener('resize', this.resizeHandler);
+      if (this.listenersAttached) {
+        document.removeEventListener('click', this.documentClickHandler, true);
+        document.removeEventListener('keydown', this.keydownHandler);
+        window.removeEventListener('resize', this.resizeHandler);
+        this.listenersAttached = false;
+      }
     }
 
     async initialize(container) {
@@ -705,9 +709,13 @@
 
       await this.detectExternalLinksForCurrentPage();
 
-      document.addEventListener('click', this.documentClickHandler, true);
-      document.addEventListener('keydown', this.keydownHandler);
-      window.addEventListener('resize', this.resizeHandler);
+      // Only attach listeners once
+      if (!this.listenersAttached) {
+        document.addEventListener('click', this.documentClickHandler, true);
+        document.addEventListener('keydown', this.keydownHandler);
+        window.addEventListener('resize', this.resizeHandler);
+        this.listenersAttached = true;
+      }
     }
 
     onDocumentKeydown(e) {
@@ -882,7 +890,7 @@
       // Check cache first
       const cachedData = await getCachedAnimeData(imdbId);
       if (cachedData) {
-        logger.debug(`Anime cache hit for ${imdbId} (${Math.round((Date.now() - cachedData.timestamp) / 1000)}s old)`);
+        logger.debug(`Anime cache hit for ${imdbId}`);
         this.handleAnimeResult(cachedData);
         return;
       }
@@ -891,16 +899,15 @@
 
       const result = await fetchAnimeData(imdbId, mediaType);
       if (result.isAnime && result.anilistId) {
-        const button = this.createReleasesMoeButton(result.anilistId);
-        checkReleasesMoeExists(result.anilistId).then(async (releasesExists) => {
-          if (!releasesExists) {
-            if (button && button.parentNode) {
-              button.parentNode.removeChild(button);
-            }
-          }
-          const fullResult = { ...result, releasesExists };
-          await updateCache(imdbId, fullResult);
-        });
+        // Check Releases.moe availability before creating button to avoid race condition
+        const releasesExists = await checkReleasesMoeExists(result.anilistId);
+        const fullResult = { ...result, releasesExists };
+        await updateCache(imdbId, fullResult);
+
+        // Only create button if anime exists on Releases.moe
+        if (releasesExists) {
+          this.createReleasesMoeButton(result.anilistId);
+        }
       } else {
         const fullResult = { ...result, releasesExists: false };
         await updateCache(imdbId, fullResult);
@@ -913,10 +920,10 @@
      */
     handleAnimeResult(result) {
       const { isAnime, anilistId, releasesExists } = result;
-      if (isAnime && anilistId && releasesExists) {
+      if (isAnime && anilistId && releasesExists !== false) {
         logger.debug('Anime detected with Releases.moe availability', { anilistId, releasesExists });
         this.createReleasesMoeButton(anilistId);
-      } else if (isAnime && anilistId && !releasesExists) {
+      } else if (isAnime && anilistId && releasesExists === false) {
         logger.debug('Anime detected but not available on Releases.moe', { anilistId });
       } else if (isAnime && !anilistId) {
         logger.debug('Anime detected but no AniList ID found');
@@ -946,11 +953,13 @@
       }
 
       logger.debug(`Created ${debugName} button:`, { link });
-      const button = document.createElement('a');
-      button.href = link;
-      button.target = '_blank';
-      button.className = `${className} inline-flex`;
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `${className}`;
       button.innerHTML = `<b class="flex items-center justify-center"><img src="${iconUrl}" class="mr-1 h-3 w-3" alt="${iconAlt}">${label}</b>`;
+      button.addEventListener('click', () => {
+        window.open(link, '_blank', 'noopener,noreferrer');
+      });
 
       const buttonContainer = qs('.grid > div:last-child');
       if (buttonContainer) {
@@ -1022,6 +1031,16 @@
      * This ensures the userscript responds to client-side routing changes
      */
     setupHistoryHooks() {
+      // Only hook once to prevent wrapper accumulation
+      if (window.__DMM_HISTORY_HOOKED__) {
+        // Already hooked, just add our listener
+        window.addEventListener('dmm:nav', () => {
+          this.buttonManager.cleanup();
+          this.debouncedCheck();
+        });
+        return;
+      }
+
       const push = history.pushState;
       const replace = history.replaceState;
 
@@ -1036,6 +1055,9 @@
         replace.apply(this, args);
         window.dispatchEvent(new Event('dmm:nav'));
       };
+
+      // Mark as hooked
+      window.__DMM_HISTORY_HOOKED__ = true;
 
       // Listen for all navigation events
       window.addEventListener('popstate', () => window.dispatchEvent(new Event('dmm:nav')));
