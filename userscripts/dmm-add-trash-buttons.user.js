@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          DMM - Add Trash Guide Regex Buttons
-// @version       3.1.5
+// @version       3.1.6
 // @description   Adds buttons to Debrid Media Manager for applying Trash Guide regex patterns.
 // @author        Journey Over
 // @license       MIT
@@ -1008,7 +1008,7 @@
   /**
    * Manages SPA navigation detection and DOM change monitoring
    * Handles initialization and cleanup when navigating between pages
-   * Uses mutation observers and history API hooks for reliable detection
+   * Uses mutation observers and URL polling for reliable detection
    */
   class PageManager {
     constructor() {
@@ -1016,56 +1016,42 @@
       this.lastUrl = location.href;
       this.retry = 0;
       this.mutationObserver = null;
-      this.debouncedCheck = debounce(this.checkPage.bind(this), 150);
       this.lastProcessedUrl = null;
       this.cachedContainer = null; // Cache for container element
+      this.pollingInterval = null;
 
-      this.setupHistoryHooks();
+      // Debounced check for page changes
+      this.debouncedCheck = debounce(this.checkPage.bind(this), 150);
+
+      // Setup navigation detection
+      this.setupNavigationDetection();
       this.setupMutationObserver();
       this.checkPage();
     }
 
     /**
-     * Hooks into browser history API to detect SPA navigation
-     * Overrides pushState and replaceState to emit custom navigation events
-     * This ensures the userscript responds to client-side routing changes
+     * Sets up navigation detection using event listeners and polling
+     * Listens for popstate and hashchange, and polls for URL changes
      */
-    setupHistoryHooks() {
-      // Only hook once to prevent wrapper accumulation
-      if (window.__DMM_HISTORY_HOOKED__) {
-        // Already hooked, just add our listener
-        window.addEventListener('dmm:nav', () => {
-          this.buttonManager.cleanup();
-          this.debouncedCheck();
-        });
-        return;
-      }
-
-      const push = history.pushState;
-      const replace = history.replaceState;
-
-      // Override pushState to emit custom navigation event
-      history.pushState = function pushState(...args) {
-        push.apply(this, args);
-        window.dispatchEvent(new Event('dmm:nav'));
-      };
-
-      // Override replaceState to emit custom navigation event
-      history.replaceState = function replaceState(...args) {
-        replace.apply(this, args);
-        window.dispatchEvent(new Event('dmm:nav'));
-      };
-
-      // Mark as hooked
-      window.__DMM_HISTORY_HOOKED__ = true;
-
-      // Listen for all navigation events
-      window.addEventListener('popstate', () => window.dispatchEvent(new Event('dmm:nav')));
-      window.addEventListener('hashchange', () => window.dispatchEvent(new Event('dmm:nav')));
-      window.addEventListener('dmm:nav', () => {
+    setupNavigationDetection() {
+      // Listen for native navigation events
+      window.addEventListener('popstate', () => {
         this.buttonManager.cleanup();
         this.debouncedCheck();
       });
+      window.addEventListener('hashchange', () => {
+        this.buttonManager.cleanup();
+        this.debouncedCheck();
+      });
+
+      // Start lightweight polling to detect SPA navigation (pushState/replaceState)
+      this.pollingInterval = setInterval(() => {
+        if (location.href !== this.lastUrl) {
+          this.buttonManager.cleanup();
+          this.debouncedCheck();
+          this.lastUrl = location.href;
+        }
+      }, 300); // Poll every 300ms to balance responsiveness and performance
     }
 
     /**
@@ -1127,6 +1113,21 @@
       await this.buttonManager.initialize(container);
       this.lastProcessedUrl = url;
       this.lastUrl = url;
+    }
+
+    /**
+     * Cleans up resources when the page manager is no longer needed
+     */
+    cleanup() {
+      if (this.mutationObserver) {
+        this.mutationObserver.disconnect();
+        this.mutationObserver = null;
+      }
+      if (this.pollingInterval) {
+        clearInterval(this.pollingInterval);
+        this.pollingInterval = null;
+      }
+      this.buttonManager.cleanup();
     }
   }
 
