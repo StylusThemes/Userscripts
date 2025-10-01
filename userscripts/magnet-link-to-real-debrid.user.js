@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          Magnet Link to Real-Debrid
-// @version       2.6.0
+// @version       2.6.1
 // @description   Automatically send magnet links to Real-Debrid
 // @author        Journey Over
 // @license       MIT
@@ -28,6 +28,23 @@
   const API_BASE = 'https://api.real-debrid.com/rest/1.0';
   const ICON_SRC = 'https://fcdn.real-debrid.com/0830/favicons/favicon.ico';
   const INSERTED_ICON_ATTR = 'data-rd-inserted';
+
+  // API Rate Limiting
+  const RATE_LIMIT_MAX = 250;
+  const RATE_LIMIT_HEADROOM = 5;
+  const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+  const RATE_LIMIT_MAX_RETRIES = 8;
+  const RATE_LIMIT_RETRY_BASE_DELAY = 40;
+
+  // API Request Settings
+  const API_MAX_RETRY_ATTEMPTS = 5;
+  const API_BASE_BACKOFF_DELAY = 500;
+  const API_JITTER_MAX = 200;
+
+  // UI Settings
+  const MUTATION_DEBOUNCE_MS = 150;
+  const TOAST_DURATION_MS = 5000;
+  const TORRENTS_PAGE_LIMIT = 2500;
 
   const DEFAULTS = {
     apiKey: '',
@@ -98,18 +115,15 @@
 
     // Cross-tab reservation settings
     static RATE_STORE_KEY = 'realDebrid_rate_counter';
-    static RATE_LIMIT = 250; // max requests per 60s
-    static RATE_HEADROOM = 5; // leave a small headroom
-    static RATE_WINDOW_MS = 60 * 1000;
 
     static _sleep(ms) { return new Promise(res => setTimeout(res, ms)); }
 
     // Implements rate limiting by reserving slots in a sliding window using GM storage
     static async _reserveRequestSlot() {
       const key = RealDebridService.RATE_STORE_KEY;
-      const limit = RealDebridService.RATE_LIMIT - RealDebridService.RATE_HEADROOM;
-      const windowMs = RealDebridService.RATE_WINDOW_MS;
-      const maxRetries = 8;
+      const limit = RATE_LIMIT_MAX - RATE_LIMIT_HEADROOM;
+      const windowMs = RATE_LIMIT_WINDOW_MS;
+      const maxRetries = RATE_LIMIT_MAX_RETRIES;
       let attempt = 0;
       while (attempt < maxRetries) {
         const now = Date.now();
@@ -128,7 +142,7 @@
             return;
           } catch (e) {
             attempt += 1;
-            await RealDebridService._sleep(40 * attempt);
+            await RealDebridService._sleep(RATE_LIMIT_RETRY_BASE_DELAY * attempt);
             continue;
           }
         }
@@ -140,14 +154,14 @@
             return;
           } catch (e) {
             attempt += 1;
-            await RealDebridService._sleep(40 * attempt);
+            await RealDebridService._sleep(RATE_LIMIT_RETRY_BASE_DELAY * attempt);
             continue;
           }
         }
 
         const earliest = obj.windowStart;
         const waitFor = Math.max(50, windowMs - (now - earliest) + 50);
-        logger.warn(`[Real-Debrid API] Rate limit window full (${obj.count}/${RealDebridService.RATE_LIMIT}), waiting ${Math.round(waitFor)}ms`);
+        logger.warn(`[Real-Debrid API] Rate limit window full (${obj.count}/${RATE_LIMIT_MAX}), waiting ${Math.round(waitFor)}ms`);
         await RealDebridService._sleep(waitFor);
         attempt += 1;
       }
@@ -161,9 +175,6 @@
 
     // Handles API requests with retry logic for rate limits and errors
     #request(method, endpoint, data = null) {
-      const maxAttempts = 5;
-      const baseDelay = 500; // initial backoff delay in ms
-
       const attemptRequest = async (attempt) => {
         try {
           await RealDebridService._reserveRequestSlot();
@@ -192,7 +203,7 @@
                 return reject(new RealDebridError('Invalid API response'));
               }
               if (resp.status < 200 || resp.status >= 300) {
-                if (resp.status === 429 && attempt < maxAttempts) {
+                if (resp.status === 429 && attempt < API_MAX_RETRY_ATTEMPTS) {
                   const retryAfter = (() => {
                     try {
                       const parsed = JSON.parse(resp.responseText || '{}');
@@ -201,27 +212,21 @@
                       return null;
                     }
                   })();
-                  const jitter = Math.random() * 200;
-                  const backoff = retryAfter ? (retryAfter * 1000) : (baseDelay * Math.pow(2, attempt) + jitter);
-                  logger.warn(`[Real-Debrid API] Rate limited (429). Retrying in ${Math.round(backoff)}ms (attempt ${attempt + 1}/${maxAttempts})`);
+                  const jitter = Math.random() * API_JITTER_MAX;
+                  const backoff = retryAfter ? (retryAfter * 1000) : (API_BASE_BACKOFF_DELAY * Math.pow(2, attempt) + jitter);
+                  logger.warn(`[Real-Debrid API] Rate limited (429). Retrying in ${Math.round(backoff)}ms (attempt ${attempt + 1}/${API_MAX_RETRY_ATTEMPTS})`);
                   return setTimeout(() => {
                     attemptRequest(attempt + 1).then(resolve).catch(reject);
                   }, backoff);
                 }
                 let errorMsg = `HTTP ${resp.status}`;
                 let errorCode = null;
-                if (resp.responseText) {
-                  try {
-                    const parsed = JSON.parse(resp.responseText.trim());
-                    if (parsed.error) {
-                      errorMsg = parsed.error;
-                      errorCode = parsed.error_code || null;
-                    } else {
-                      errorMsg = resp.responseText;
-                    }
-                  } catch (e) {
-                    errorMsg = resp.responseText;
-                  }
+                try {
+                  const parsed = JSON.parse(resp.responseText?.trim() || '{}');
+                  errorMsg = parsed.error || resp.responseText || errorMsg;
+                  errorCode = parsed.error_code || null;
+                } catch (e) {
+                  errorMsg = resp.responseText || errorMsg;
                 }
                 return reject(new RealDebridError(`API Error: ${errorMsg}`, resp.status, errorCode));
               }
@@ -277,7 +282,7 @@
     // Fetches all existing torrents by paginating through API results
     async getExistingTorrents() {
       const all = [];
-      const limit = 2500;
+      const limit = TORRENTS_PAGE_LIMIT;
       let pageNum = 1;
       while (true) {
         try {
@@ -402,21 +407,17 @@
     static parseMagnetHash(magnetLink) {
       if (!magnetLink || typeof magnetLink !== 'string') return null;
       try {
-        const qIdx = magnetLink.indexOf('?');
-        const qs = qIdx >= 0 ? magnetLink.slice(qIdx + 1) : magnetLink;
-        const params = new URLSearchParams(qs);
-        const xt = params.get('xt');
-        if (xt) {
-          const match = xt.match(/urn:btih:([A-Za-z0-9]+)/i);
-          if (match) return match[1].toUpperCase();
+        const qIndex = magnetLink.indexOf('?');
+        if (qIndex === -1) return null;
+        const urlParams = new URLSearchParams(magnetLink.substring(qIndex));
+        const xt = urlParams.get('xt');
+        if (xt && xt.startsWith('urn:btih:')) {
+          return xt.substring(9).toUpperCase();
         }
-        const fallback = magnetLink.match(/xt=urn:btih:([A-Za-z0-9]+)/i);
-        if (fallback) return fallback[1].toUpperCase();
-        return null;
       } catch (err) {
-        const m = magnetLink.match(/xt=urn:btih:([A-Za-z0-9]+)/i);
-        return m ? m[1].toUpperCase() : null;
+        logger.debug('[Magnet Processor] Failed to parse magnet hash', err);
       }
+      return null;
     }
 
     isTorrentExists(hash) {
@@ -900,7 +901,7 @@
       document.body.appendChild(msgDiv);
       setTimeout(() => {
         if (msgDiv.parentNode) msgDiv.parentNode.removeChild(msgDiv);
-      }, 5000);
+      }, TOAST_DURATION_MS);
     }
 
     static createMagnetIcon() {
@@ -925,26 +926,11 @@
     constructor(processor = null) {
       this.processor = processor;
       this.observer = null;
-      this.configPromise = ConfigManager.getConfig();
       this.keyToIcon = new Map();
-      this._populateFromDOM();
     }
 
     setProcessor(processor) {
       this.processor = processor;
-    }
-
-    _populateFromDOM() {
-      const links = Array.from(document.querySelectorAll('a[href^="magnet:"]'));
-      links.forEach(link => {
-        const next = link.nextElementSibling;
-        if (next?.getAttribute && next.getAttribute(INSERTED_ICON_ATTR)) {
-          const key = this._magnetKeyFor(link.href);
-          if (key && !this.keyToIcon.has(key)) {
-            this.keyToIcon.set(key, next);
-          }
-        }
-      });
     }
 
     _magnetKeyFor(href) {
@@ -1000,11 +986,16 @@
       links.forEach(link => {
         if (!link.parentNode) return;
         const next = link.nextElementSibling;
-        if (next && next.getAttribute && next.getAttribute(INSERTED_ICON_ATTR)) return;
-
         const key = this._magnetKeyFor(link.href);
+        if (next && next.getAttribute && next.getAttribute(INSERTED_ICON_ATTR)) {
+          // existing icon, populate map
+          if (key && !this.keyToIcon.has(key)) {
+            this.keyToIcon.set(key, next);
+          }
+          return;
+        }
+        // add new icon
         if (key && this.keyToIcon.has(key)) return;
-
         const icon = UIManager.createMagnetIcon();
         this._attach(icon, link);
         link.parentNode.insertBefore(icon, link.nextSibling);
@@ -1035,14 +1026,18 @@
     // Uses MutationObserver to add icons to new magnet links as they appear
     startObserving() {
       if (this.observer) return;
-      this.observer = new MutationObserver(debounce((mutations) => {
+
+      // Cache the debounced callback
+      const debouncedHandler = debounce((mutations) => {
         for (const m of mutations) {
           if (m.addedNodes && m.addedNodes.length) {
             this.addIconsTo(document);
             break;
           }
         }
-      }, 150));
+      }, MUTATION_DEBOUNCE_MS);
+
+      this.observer = new MutationObserver(debouncedHandler);
       this.observer.observe(document.body, {
         childList: true,
         subtree: true
