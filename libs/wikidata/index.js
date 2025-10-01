@@ -5,7 +5,7 @@
 // @name         @journeyover/wikidata
 // @description  Wikidata for my userscripts
 // @license      MIT
-// @version      1.1.3
+// @version      1.1.4
 // @homepageURL  https://github.com/StylusThemes/Userscripts
 // ==/UserLibrary==
 // @connect      query.wikidata.org
@@ -13,19 +13,31 @@
 // @grant        GM.xmlHttpRequest
 // ==/UserScript==
 
+/**
+ * Wikidata API client for fetching external links and metadata for movies and TV shows.
+ * Queries Wikidata using SPARQL and optionally supplements with data from arm.haglund.dev.
+ */
 this.Wikidata = class {
+  /**
+   * Creates a new Wikidata client instance.
+   * @param {Object} [config={}] - Configuration options.
+   * @param {string} [config.endpoint="https://query.wikidata.org"] - Wikidata SPARQL endpoint URL.
+   * @param {boolean} [config.debug=false] - Enable debug logging.
+   */
   constructor(config = {}) {
-    (this._config = {
+    this._config = {
       endpoint: config.endpoint || "https://query.wikidata.org",
-      debug: config.debug || !1
-    }),
-    (this._headers = {
+      debug: config.debug || false
+    };
+    this._headers = {
       Accept: "application/sparql-results+json"
-    }),
-    (this._debug = (response) => {
-      (this._config.debug || 200 !== response.status) && console.log(`${response.status}: ${response.finalUrl}`);
-    }),
-    (this._property = (source) => {
+    };
+    this._debug = (response) => {
+      if (this._config.debug || response.status !== 200) {
+        console.log(`${response.status}: ${response.finalUrl}`);
+      }
+    };
+    this._property = (source) => {
       switch (source) {
         case "IMDb":
           return "P345";
@@ -62,9 +74,9 @@ this.Wikidata = class {
         default:
           throw new Error("An ID source is required");
       }
-    }),
+    };
 
-    (this._item = (type) => {
+    this._item = (type) => {
       switch (type) {
         case "movie":
           return "Q11424";
@@ -73,9 +85,9 @@ this.Wikidata = class {
         default:
           throw new Error("An ID type is required");
       }
-    }),
+    };
 
-    (this._link = (site, id) => {
+    this._link = (site, id) => {
       switch (site) {
         case "IMDb":
           return {
@@ -142,11 +154,21 @@ this.Wikidata = class {
             value: `https://www.livechart.me/anime/${id}`
           };
       }
-    });
+    };
   }
 
+  /**
+   * Fetches external links and metadata for a given ID from Wikidata.
+   * @param {string} id - The ID value (e.g., IMDB ID like "tt0111161").
+   * @param {string} idSource - The source of the ID (e.g., "IMDb").
+   * @param {string} itemType - The type of item ("movie" or "tv").
+   * @returns {Promise<Object>} A promise that resolves to an object with title, links, and item properties.
+   *                           If no data is found, resolves to { title: undefined, links: {}, item: undefined }.
+   */
   links(id, idSource, itemType) {
     if (!id) throw new Error("An ID is required");
+    if (!idSource) throw new Error("An ID source is required");
+    if (!itemType || (itemType !== "movie" && itemType !== "tv")) throw new Error("Item type must be 'movie' or 'tv'");
     const property = this._property(idSource);
     const item = this._item(itemType);
 
@@ -193,114 +215,117 @@ this.Wikidata = class {
         timeout: 15e3,
         onload: (response) => {
           this._debug(response);
-          const results = JSON.parse(response.responseText)
-            .results.bindings
-            .find((item) => item[idSource].value === id);
+          try {
+            const results = JSON.parse(response.responseText)
+              .results.bindings
+              .find((item) => item[idSource] && item[idSource].value === id);
 
-          if (
-            results &&
-            Object.keys(results).length > 0 &&
-            Object.getPrototypeOf(results) === Object.prototype
-          ) {
-            const data = {
-              title: results.itemLabel ? results.itemLabel.value : void 0,
-              links: {
-                IMDB: results.IMDb ? this._link("IMDb", results.IMDb.value) : void 0,
-                TMDB: results.TMDb_movie || results.TMDb_tv ?
-                  results.TMDb_movie ?
-                  this._link("TMDb_movie", results.TMDb_movie.value) :
-                  this._link("TMDb_tv", results.TMDb_tv.value) : void 0,
-                TVDB: results.TVDb_movie || results.TVDb_tv ?
-                  results.TVDb_movie ?
-                  this._link("TVDb_movie", results.TVDb_movie.value) :
-                  this._link("TVDb_tv", results.TVDb_tv.value) : void 0,
-                Trakt: results.Trakt ? this._link("Trakt", results.Trakt.value) : void 0,
-                "Rotten Tomatoes": results.RottenTomatoes ? this._link("Rotten Tomatoes", results.RottenTomatoes.value) : void 0,
-                Metacritic: results.Metacritic ? this._link("Metacritic", results.Metacritic.value) : void 0,
-                Letterboxd: results.Letterboxd ? this._link("Letterboxd", results.Letterboxd.value) : void 0,
-                TVmaze: results.TVmaze ? this._link("TVmaze", results.TVmaze.value) : void 0,
-                MyAnimeList: results.MyAnimeList ? this._link("MyAnimeList", results.MyAnimeList.value) : void 0,
-                AniDB: results.AniDB ? this._link("AniDB", results.AniDB.value) : void 0,
-                AniList: results.AniList ? this._link("AniList", results.AniList.value) : void 0,
-                Kitsu: results.Kitsu ? this._link("Kitsu", results.Kitsu.value) : void 0,
-                AniSearch: results.AniSearch ? this._link("AniSearch", results.AniSearch.value) : void 0,
-                LiveChart: results.LiveChart ? this._link("LiveChart", results.LiveChart.value) : void 0,
-              },
-              item: results.item.value,
-            };
+            if (
+              results &&
+              Object.keys(results).length > 0
+            ) {
+              const data = {
+                title: results.itemLabel ? results.itemLabel.value : void 0,
+                links: {
+                  IMDB: results.IMDb ? this._link("IMDb", results.IMDb.value) : void 0,
+                  TMDB: results.TMDb_movie || results.TMDb_tv ?
+                    results.TMDb_movie ?
+                    this._link("TMDb_movie", results.TMDb_movie.value) :
+                    this._link("TMDb_tv", results.TMDb_tv.value) : void 0,
+                  TVDB: results.TVDb_movie || results.TVDb_tv ?
+                    results.TVDb_movie ?
+                    this._link("TVDb_movie", results.TVDb_movie.value) :
+                    this._link("TVDb_tv", results.TVDb_tv.value) : void 0,
+                  Trakt: results.Trakt ? this._link("Trakt", results.Trakt.value) : void 0,
+                  "Rotten Tomatoes": results.RottenTomatoes ? this._link("Rotten Tomatoes", results.RottenTomatoes.value) : void 0,
+                  Metacritic: results.Metacritic ? this._link("Metacritic", results.Metacritic.value) : void 0,
+                  Letterboxd: results.Letterboxd ? this._link("Letterboxd", results.Letterboxd.value) : void 0,
+                  TVmaze: results.TVmaze ? this._link("TVmaze", results.TVmaze.value) : void 0,
+                  MyAnimeList: results.MyAnimeList ? this._link("MyAnimeList", results.MyAnimeList.value) : void 0,
+                  AniDB: results.AniDB ? this._link("AniDB", results.AniDB.value) : void 0,
+                  AniList: results.AniList ? this._link("AniList", results.AniList.value) : void 0,
+                  Kitsu: results.Kitsu ? this._link("Kitsu", results.Kitsu.value) : void 0,
+                  AniSearch: results.AniSearch ? this._link("AniSearch", results.AniSearch.value) : void 0,
+                  LiveChart: results.LiveChart ? this._link("LiveChart", results.LiveChart.value) : void 0,
+                },
+                item: results.item ? results.item.value : void 0,
+              };
 
-            // If extra properties like AniList, AniDB, or MyAnimeList are missing,
-            // try to fetch them using an external API.
-            if (!data.links.MyAnimeList || !data.links.AniDB || !data.links.AniList || !data.links.Kitsu || !data.links.AniSearch || !data.links.LiveChart) {
-              let externalEndpoint = null;
-              let externalId = null;
-              // Prefer a TMDb ID if available; otherwise fall back to TVDb, then IMDb.
-              if (results.TMDb_movie) {
-                externalEndpoint = "themoviedb";
-                externalId = results.TMDb_movie.value;
-              } else if (results.TMDb_tv) {
-                externalEndpoint = "themoviedb";
-                externalId = results.TMDb_tv.value;
-              } else if (results.TVDb_movie) {
-                externalEndpoint = "thetvdb";
-                externalId = results.TVDb_movie.value;
-              } else if (results.TVDb_tv) {
-                externalEndpoint = "thetvdb";
-                externalId = results.TVDb_tv.value;
-              } else if (results.IMDb) {
-                externalEndpoint = "imdb";
-                externalId = results.IMDb.value;
-              }
+              // If extra properties like AniList, AniDB, or MyAnimeList are missing,
+              // try to fetch them using an external API.
+              if (!data.links.MyAnimeList || !data.links.AniDB || !data.links.AniList || !data.links.Kitsu || !data.links.AniSearch || !data.links.LiveChart) {
+                let externalEndpoint = null;
+                let externalId = null;
+                // Prefer a TMDb ID if available; otherwise fall back to TVDb, then IMDb.
+                if (results.TMDb_movie) {
+                  externalEndpoint = "themoviedb";
+                  externalId = results.TMDb_movie.value;
+                } else if (results.TMDb_tv) {
+                  externalEndpoint = "themoviedb";
+                  externalId = results.TMDb_tv.value;
+                } else if (results.TVDb_movie) {
+                  externalEndpoint = "thetvdb";
+                  externalId = results.TVDb_movie.value;
+                } else if (results.TVDb_tv) {
+                  externalEndpoint = "thetvdb";
+                  externalId = results.TVDb_tv.value;
+                } else if (results.IMDb) {
+                  externalEndpoint = "imdb";
+                  externalId = results.IMDb.value;
+                }
 
-              if (externalEndpoint && externalId) {
-                GM.xmlHttpRequest({
-                  method: "GET",
-                  url: `https://arm.haglund.dev/api/v2/${externalEndpoint}?id=${externalId}`,
-                  timeout: 15e3,
-                  onload: (extRes) => {
-                    try {
-                      const extData = JSON.parse(extRes.responseText);
-                      if (Array.isArray(extData) && extData.length > 0) {
-                        const extInfo = extData[0];
-                        const mapping = {
-                          themoviedb: "TMDB",
-                          thetvdb: "TVDB",
-                          imdb: "IMDb",
-                          myanimelist: "MyAnimeList",
-                          anidb: "AniDB",
-                          anilist: "AniList",
-                          kitsu: "Kitsu",
-                          anisearch: "AniSearch",
-                          livechart: "LiveChart"
-                        };
+                if (externalEndpoint && externalId) {
+                  GM.xmlHttpRequest({
+                    method: "GET",
+                    url: `https://arm.haglund.dev/api/v2/${externalEndpoint}?id=${externalId}`,
+                    timeout: 15e3,
+                    onload: (extRes) => {
+                      try {
+                        const extData = JSON.parse(extRes.responseText);
+                        if (Array.isArray(extData) && extData.length > 0) {
+                          const extInfo = extData[0];
+                          const mapping = {
+                            themoviedb: "TMDB",
+                            thetvdb: "TVDB",
+                            imdb: "IMDb",
+                            myanimelist: "MyAnimeList",
+                            anidb: "AniDB",
+                            anilist: "AniList",
+                            kitsu: "Kitsu",
+                            anisearch: "AniSearch",
+                            livechart: "LiveChart"
+                          };
 
-                        Object.keys(mapping).forEach((apiKey) => {
-                          const linkKey = mapping[apiKey];
-                          if (!data.links[linkKey] && extInfo[apiKey]) {
-                            data.links[linkKey] =
-                              apiKey === "themoviedb" ? this._link(itemType === "movie" ? "TMDb_movie" : "TMDb_tv", extInfo[apiKey]) :
-                              apiKey === "thetvdb" ? this._link(itemType === "movie" ? "TVDb_movie" : "TVDb_tv", extInfo[apiKey]) :
-                              apiKey === "imdb" ? this._link("IMDb", extInfo[apiKey]) :
-                              this._link(linkKey, extInfo[apiKey]);
-                          }
-                        });
+                          Object.keys(mapping).forEach((apiKey) => {
+                            const linkKey = mapping[apiKey];
+                            if (!data.links[linkKey] && extInfo[apiKey]) {
+                              data.links[linkKey] =
+                                apiKey === "themoviedb" ? this._link(itemType === "movie" ? "TMDb_movie" : "TMDb_tv", extInfo[apiKey]) :
+                                apiKey === "thetvdb" ? this._link(itemType === "movie" ? "TVDb_movie" : "TVDb_tv", extInfo[apiKey]) :
+                                apiKey === "imdb" ? this._link("IMDb", extInfo[apiKey]) :
+                                this._link(linkKey, extInfo[apiKey]);
+                            }
+                          });
+                        }
+                      } catch (error) {
+                        console.error("Error parsing external API response:", error);
                       }
-                    } catch (error) {
-                      console.error("Error parsing external API response:", error);
-                    }
-                    resolve(data);
-                  },
-                  onerror: () => resolve(data),
-                  ontimeout: () => resolve(data)
-                });
+                      resolve(data);
+                    },
+                    onerror: () => resolve(data),
+                    ontimeout: () => resolve(data)
+                  });
+                } else {
+                  resolve(data);
+                }
               } else {
                 resolve(data);
               }
             } else {
-              resolve(data);
+              resolve({ title: void 0, links: {}, item: void 0 });
             }
-          } else {
-            reject(new Error("No results"));
+          } catch (error) {
+            reject(new Error("Failed to parse Wikidata response"));
           }
         },
         onerror: () => {
