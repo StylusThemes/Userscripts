@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          DMM - Add Trash Guide Regex Buttons
-// @version       3.1.3
+// @version       3.1.4
 // @description   Adds buttons to Debrid Media Manager for applying Trash Guide regex patterns.
 // @author        Journey Over
 // @license       MIT
@@ -519,7 +519,6 @@
     onToggleOption(key, btn) {
       const isActive = btn.classList.contains('active');
       const isNegative = btn.classList.contains('negative');
-      const isSelected = this.selectedOptions.includes(key);
 
       // Determine next state based on current state and logic mode
       if (!isActive && !isNegative) {
