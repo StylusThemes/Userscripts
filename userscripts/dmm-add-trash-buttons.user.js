@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          DMM - Add Trash Guide Regex Buttons
-// @version       3.1.6
+// @version       3.1.7
 // @description   Adds buttons to Debrid Media Manager for applying Trash Guide regex patterns.
 // @author        Journey Over
 // @license       MIT
@@ -8,7 +8,7 @@
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@c185c2777d00a6826a8bf3c43bbcdcfeba5a9566/libs/dmm/button-data.min.js
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@c185c2777d00a6826a8bf3c43bbcdcfeba5a9566/libs/gm/gmcompat.min.js
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@daf2c0a40cf42b5bd783184e09919157bdad4873/libs/utils/utils.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@daf2c0a40cf42b5bd783184e09919157bdad4873/libs/wikidata/index.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@214bd129e5e1c8530b80cacbbb5efecc5e975666/libs/wikidata/index.min.js
 // @grant         GM.getValue
 // @grant         GM.setValue
 // @grant         GM.xmlHttpRequest
@@ -956,6 +956,7 @@
       const button = document.createElement('button');
       button.type = 'button';
       button.className = `${className}`;
+      button.setAttribute('data-url', link);
       button.innerHTML = `<b class="flex items-center justify-center"><img src="${iconUrl}" class="mr-1 h-3 w-3" alt="${iconAlt}">${label}</b>`;
       button.addEventListener('click', () => {
         window.open(link, '_blank', 'noopener,noreferrer');
@@ -983,7 +984,7 @@
         iconAlt: 'SeaDex icon',
         label: 'SeaDex',
         className: 'mb-1 mr-2 mt-0 rounded border-2 border-pink-500 bg-pink-900/30 p-1 text-xs text-pink-100 transition-colors hover:bg-pink-800/50',
-        existingSelector: 'a[href*="releases.moe"]',
+        existingSelector: `button[data-url="${link}"]`,
         debugName: 'Releases.moe'
       });
     }
@@ -999,7 +1000,7 @@
         iconAlt: 'Trakt icon',
         label: 'Trakt',
         className: 'mb-1 mr-2 mt-0 rounded border-2 border-red-500 bg-red-900/30 p-1 text-xs text-red-100 transition-colors hover:bg-red-800/50',
-        existingSelector: 'a[href*="trakt.tv"]',
+        existingSelector: `button[data-url="${link}"]`,
         debugName: 'Trakt.tv'
       });
     }
@@ -1037,10 +1038,12 @@
       // Listen for native navigation events
       window.addEventListener('popstate', () => {
         this.buttonManager.cleanup();
+        this.lastProcessedUrl = null;
         this.debouncedCheck();
       });
       window.addEventListener('hashchange', () => {
         this.buttonManager.cleanup();
+        this.lastProcessedUrl = null;
         this.debouncedCheck();
       });
 
@@ -1048,6 +1051,7 @@
       this.pollingInterval = setInterval(() => {
         if (location.href !== this.lastUrl) {
           this.buttonManager.cleanup();
+          this.lastProcessedUrl = null;
           this.debouncedCheck();
           this.lastUrl = location.href;
         }
