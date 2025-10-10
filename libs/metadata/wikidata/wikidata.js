@@ -3,19 +3,18 @@
 // @exclude      *
 // ==UserLibrary==
 // @name         @journeyover/wikidata
-// @description  Wikidata for my userscripts
+// @description  Wikidata API client for fetching external IDs
 // @license      MIT
-// @version      1.1.4
+// @version      1.2.0
 // @homepageURL  https://github.com/StylusThemes/Userscripts
 // ==/UserLibrary==
 // @connect      query.wikidata.org
-// @connect      arm.haglund.dev
 // @grant        GM.xmlHttpRequest
 // ==/UserScript==
 
 /**
  * Wikidata API client for fetching external links and metadata for movies and TV shows.
- * Queries Wikidata using SPARQL and optionally supplements with data from arm.haglund.dev.
+ * Queries Wikidata using SPARQL.
  */
 this.Wikidata = class {
   /**
@@ -251,76 +250,7 @@ this.Wikidata = class {
                 item: results.item ? results.item.value : void 0,
               };
 
-              // If extra properties like AniList, AniDB, or MyAnimeList are missing,
-              // try to fetch them using an external API.
-              if (!data.links.MyAnimeList || !data.links.AniDB || !data.links.AniList || !data.links.Kitsu || !data.links.AniSearch || !data.links.LiveChart) {
-                let externalEndpoint = null;
-                let externalId = null;
-                // Prefer a TMDb ID if available; otherwise fall back to TVDb, then IMDb.
-                if (results.TMDb_movie) {
-                  externalEndpoint = "themoviedb";
-                  externalId = results.TMDb_movie.value;
-                } else if (results.TMDb_tv) {
-                  externalEndpoint = "themoviedb";
-                  externalId = results.TMDb_tv.value;
-                } else if (results.TVDb_movie) {
-                  externalEndpoint = "thetvdb";
-                  externalId = results.TVDb_movie.value;
-                } else if (results.TVDb_tv) {
-                  externalEndpoint = "thetvdb";
-                  externalId = results.TVDb_tv.value;
-                } else if (results.IMDb) {
-                  externalEndpoint = "imdb";
-                  externalId = results.IMDb.value;
-                }
-
-                if (externalEndpoint && externalId) {
-                  GM.xmlHttpRequest({
-                    method: "GET",
-                    url: `https://arm.haglund.dev/api/v2/${externalEndpoint}?id=${externalId}`,
-                    timeout: 15e3,
-                    onload: (extRes) => {
-                      try {
-                        const extData = JSON.parse(extRes.responseText);
-                        if (Array.isArray(extData) && extData.length > 0) {
-                          const extInfo = extData[0];
-                          const mapping = {
-                            themoviedb: "TMDB",
-                            thetvdb: "TVDB",
-                            imdb: "IMDb",
-                            myanimelist: "MyAnimeList",
-                            anidb: "AniDB",
-                            anilist: "AniList",
-                            kitsu: "Kitsu",
-                            anisearch: "AniSearch",
-                            livechart: "LiveChart"
-                          };
-
-                          Object.keys(mapping).forEach((apiKey) => {
-                            const linkKey = mapping[apiKey];
-                            if (!data.links[linkKey] && extInfo[apiKey]) {
-                              data.links[linkKey] =
-                                apiKey === "themoviedb" ? this._link(itemType === "movie" ? "TMDb_movie" : "TMDb_tv", extInfo[apiKey]) :
-                                apiKey === "thetvdb" ? this._link(itemType === "movie" ? "TVDb_movie" : "TVDb_tv", extInfo[apiKey]) :
-                                apiKey === "imdb" ? this._link("IMDb", extInfo[apiKey]) :
-                                this._link(linkKey, extInfo[apiKey]);
-                            }
-                          });
-                        }
-                      } catch (error) {
-                        console.error("Error parsing external API response:", error);
-                      }
-                      resolve(data);
-                    },
-                    onerror: () => resolve(data),
-                    ontimeout: () => resolve(data)
-                  });
-                } else {
-                  resolve(data);
-                }
-              } else {
-                resolve(data);
-              }
+              resolve(data);
             } else {
               resolve({ title: void 0, links: {}, item: void 0 });
             }

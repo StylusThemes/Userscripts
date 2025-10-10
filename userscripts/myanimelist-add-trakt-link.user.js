@@ -7,6 +7,7 @@
 // @match         *://myanimelist.net/anime/*
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@c185c2777d00a6826a8bf3c43bbcdcfeba5a9566/libs/gm/gmcompat.min.js
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@c185c2777d00a6826a8bf3c43bbcdcfeba5a9566/libs/utils/utils.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@[wip]/libs/metadata/animeapi/animeapi.min.js
 // @grant         GM.xmlHttpRequest
 // @grant         GM.setValue
 // @grant         GM.getValue
@@ -22,6 +23,8 @@
   'use strict';
 
   const logger = Logger('MAL - Add Trakt link', { debug: false });
+
+  const animeapi = new AnimeAPI();
 
   const malId = window.location.pathname.split('/')[2];
   if (!malId) {
@@ -61,36 +64,22 @@
 
   // Fetch from API if no valid cache
   logger(`Fetching Trakt data for MAL ID ${malId}`);
-  GMC.xmlHttpRequest({
-    method: 'GET',
-    url: `https://animeapi.my.id/myanimelist/${malId}`,
-    onload: function(response) {
-      if (response.status === 200) {
-        try {
-          const data = JSON.parse(response.responseText);
-          if (!data.trakt || !data.trakt_type) {
-            logger.warn('No Trakt data found in API response');
-            return;
-          }
-
-          // Store in GMC storage with timestamp
-          GMC.setValue(malId, {
-            data: data,
-            timestamp: Date.now()
-          });
-
-          logger(`Successfully retrieved Trakt data for MAL ID ${malId}`);
-          createTraktLink(data);
-        } catch (err) {
-          logger.error(`Error parsing API response: ${err.message}`);
-        }
-      } else {
-        logger.error(`API request failed with status ${response.status}`);
-      }
-    },
-    onerror: function(error) {
-      logger.error(`API request error: ${error.message}`);
+  animeapi.fetch('myanimelist', malId).then(data => {
+    if (!data.trakt || !data.trakt_type) {
+      logger.warn('No Trakt data found in API response');
+      return;
     }
+
+    // Store in GMC storage with timestamp
+    GMC.setValue(malId, {
+      data: data,
+      timestamp: Date.now()
+    });
+
+    // Add Trakt link to page
+    addTraktLink(data.trakt, data.trakt_type);
+  }).catch(error => {
+    logger.error(`Failed to fetch from AnimeAPI: ${error.message}`);
   });
 
   function createTraktLink(data) {

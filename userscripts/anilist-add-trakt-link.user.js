@@ -7,6 +7,7 @@
 // @match         *://anilist.co/*
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@c185c2777d00a6826a8bf3c43bbcdcfeba5a9566/libs/gm/gmcompat.min.js
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@c185c2777d00a6826a8bf3c43bbcdcfeba5a9566/libs/utils/utils.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@[wip]/libs/metadata/animeapi/animeapi.min.js
 // @grant         GM.xmlHttpRequest
 // @grant         GM.setValue
 // @grant         GM.getValue
@@ -27,6 +28,8 @@
     ICON_URL: 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/trakt.svg',
     ICON_SIZE: '16px'
   };
+
+  const animeapi = new AnimeAPI();
 
   const logger = Logger('AniList - Add Trakt link', { debug: false });
 
@@ -125,39 +128,24 @@
     }
 
     async fetchTraktData(anilistId) {
-      return new Promise((resolve, reject) => {
-        GMC.xmlHttpRequest({
-          method: 'GET',
-          url: `https://animeapi.my.id/anilist/${anilistId}`,
-          onload: response => {
-            if (response.status === 200) {
-              try {
-                const data = JSON.parse(response.responseText);
-                if (data.trakt && data.trakt_type) {
-                  logger.debug(`Fetched Trakt data for AniList ID ${anilistId}`);
-                  resolve(data);
-                } else {
-                  logger.warn(`No Trakt data in response for AniList ID ${anilistId}`);
-                  resolve(null);
-                }
-              } catch (error) {
-                logger.error(`Error parsing Trakt API response: ${error.message}`);
-                reject(error);
-              }
-            } else if (response.status === 404) {
-              logger.warn(`No mapping data found for AniList ID ${anilistId} (404)`);
-              resolve(null);
-            } else {
-              logger.error(`Trakt API error: ${response.status}`);
-              reject(new Error(`HTTP ${response.status}`));
-            }
-          },
-          onerror: error => {
-            logger.error(`Trakt API request failed: ${error.message}`);
-            reject(error);
-          }
-        });
-      });
+      try {
+        const data = await animeapi.fetch('anilist', anilistId);
+        if (data.trakt && data.trakt_type) {
+          logger.debug(`Fetched Trakt data for AniList ID ${anilistId}`);
+          return data;
+        } else {
+          logger.warn(`No Trakt data in response for AniList ID ${anilistId}`);
+          return null;
+        }
+      } catch (error) {
+        if (error.message.includes('404')) {
+          logger.warn(`No mapping data found for AniList ID ${anilistId} (404)`);
+          return null;
+        } else {
+          logger.error(`Failed to fetch Trakt data: ${error.message}`);
+          throw error;
+        }
+      }
     }
 
     addTraktLink(data, container) {

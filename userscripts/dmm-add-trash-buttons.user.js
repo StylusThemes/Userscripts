@@ -8,7 +8,7 @@
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@c185c2777d00a6826a8bf3c43bbcdcfeba5a9566/libs/dmm/button-data.min.js
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@c185c2777d00a6826a8bf3c43bbcdcfeba5a9566/libs/gm/gmcompat.min.js
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@daf2c0a40cf42b5bd783184e09919157bdad4873/libs/utils/utils.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@214bd129e5e1c8530b80cacbbb5efecc5e975666/libs/wikidata/index.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@[wip]/libs/metadata/armhaglund/armhagland.min.js
 // @grant         GM.getValue
 // @grant         GM.setValue
 // @grant         GM.xmlHttpRequest
@@ -60,8 +60,8 @@
   // Validate BUTTON_DATA from external CDN
   const BUTTON_DATA = Array.isArray(window?.DMM_BUTTON_DATA) ? window.DMM_BUTTON_DATA : [];
 
-  // Initialize Wikidata API
-  const wikidata = new Wikidata();
+  // Initialize ArmHaglund API
+  const armhaglund = new ArmHaglund();
 
   /**
    * Quality tokens for building regex patterns
@@ -100,23 +100,22 @@
   };
 
   /**
-   * Fetches anime data from APIs
+   * Fetches anime data from ArmHaglund API
    * @param {string} imdbId - The IMDB ID
-   * @param {string} mediaType - 'movie' or 'tv' (for Wikidata API)
    * @returns {Promise<Object>} Result object with isAnime, anilistId
    */
-  const fetchAnimeData = async (imdbId, mediaType) => {
-    const data = await wikidata.links(imdbId, 'IMDb', mediaType);
-    const anilistLink = data.links?.AniList?.value;
-    if (!anilistLink) {
+  const fetchAnimeData = async (imdbId) => {
+    try {
+      const data = await armhaglund.fetchIds('imdb', imdbId);
+      if (data && data.anilist) {
+        return { isAnime: true, anilistId: data.anilist };
+      } else {
+        return { isAnime: false, anilistId: null };
+      }
+    } catch (error) {
+      logger.debug(`Failed to fetch from ArmHaglund: ${error.message}`);
       return { isAnime: false, anilistId: null };
     }
-    const anilistMatch = anilistLink.match(CONFIG.ANILIST_ID_REGEX);
-    const anilistId = anilistMatch ? anilistMatch[1] : null;
-    if (!anilistId) {
-      return { isAnime: true, anilistId: null };
-    }
-    return { isAnime: true, anilistId };
   };
 
   /**
@@ -870,14 +869,11 @@
         const mediaType = urlMatch[1]; // 'movie' or 'show'
         const imdbId = urlMatch[2]; // IMDB ID like 'tt0111161'
 
-        const wikidataMediaType = mediaType === 'movie' ? 'movie' : 'tv';
-        const traktMediaType = mediaType === 'movie' ? 'movie' : 'show';
-
         // Create Trakt button for all content
-        this.createTraktButton(imdbId, traktMediaType);
+        this.createTraktButton(imdbId, mediaType);
 
         // Detect anime and create Releases.moe button if applicable
-        await this.detectAnimeForCurrentPage(imdbId, wikidataMediaType);
+        await this.detectAnimeForCurrentPage(imdbId);
       } catch (error) {
         logger.error(`External links detection failed for ${location.href}:`, error);
       }
@@ -886,7 +882,7 @@
     /**
      * Detects if the current page is for an anime and creates Releases.moe button if applicable
      */
-    async detectAnimeForCurrentPage(imdbId, mediaType) {
+    async detectAnimeForCurrentPage(imdbId) {
       // Check cache first
       const cachedData = await getCachedAnimeData(imdbId);
       if (cachedData) {
@@ -897,7 +893,7 @@
 
       logger.debug(`Anime cache miss for ${imdbId}, fetching from APIs`);
 
-      const result = await fetchAnimeData(imdbId, mediaType);
+      const result = await fetchAnimeData(imdbId);
       if (result.isAnime && result.anilistId) {
         // Check Releases.moe availability before creating button to avoid race condition
         const releasesExists = await checkReleasesMoeExists(result.anilistId);
