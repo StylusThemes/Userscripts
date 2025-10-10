@@ -33,11 +33,6 @@
     CONTAINER_SELECTOR: '.mb-2', // CSS selector for button container
     MAX_RETRIES: 20, // Max attempts to find container on SPA pages
 
-    // Anime and IMDB selectors
-    ANILIST_ID_REGEX: /anilist\.co\/anime\/(\d+)/,
-    CACHE_PREFIX: 'dmm-anime-cache-',
-    CACHE_DURATION: 24 * 60 * 60 * 1000, // 24 hours in milliseconds
-
     // UI styling
     CSS_CLASS_PREFIX: 'dmm-tg', // Prefix for all CSS classes to avoid conflicts
 
@@ -45,8 +40,12 @@
     QUALITY_OPTIONS_KEY: 'dmm-tg-quality-options', // Local storage key for selected quality options
     QUALITY_POLARITY_KEY: 'dmm-tg-quality-polarity', // Storage key for quality polarity (positive/negative)
     LOGIC_MODE_KEY: 'dmm-tg-logic-mode', // Storage key for AND/OR logic mode preference
+
+    // Caching settings
     CACHE_KEY: 'cache',
+    CACHE_PREFIX: 'dmm-anime-cache-',
     CACHE_LAST_CLEANUP_KEY: 'cache-last-cleanup',
+    CACHE_DURATION: 24 * 60 * 60 * 1000, // 24 hours in milliseconds
 
     // Regex patterns for quality removal
     REGEX_PATTERNS: {
