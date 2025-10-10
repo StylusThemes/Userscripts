@@ -130,7 +130,7 @@
         storage.playlists[playlistId].videos[videoId] = {
           timestamp: currentTime,
           lastUpdated: Date.now(),
-          videoType: 'playlist'
+          videoType: type
         };
         storage.playlists[playlistId].lastWatchedVideoId = videoId;
       } else {
@@ -155,7 +155,8 @@
     const videoId = urlParams.get('v') || player.getVideoData()?.video_id;
     if (!videoId) return;
 
-    const playlistId = urlParams.get('list');
+    // Exclude the watch later playlist.
+    const playlistId = ((rawId) => (rawId !== 'WL' ? rawId : null))(urlParams.get('list'));
     currentContext = { videoId, playlistId };
 
     const isLive = player.getVideoData()?.isLive;

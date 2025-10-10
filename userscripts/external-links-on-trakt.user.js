@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name          External links on Trakt
-// @version       3.3.1
-// @description   Adds more external links to Trakt.tv pages.
+// @version       3.3.2
+// @description   Adds more external links to Trakt.tv pages, including dub information for anime shows.
 // @author        Journey Over
 // @license       MIT
 // @match         *://trakt.tv/*
@@ -110,6 +110,7 @@
         desc: 'Provides a direct link to the XPrime streaming page for the selected title.'
       },
     ],
+    DUB_INFO: { name: 'Dub Information', desc: 'Show dub information for anime shows.' },
     LINK_ORDER: [
       'Official Site', 'IMDb', 'TMDB', 'TVDB', 'Rotten Tomatoes', 'Metacritic',
       'Letterboxd', 'TVmaze', 'MyAnimeList', 'AniDB', 'AniList', 'Kitsu',
@@ -122,7 +123,8 @@
   // Default configuration values
   const DEFAULT_CONFIG = Object.fromEntries([
     ...CONSTANTS.METADATA_SITES.map(site => [site.name, true]),
-    ...CONSTANTS.STREAMING_SITES.map(site => [site.name, true])
+    ...CONSTANTS.STREAMING_SITES.map(site => [site.name, true]),
+    [CONSTANTS.DUB_INFO.name, true]
   ]);
 
   // ======================
@@ -238,6 +240,11 @@
           this.addCustomLinks();
         }
         this.sortLinks();
+
+        // Add dub info for anime if Anilist ID is available
+        if (this.mediaInfo.anilistId) {
+          this.addDubInfo();
+        }
       } catch (error) {
         logger.error(`Failed handling external links: ${error.message}`);
       }
@@ -289,6 +296,7 @@
 
       if (this.isCacheValid(cache)) {
         this.addWikidataLinks(cache.links);
+        this.mediaInfo.anilistId = cache.links.AniList?.value.match(/\/anime\/(\d+)/)?.[1];
         return;
       }
 
@@ -301,6 +309,7 @@
           time: Date.now()
         });
         this.addWikidataLinks(data.links);
+        this.mediaInfo.anilistId = data.links.AniList?.value.match(/\/anime\/(\d+)/)?.[1];
         logger.debug(`Fetched new Wikidata links: ${JSON.stringify(data.links)}`);
       } catch (error) {
         logger.error(`Failed fetching Wikidata links: ${error.message}`);
@@ -321,6 +330,96 @@
           this.createLink(site, link.value);
         }
       });
+    }
+
+    // ======================
+    //  Anilist Integration
+    // ======================
+    async queryAnilist(id) {
+      const query = `
+        query ($id: Int) {
+          Media(id: $id, type: ANIME) {
+            characters(sort: ROLE) {
+              edges {
+                role
+                jpVoiceActors: voiceActors(language: JAPANESE) {
+                  name {
+                    full
+                  }
+                }
+                enVoiceActors: voiceActors(language: ENGLISH) {
+                  name {
+                    full
+                  }
+                }
+                node {
+                  name {
+                    full
+                  }
+                }
+              }
+            }
+          }
+        }
+      `;
+
+      const response = await new Promise((resolve, reject) => {
+        GM.xmlHttpRequest({
+          method: 'POST',
+          url: 'https://graphql.anilist.co',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          data: JSON.stringify({
+            query,
+            variables: { id: parseInt(id) }
+          }),
+          onload: (response) => {
+            if (response.status === 200) {
+              resolve(JSON.parse(response.responseText));
+            } else {
+              reject(new Error(`Anilist API error: ${response.status}`));
+            }
+          },
+          onerror: reject
+        });
+      });
+
+      return response.data.Media.characters.edges.filter(edge => edge.role === 'MAIN');
+    }
+
+    addDubInfo() {
+      if (!this.config['Dub Information'] || !this.mediaInfo?.anilistId) return;
+
+      const titleElement = $('.mobile-title h1');
+      if (!titleElement.length) return; // wait for element to exist
+
+      const cacheKey = this.mediaInfo.imdbId;
+      GMC.getValue(cacheKey).then(cache => {
+        if (cache && cache.isdubbed !== undefined) {
+          this.displayDubInfo(cache.isdubbed);
+          return;
+        }
+
+        this.queryAnilist(this.mediaInfo.anilistId).then(edges => {
+          const hasEnglishDub = edges.some(edge => edge.enVoiceActors && edge.enVoiceActors.length > 0);
+          const updatedCache = { ...cache, isdubbed: hasEnglishDub };
+          GMC.setValue(cacheKey, updatedCache);
+          this.displayDubInfo(hasEnglishDub);
+        }).catch(error => {
+          logger.error(`Failed fetching Anilist dub info: ${error.message}`);
+        });
+      });
+    }
+
+    displayDubInfo(hasEnglishDub) {
+      const container = $('.additional-stats');
+      if (container.find('.dub-info').length) return; // already added
+
+      const dubText = hasEnglishDub ? 'Yes' : 'No';
+
+      container.append(`<li class="dub-info"><label>Dubbed in English</label>${dubText}</li>`);
     }
 
     // ======================
@@ -484,10 +583,10 @@
     }
 
     generateSettingsModalHTML() {
-      const generateSection = (title, sites) => `
+      const generateSection = (title, sites, columns = 2) => `
         <div class="settings-section">
           <h3><i class="fas fa-link"></i> ${title}</h3>
-          <div class="link-settings-grid">
+          <div class="link-settings-grid" style="grid-template-columns: repeat(${columns}, 1fr);">
             ${sites.map(site => {
               const id = site.name.toLowerCase().replace(/\s+/g, '_');
               return `
@@ -518,6 +617,7 @@
 
               ${generateSection('Metadata Sites', CONSTANTS.METADATA_SITES)}
               ${generateSection('Streaming Sites', CONSTANTS.STREAMING_SITES)}
+              ${generateSection('Other', [CONSTANTS.DUB_INFO], 1)}
             </div>
 
             <div class="modal-footer">
@@ -530,7 +630,7 @@
     }
 
     addModalStyles() {
-      const styles = `#${CONSTANTS.SCRIPT_ID}-config{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:9999;display:flex;justify-content:center;align-items:center}#${CONSTANTS.SCRIPT_ID}-config .modal-content{background:#2b2b2b;color:#fff;border-radius:8px;width:450px;max-width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.3)}#${CONSTANTS.SCRIPT_ID}-config .modal-header{padding:1.5rem;border-bottom:1px solid #404040;position:relative;display:flex;justify-content:space-between;align-items:center}#${CONSTANTS.SCRIPT_ID}-config .modal-header h2{margin:0;font-size:1.4rem;color:#fff}#${CONSTANTS.SCRIPT_ID}-config .close-button{background:0;border:0;color:#fff;font-size:1.5rem;cursor:pointer;padding:0 .5rem}#${CONSTANTS.SCRIPT_ID}-config .settings-sections{padding:1.5rem;max-height:60vh;overflow-y:auto}#${CONSTANTS.SCRIPT_ID}-config .settings-section{margin-bottom:2rem}#${CONSTANTS.SCRIPT_ID}-config .settings-section h3{font-size:1.1rem;margin:0 0 1.2rem;color:#fff;display:flex;align-items:center;gap:.5rem}#${CONSTANTS.SCRIPT_ID}-config .setting-item{display:flex;justify-content:space-between;align-items:center;padding:.8rem 0;border-bottom:1px solid #404040}#${CONSTANTS.SCRIPT_ID}-config .setting-info{flex-grow:1;margin-right:1.5rem}#${CONSTANTS.SCRIPT_ID}-config .setting-info label{display:block;font-weight:500;margin-bottom:.3rem;cursor:help}#${CONSTANTS.SCRIPT_ID}-config .description{color:#a0a0a0;font-size:.9rem;line-height:1.4}#${CONSTANTS.SCRIPT_ID}-config .switch{flex-shrink:0}#${CONSTANTS.SCRIPT_ID}-config .modal-footer{padding:1.5rem;border-top:1px solid #404040;display:flex;gap:.8rem;justify-content:flex-end}#${CONSTANTS.SCRIPT_ID}-config .btn{padding:.6rem 1.2rem;border-radius:4px;border:0;cursor:pointer;font-weight:500;transition:all .2s ease}#${CONSTANTS.SCRIPT_ID}-config .btn.save{background:#4CAF50;color:#fff}#${CONSTANTS.SCRIPT_ID}-config .btn.warning{background:#f44336;color:#fff}#${CONSTANTS.SCRIPT_ID}-config .btn:hover{opacity:.9}#${CONSTANTS.SCRIPT_ID}-config .link-settings-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:.8rem}#${CONSTANTS.SCRIPT_ID}-config .link-settings-grid .setting-item{background:rgba(255,255,255,.05);border-radius:4px;padding:.8rem;border:1px solid #404040;margin:0}#${CONSTANTS.SCRIPT_ID}-config .link-settings-grid .setting-item:hover{background:rgba(255,255,255,.08)}`;
+      const styles = `#${CONSTANTS.SCRIPT_ID}-config{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);backdrop-filter:blur(5px);z-index:9999;display:flex;justify-content:center;align-items:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;}#${CONSTANTS.SCRIPT_ID}-config .modal-content{background:linear-gradient(135deg,#2a2a2a 0%,#1a1a1a 100%);color:#fff;border-radius:16px;width:500px;max-width:90vw;max-height:90vh;box-shadow:0 20px 60px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);overflow:hidden;display:flex;flex-direction:column;}#${CONSTANTS.SCRIPT_ID}-config .modal-header{padding:1.5rem 2rem;border-bottom:1px solid rgba(255,255,255,0.1);position:relative;display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,0.05);}#${CONSTANTS.SCRIPT_ID}-config .modal-header h2{margin:0;font-size:1.5rem;font-weight:600;color:#fff;}#${CONSTANTS.SCRIPT_ID}-config .close-button{background:none;border:none;color:#aaa;font-size:1.5rem;cursor:pointer;padding:0 0.5rem;border-radius:4px;transition:all 0.2s ease;}#${CONSTANTS.SCRIPT_ID}-config .close-button:hover{background:rgba(255,255,255,0.1);color:#fff;}#${CONSTANTS.SCRIPT_ID}-config .settings-sections{padding:2rem;flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.3) transparent;}#${CONSTANTS.SCRIPT_ID}-config .settings-sections::-webkit-scrollbar{width:6px;}#${CONSTANTS.SCRIPT_ID}-config .settings-sections::-webkit-scrollbar-track{background:transparent;}#${CONSTANTS.SCRIPT_ID}-config .settings-sections::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.3);border-radius:3px;}#${CONSTANTS.SCRIPT_ID}-config .settings-section{margin-bottom:2rem;}#${CONSTANTS.SCRIPT_ID}-config .settings-section h3{font-size:1.2rem;margin:0 0 1.5rem;color:#fff;display:flex;align-items:center;gap:0.5rem;font-weight:500;}#${CONSTANTS.SCRIPT_ID}-config .link-settings-grid{display:grid;gap:1rem;}#${CONSTANTS.SCRIPT_ID}-config .setting-item{display:flex;justify-content:space-between;align-items:center;padding:1rem;border-radius:8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);transition:all 0.2s ease;}#${CONSTANTS.SCRIPT_ID}-config .setting-item:hover{background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.2);transform:translateY(-1px);}#${CONSTANTS.SCRIPT_ID}-config .setting-info{flex-grow:1;margin-right:1.5rem;}#${CONSTANTS.SCRIPT_ID}-config .setting-info label{display:block;font-weight:500;margin-bottom:0.25rem;cursor:help;color:#fff;}#${CONSTANTS.SCRIPT_ID}-config .description{color:#aaa;font-size:0.9rem;line-height:1.4;}#${CONSTANTS.SCRIPT_ID}-config .switch{flex-shrink:0;position:relative;display:inline-block;width:50px;height:24px;}#${CONSTANTS.SCRIPT_ID}-config .switch input{opacity:0;width:0;height:0;}#${CONSTANTS.SCRIPT_ID}-config .slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#444;border-radius:24px;transition:0.3s;}#${CONSTANTS.SCRIPT_ID}-config .slider:before{position:absolute;content:"";height:18px;width:18px;left:3px;bottom:3px;background:white;border-radius:50%;transition:0.3s;}#${CONSTANTS.SCRIPT_ID}-config input:checked + .slider{background:#4CAF50;}#${CONSTANTS.SCRIPT_ID}-config input:checked + .slider:before{transform:translateX(26px);}#${CONSTANTS.SCRIPT_ID}-config .modal-footer{padding:1.5rem 2rem;border-top:1px solid rgba(255,255,255,0.1);display:flex;gap:1rem;justify-content:flex-end;background:rgba(255,255,255,0.05);}#${CONSTANTS.SCRIPT_ID}-config .btn{padding:0.75rem 1.5rem;border-radius:8px;border:none;cursor:pointer;font-weight:500;font-size:0.9rem;transition:all 0.2s ease;text-transform:uppercase;letter-spacing:0.5px;}#${CONSTANTS.SCRIPT_ID}-config .btn.save{background:linear-gradient(135deg,#4CAF50 0%,#45a049 100%);color:#fff;box-shadow:0 4px 15px rgba(76,175,80,0.3);}#${CONSTANTS.SCRIPT_ID}-config .btn.save:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(76,175,80,0.4);}#${CONSTANTS.SCRIPT_ID}-config .btn.warning{background:linear-gradient(135deg,#f44336 0%,#d32f2f 100%);color:#fff;box-shadow:0 4px 15px rgba(244,67,54,0.3);}#${CONSTANTS.SCRIPT_ID}-config .btn.warning:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(244,67,54,0.4);}`;
       $('<style>').prop('type', 'text/css').html(styles).appendTo('head');
     }
 
@@ -538,7 +638,7 @@
       $('.close-button').click(() => $(`#${CONSTANTS.SCRIPT_ID}-config`).remove());
 
       $('#save-config').click(async () => {
-        [...CONSTANTS.METADATA_SITES, ...CONSTANTS.STREAMING_SITES].forEach(site => {
+        [...CONSTANTS.METADATA_SITES, ...CONSTANTS.STREAMING_SITES, CONSTANTS.DUB_INFO].forEach(site => {
           const checkboxId = site.name.toLowerCase().replace(/\s+/g, '_');
           this.config[site.name] = $(`#${checkboxId}`).is(':checked');
         });

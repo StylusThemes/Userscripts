@@ -927,6 +927,7 @@
       this.processor = processor;
       this.observer = null;
       this.keyToIcon = new Map();
+      this.allButtonAdded = false;
     }
 
     setProcessor(processor) {
@@ -1009,6 +1010,49 @@
           if (ok) this.markExistingTorrents();
         });
       }
+
+      if (links.length > 1 && !this.allButtonAdded) {
+        this.addProcessAllButton();
+        this.allButtonAdded = true;
+      }
+    }
+
+    addProcessAllButton() {
+      const button = document.createElement('button');
+      button.textContent = 'Process All Magnets';
+      button.style.cssText = `position:fixed;bottom:20px;right:20px;z-index:10000;background:#3b82f6;color:white;padding:10px 15px;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:500;box-shadow:0 4px 12px rgba(0,0,0,0.3);`;
+      button.addEventListener('click', async () => {
+        const ok = await ensureApiInitialized();
+        if (!ok) {
+          UIManager.showToast('Real-Debrid API key not configured. Use the menu to set it.', 'error');
+          return;
+        }
+        const allLinks = Array.from(document.querySelectorAll('a[href^="magnet:"]')).map(a => a.href);
+        const uniqueHashes = new Set();
+        const uniqueLinks = allLinks.filter(link => {
+          const hash = MagnetLinkProcessor.parseMagnetHash(link);
+          if (!hash || uniqueHashes.has(hash)) return false;
+          uniqueHashes.add(hash);
+          return true;
+        });
+        let successCount = 0;
+        let failCount = 0;
+        for (const link of uniqueLinks) {
+          try {
+            const count = await this.processor.processMagnetLink(link);
+            UIManager.showToast(`Processed: ${count} files`, 'success');
+            const key = this._magnetKeyFor(link);
+            const icon = this.keyToIcon.get(key);
+            if (icon) UIManager.setIconState(icon, 'added');
+            successCount++;
+          } catch (err) {
+            UIManager.showToast(`Failed: ${err.message}`, 'error');
+            failCount++;
+          }
+        }
+        UIManager.showToast(`Completed: ${successCount} success, ${failCount} failed`, 'info');
+      });
+      document.body.appendChild(button);
     }
 
     markExistingTorrents() {
