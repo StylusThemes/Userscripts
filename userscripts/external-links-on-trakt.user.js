@@ -172,27 +172,19 @@
     }
 
     initializeWikidata() {
-      this.wikidata = new Wikidata({
-        debug: logger.debugEnabled
-      });
+      this.wikidata = new Wikidata();
     }
 
     initializeArmHaglund() {
-      this.armhaglund = new ArmHaglund({
-        debug: logger.debugEnabled
-      });
+      this.armhaglund = new ArmHaglund();
     }
 
     initializeAnimeAPI() {
-      this.animeapi = new AnimeAPI({
-        debug: logger.debugEnabled
-      });
+      this.animeapi = new AnimeAPI();
     }
 
     initializeAniList() {
-      this.anilist = new AniList({
-        debug: logger.debugEnabled
-      });
+      this.anilist = new AniList();
     }
 
     // ======================

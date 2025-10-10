@@ -19,23 +19,8 @@
 this.Wikidata = class {
   /**
    * Creates a new Wikidata client instance.
-   * @param {Object} [config={}] - Configuration options.
-   * @param {string} [config.endpoint="https://query.wikidata.org"] - Wikidata SPARQL endpoint URL.
-   * @param {boolean} [config.debug=false] - Enable debug logging.
    */
-  constructor(config = {}) {
-    this._config = {
-      endpoint: config.endpoint || "https://query.wikidata.org",
-      debug: config.debug || false
-    };
-    this._headers = {
-      Accept: "application/sparql-results+json"
-    };
-    this._debug = (response) => {
-      if (this._config.debug || response.status !== 200) {
-        console.log(`${response.status}: ${response.finalUrl}`);
-      }
-    };
+  constructor() {
     this._property = (source) => {
       switch (source) {
         case "IMDb":
@@ -209,11 +194,13 @@ this.Wikidata = class {
     return new Promise((resolve, reject) => {
       GM.xmlHttpRequest({
         method: "GET",
-        url: `${this._config.endpoint}/sparql?query=${encodeURIComponent(query)}`,
-        headers: this._headers,
+        url: `https://query.wikidata.org/sparql?query=${encodeURIComponent(query)}`,
+        headers: { Accept: "application/sparql-results+json" },
         timeout: 15e3,
         onload: (response) => {
-          this._debug(response);
+          if (response.status !== 200) {
+            console.log(`${response.status}: ${response.finalUrl}`);
+          }
           try {
             const results = JSON.parse(response.responseText)
               .results.bindings

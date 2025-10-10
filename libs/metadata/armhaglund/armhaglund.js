@@ -17,22 +17,6 @@
  */
 this.ArmHaglund = class {
   /**
-   * Creates a new ArmHaglund client instance.
-   * @param {Object} [config={}] - Configuration options.
-   * @param {boolean} [config.debug=false] - Enable debug logging.
-   */
-  constructor(config = {}) {
-    this._config = {
-      debug: config.debug || false
-    };
-    this._debug = (response) => {
-      if (this._config.debug || response.status !== 200) {
-        console.log(`${response.status}: ${response.finalUrl}`);
-      }
-    };
-  }
-
-  /**
    * Fetches external IDs for a given source and ID.
    * @param {string} source - The source (e.g., "themoviedb", "thetvdb", "imdb").
    * @param {string} id - The ID value.
@@ -48,7 +32,9 @@ this.ArmHaglund = class {
         url: `https://arm.haglund.dev/api/v2/${source}?id=${id}`,
         timeout: 15e3,
         onload: (response) => {
-          this._debug(response);
+          if (response.status !== 200) {
+            console.log(`${response.status}: ${response.finalUrl}`);
+          }
           try {
             const data = JSON.parse(response.responseText);
             if (Array.isArray(data) && data.length > 0) {

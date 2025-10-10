@@ -17,22 +17,6 @@
  */
 this.AniList = class {
   /**
-   * Creates a new AniList client instance.
-   * @param {Object} [config={}] - Configuration options.
-   * @param {boolean} [config.debug=false] - Enable debug logging.
-   */
-  constructor(config = {}) {
-    this._config = {
-      debug: config.debug || false
-    };
-    this._debug = (response) => {
-      if (this._config.debug || response.status !== 200) {
-        console.log(`${response.status}: ${response.finalUrl}`);
-      }
-    };
-  }
-
-  /**
    * Executes a GraphQL query against the AniList API.
    * @param {string} query - The GraphQL query string.
    * @param {Object} [variables={}] - Variables for the query.
@@ -55,7 +39,9 @@ this.AniList = class {
         }),
         timeout: 15e3,
         onload: (response) => {
-          this._debug(response);
+          if (response.status !== 200) {
+            console.log(`${response.status}: ${response.finalUrl}`);
+          }
           if (response.status === 200) {
             try {
               const data = JSON.parse(response.responseText);

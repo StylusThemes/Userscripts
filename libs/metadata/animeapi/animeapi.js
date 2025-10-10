@@ -17,22 +17,6 @@
  */
 this.AnimeAPI = class {
   /**
-   * Creates a new AnimeAPI client instance.
-   * @param {Object} [config={}] - Configuration options.
-   * @param {boolean} [config.debug=false] - Enable debug logging.
-   */
-  constructor(config = {}) {
-    this._config = {
-      debug: config.debug || false
-    };
-    this._debug = (response) => {
-      if (this._config.debug || response.status !== 200) {
-        console.log(`${response.status}: ${response.finalUrl}`);
-      }
-    };
-  }
-
-  /**
    * Fetches data for a given source and ID.
    * @param {string} source - The source platform (e.g., 'myanimelist', 'anilist', 'anidb', etc.).
    * @param {string} id - The ID value.
@@ -48,7 +32,9 @@ this.AnimeAPI = class {
         url: `https://animeapi.my.id/${source}/${id}`,
         timeout: 15e3,
         onload: (response) => {
-          this._debug(response);
+          if (response.status !== 200) {
+            console.log(`${response.status}: ${response.finalUrl}`);
+          }
           try {
             const data = JSON.parse(response.responseText);
             resolve(data);
