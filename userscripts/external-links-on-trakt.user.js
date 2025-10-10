@@ -8,8 +8,7 @@
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@c185c2777d00a6826a8bf3c43bbcdcfeba5a9566/libs/gm/gmcompat.min.js
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@c185c2777d00a6826a8bf3c43bbcdcfeba5a9566/libs/utils/utils.min.js
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@[wip]/libs/metadata/wikidata/wikidata.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@[wip]/libs/metadata/armhaglund/armhagland.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@[wip]/libs/metadata/animeapi/animeapi.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@[wip]/libs/metadata/armhaglund/armhaglund.min.js
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@[wip]/libs/metadata/anilist/anilist.min.js
 // @require       https://cdn.jsdelivr.net/npm/node-creation-observer@1.2.0/release/node-creation-observer-latest.min.js
 // @require       https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js
@@ -155,7 +154,6 @@
       await this.loadConfig();
       this.initializeWikidata();
       this.initializeArmHaglund();
-      this.initializeAnimeAPI();
       this.initializeAniList();
       this.setupEventListeners();
     }
@@ -177,10 +175,6 @@
 
     initializeArmHaglund() {
       this.armhaglund = new ArmHaglund();
-    }
-
-    initializeAnimeAPI() {
-      this.animeapi = new AnimeAPI();
     }
 
     initializeAniList() {
@@ -323,54 +317,32 @@
         // If extra properties like AniList, AniDB, or MyAnimeList are missing,
         // try to fetch them using Arm Haglund API.
         if (!data.links.MyAnimeList || !data.links.AniDB || !data.links.AniList || !data.links.Kitsu || !data.links.AniSearch || !data.links.LiveChart) {
-          let externalEndpoint = null;
-          let externalId = null;
-          // Prefer a TMDb ID if available; otherwise fall back to TVDb, then IMDb.
-          if (data.links.TMDB?.value) {
-            const tmdbMatch = data.links.TMDB.value.match(/\/(movie|tv)\/(\d+)/);
-            if (tmdbMatch) {
-              externalEndpoint = "themoviedb";
-              externalId = tmdbMatch[2];
-            }
-          } else if (data.links.TVDB?.value) {
-            const tvdbMatch = data.links.TVDB.value.match(/\/(movie|series)\/(\d+)/);
-            if (tvdbMatch) {
-              externalEndpoint = "thetvdb";
-              externalId = tvdbMatch[2];
-            }
-          } else if (this.mediaInfo.imdbId) {
-            externalEndpoint = "imdb";
-            externalId = this.mediaInfo.imdbId;
-          }
+          try {
+            const extData = await this.armhaglund.fetchIds("imdb", this.mediaInfo.imdbId);
+            if (extData) {
+              const mapping = {
+                themoviedb: "TMDB",
+                thetvdb: "TVDB",
+                imdb: "IMDB",
+                myanimelist: "MyAnimeList",
+                anidb: "AniDB",
+                anilist: "AniList",
+                kitsu: "Kitsu",
+                anisearch: "AniSearch",
+                livechart: "LiveChart"
+              };
 
-          if (externalEndpoint && externalId) {
-            try {
-              const extData = await this.armhaglund.fetchIds(externalEndpoint, externalId);
-              if (extData) {
-                const mapping = {
-                  themoviedb: "TMDB",
-                  thetvdb: "TVDB",
-                  imdb: "IMDb",
-                  myanimelist: "MyAnimeList",
-                  anidb: "AniDB",
-                  anilist: "AniList",
-                  kitsu: "Kitsu",
-                  anisearch: "AniSearch",
-                  livechart: "LiveChart"
-                };
-
-                Object.keys(mapping).forEach((apiKey) => {
-                  const linkKey = mapping[apiKey];
-                  if (!data.links[linkKey] && extData[apiKey]) {
-                    data.links[linkKey] = {
-                      value: apiKey === "themoviedb" ? `https://www.themoviedb.org/${this.mediaInfo.type === 'movie' ? 'movie' : 'tv'}/${extData[apiKey]}` : apiKey === "thetvdb" ? `https://thetvdb.com/dereferrer/${this.mediaInfo.type === 'movie' ? 'movie' : 'series'}/${extData[apiKey]}` : apiKey === "imdb" ? `https://www.imdb.com/title/${extData[apiKey]}` : `https://${apiKey === 'myanimelist' ? 'myanimelist.net/anime' : apiKey === 'anidb' ? 'anidb.net/anime' : apiKey === 'anilist' ? 'anilist.co/anime' : apiKey === 'kitsu' ? 'kitsu.app/anime' : apiKey === 'anisearch' ? 'www.anisearch.com/anime' : 'www.livechart.me/anime'}/${extData[apiKey]}`
-                    };
-                  }
-                });
-              }
-            } catch (extError) {
-              logger.debug(`Failed to fetch from Arm Haglund: ${extError.message}`);
+              Object.keys(mapping).forEach((apiKey) => {
+                const linkKey = mapping[apiKey];
+                if (!data.links[linkKey] && extData[apiKey]) {
+                  data.links[linkKey] = {
+                    value: apiKey === "themoviedb" ? `https://www.themoviedb.org/${this.mediaInfo.type === 'movie' ? 'movie' : 'tv'}/${extData[apiKey]}` : apiKey === "thetvdb" ? `https://thetvdb.com/dereferrer/${this.mediaInfo.type === 'movie' ? 'movie' : 'series'}/${extData[apiKey]}` : apiKey === "imdb" ? `https://www.imdb.com/title/${extData[apiKey]}` : `https://${apiKey === 'myanimelist' ? 'myanimelist.net/anime' : apiKey === 'anidb' ? 'anidb.net/anime' : apiKey === 'anilist' ? 'anilist.co/anime' : apiKey === 'kitsu' ? 'kitsu.app/anime' : apiKey === 'anisearch' ? 'www.anisearch.com/anime' : 'www.livechart.me/anime'}/${extData[apiKey]}`
+                  };
+                }
+              });
             }
+          } catch (extError) {
+            logger.debug(`Failed to fetch from Arm Haglund: ${extError.message}`);
           }
         }
 
