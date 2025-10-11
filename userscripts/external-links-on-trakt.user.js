@@ -38,6 +38,7 @@
     SCRIPT_ID: GM.info.script.name.toLowerCase().replace(/\s/g, '-'),
     CONFIG_KEY: 'external-trakt-links-config',
     TITLE: `${GM.info.script.name} Settings`,
+    DUB_LANGUAGE_KEY: 'Dub Language',
     METADATA_SITES: [
       { name: 'Rotten Tomatoes', desc: 'Provides a direct link to Rotten Tomatoes for the selected title.' },
       { name: 'Metacritic', desc: 'Provides a direct link to Metacritic for the selected title.' },
@@ -92,7 +93,7 @@
     ...CONSTANTS.METADATA_SITES.map(site => [site.name, true]),
     ...CONSTANTS.STREAMING_SITES.map(site => [site.name, true]),
     [CONSTANTS.DUB_INFO.name, true],
-    ['Dub Language', 'ENGLISH']
+    [CONSTANTS.DUB_LANGUAGE_KEY, 'ENGLISH']
   ]);
 
   // ==============================
@@ -105,10 +106,6 @@
       this.wikidata = null;
       this.armhaglund = null;
       this.anilist = null;
-      this.linkSettings = [
-        ...CONSTANTS.METADATA_SITES,
-        ...CONSTANTS.STREAMING_SITES
-      ];
     }
 
     // ==============================
@@ -154,10 +151,11 @@
 
       const tmdbHref = $('#external-link-tmdb').attr('href') || '';
       const tmdbMatch = tmdbHref.match(/\/(movie|tv)\/(\d+)/);
-      const tmdbId = tmdbMatch ? tmdbMatch[2] : null;
+      const tmdbId = tmdbMatch?.[2] || null;
 
       const slug = pathParts[2] || '';
-      const title = slug.split('-')
+      const title = slug
+        .split('-')
         .slice(1)
         .join('-')
         .replace(/-\d{4}$/, '');
@@ -209,18 +207,23 @@
       const listItem = container.find('li').first();
       const links = listItem.children('a').detach();
 
-      const orderMap = new Map(CONSTANTS.LINK_ORDER.map((name, i) => [name.toLowerCase(), i]));
+      const orderMap = new Map(
+        CONSTANTS.LINK_ORDER.map((name, index) => [name.toLowerCase(), index])
+      );
 
       const sorted = links.toArray().sort((a, b) => {
         const getKey = el => {
           const $el = $(el);
-          return $el.data('site') || $el.data('original-title') || $el.text().trim();
+          const key = $el.data('site') || $el.data('original-title') || $el.text().trim();
+          return key.toLowerCase();
         };
 
-        const aKey = getKey(a).toLowerCase();
-        const bKey = getKey(b).toLowerCase();
+        const aKey = getKey(a);
+        const bKey = getKey(b);
+        const aOrder = orderMap.get(aKey) ?? Infinity;
+        const bOrder = orderMap.get(bKey) ?? Infinity;
 
-        return (orderMap.get(aKey) ?? Infinity) - (orderMap.get(bKey) ?? Infinity);
+        return aOrder - bOrder;
       });
 
       listItem.append(sorted);
@@ -228,16 +231,16 @@
 
     createLink(name, url) {
       const id = `external-link-${name.toLowerCase().replace(/\s/g, '-')}`;
-      if (!document.getElementById(id)) {
-        $('.sidebar .external li').append(
-          `<a target="_blank" id="${id}" href="${url}" data-original-title="" title="">${name}</a>`
-        );
-        logger.debug(`Added link: ${name} -> ${url}`);
-      }
+      
+      if (document.getElementById(id)) return;
+      
+      const linkElement = `<a target="_blank" id="${id}" href="${url}" data-original-title="" title="">${name}</a>`;
+      $('.sidebar .external li').append(linkElement);
+      logger.debug(`Added link: ${name} -> ${url}`);
     }
 
     // ==============================
-    //  Wikidata Integration
+    //  Wikidata / ArmHaglung Integration
     // ==============================
     async processWikidataLinks() {
       const cache = await GMC.getValue(this.mediaInfo.imdbId);
@@ -286,7 +289,7 @@
     }
 
     mergeExtraIds(links, extData) {
-      const urlMappings = {
+      const URL_MAPPINGS = {
         themoviedb: (id) => `https://www.themoviedb.org/${this.mediaInfo.type === 'movie' ? 'movie' : 'tv'}/${id}`,
         thetvdb: (id) => `https://thetvdb.com/dereferrer/${this.mediaInfo.type === 'movie' ? 'movie' : 'series'}/${id}`,
         imdb: (id) => `https://www.imdb.com/title/${id}`,
@@ -298,7 +301,7 @@
         livechart: (id) => `https://www.livechart.me/anime/${id}`
       };
 
-      const linkMappings = {
+      const LINK_MAPPINGS = {
         themoviedb: 'TMDB',
         thetvdb: 'TVDB',
         imdb: 'IMDb',
@@ -310,10 +313,9 @@
         livechart: 'LiveChart'
       };
 
-      Object.keys(linkMappings).forEach(apiKey => {
-        const linkKey = linkMappings[apiKey];
+      Object.entries(LINK_MAPPINGS).forEach(([apiKey, linkKey]) => {
         if (!links[linkKey] && extData[apiKey]) {
-          links[linkKey] = { value: urlMappings[apiKey](extData[apiKey]) };
+          links[linkKey] = { value: URL_MAPPINGS[apiKey](extData[apiKey]) };
         }
       });
     }
@@ -354,7 +356,7 @@
       const response = await this.anilist.query(query, {
         id: parseInt(id),
         type: 'ANIME',
-        language: this.config['Dub Language']
+        language: this.config[CONSTANTS.DUB_LANGUAGE_KEY]
       });
       return response.data.Media.characters.edges;
     }
@@ -366,45 +368,65 @@
       const cacheKey = this.mediaInfo.imdbId;
       const selectedLanguage = this.config['Dub Language'];
 
-      GMC.getValue(cacheKey).then(cache => {
-        if (cache && cache.dubs && cache.dubs[selectedLanguage] !== undefined) {
-          this.displayDubInfo(cache.dubs[selectedLanguage]);
-          return;
-        }
+      GMC.getValue(cacheKey)
+        .then(cache => {
+          if (cache?.dubs?.[selectedLanguage] !== undefined) {
+            this.displayDubInfo(cache.dubs[selectedLanguage]);
+            return Promise.resolve();
+          }
 
-        this.queryAnilist(this.mediaInfo.anilistId).then(edges => {
-          const hasDub = edges.some(edge => edge.voiceActors && edge.voiceActors.length > 0);
-          const updatedCache = {
-            ...cache,
-            dubs: {
-              ...cache?.dubs,
-              [selectedLanguage]: hasDub
-            }
-          };
-          GMC.setValue(cacheKey, updatedCache);
-          this.displayDubInfo(hasDub);
-        }).catch(error => {
+          return this.queryAnilist(this.mediaInfo.anilistId)
+            .then(edges => {
+              const hasDub = edges.some(edge => edge.voiceActors?.length > 0);
+              const updatedCache = {
+                ...cache,
+                dubs: {
+                  ...cache?.dubs,
+                  [selectedLanguage]: hasDub
+                }
+              };
+              return GMC.setValue(cacheKey, updatedCache).then(() => hasDub);
+            })
+            .then(hasDub => this.displayDubInfo(hasDub));
+        })
+        .catch(error => {
           logger.error(`Failed fetching AniList dub info: ${error.message}`);
-          // Cache false on API error to avoid repeated failed requests
-          const updatedCache = {
-            ...cache,
-            dubs: {
-              ...cache?.dubs,
-              [selectedLanguage]: false
-            }
-          };
-          GMC.setValue(cacheKey, updatedCache);
+          return GMC.getValue(cacheKey).then(cache => {
+            const updatedCache = {
+              ...cache,
+              dubs: {
+                ...cache?.dubs,
+                [selectedLanguage]: false
+              }
+            };
+            return GMC.setValue(cacheKey, updatedCache);
+          });
         });
-      });
     }
 
     displayDubInfo(hasDub) {
       if (!hasDub) return;
-      const selectedLang = CONSTANTS.DUB_LANGUAGES.find(lang => lang.value === this.config['Dub Language']);
-      const langName = selectedLang ? selectedLang.name : 'Dub';
+      
+      const selectedLang = CONSTANTS.DUB_LANGUAGES.find(
+        lang => lang.value === this.config['Dub Language']
+      );
+      const langName = selectedLang?.name || 'Dub';
       const container = $('.sidebar .btn-watch-now');
+      
       if (!container.length || $('.dub-info').length) return;
-      container.after(`<div class="dub-info" style="border: 1px solid #000; padding: 4px; margin: 5px 0; background: transparent; border-radius: 4px; text-align: center;">${langName} Dub Exists</div>`);
+      
+      const dubInfoHtml = `
+        <div class="dub-info" style="
+          border: 1px solid #000;
+          padding: 4px;
+          margin: 5px 0;
+          background: transparent;
+          border-radius: 4px;
+          text-align: center;
+        ">${langName} Dub Exists</div>
+      `;
+      
+      container.after(dubInfoHtml);
     }
 
     // ==============================
@@ -424,13 +446,11 @@
             const path = this.mediaInfo.type === 'movie' ? 'movies' : 'shows';
             return `https://mediux.pro/${path}/${this.mediaInfo.tmdbId}`;
           },
-          condition: () => true,
           requiredData: 'tmdbId'
         },
         {
           name: 'BrocoFlix',
           url: () => `https://brocoflix.com/pages/info?id=${this.mediaInfo.tmdbId}&type=${this.mediaInfo.type}`,
-          condition: () => true,
           requiredData: 'tmdbId'
         },
         {
@@ -439,7 +459,6 @@
             const show = this.mediaInfo.type === 'tv' ? `/${this.mediaInfo.season}/${this.mediaInfo.episode}` : '';
             return `https://www.cineby.app/${this.mediaInfo.type}/${this.mediaInfo.tmdbId}${show}`;
           },
-          condition: () => true,
           requiredData: 'tmdbId'
         },
         {
@@ -448,7 +467,6 @@
             const show = this.mediaInfo.type === 'tv' ? `?season=${this.mediaInfo.season}&ep=${this.mediaInfo.episode}` : '';
             return `https://moviemaze.cc/watch/${this.mediaInfo.type}/${this.mediaInfo.tmdbId}${show}`;
           },
-          condition: () => true,
           requiredData: 'tmdbId'
         },
         {
@@ -457,7 +475,6 @@
             const show = this.mediaInfo.type === 'tv' ? `/${this.mediaInfo.season}/${this.mediaInfo.episode}` : '';
             return `https://iframe.pstream.mov/embed/tmdb-${this.mediaInfo.type}-${this.mediaInfo.tmdbId}${show}`;
           },
-          condition: () => true,
           requiredData: 'tmdbId'
         },
         {
@@ -466,7 +483,6 @@
             const show = this.mediaInfo.type === 'tv' ? `&season=${this.mediaInfo.season}&episode=${this.mediaInfo.episode}` : '';
             return `https://rivestream.org/watch?type=${this.mediaInfo.type}&id=${this.mediaInfo.tmdbId}${show}`;
           },
-          condition: () => true,
           requiredData: 'tmdbId'
         },
         {
@@ -475,7 +491,6 @@
             const show = this.mediaInfo.type === 'tv' ? `?season=${this.mediaInfo.season}&episode=${this.mediaInfo.episode}` : '';
             return `https://wovie.vercel.app/play/${this.mediaInfo.type}/${this.mediaInfo.tmdbId}/${this.mediaInfo.title}${show}`;
           },
-          condition: () => true,
           requiredData: 'tmdbId'
         },
         {
@@ -484,18 +499,17 @@
             const show = this.mediaInfo.type === 'tv' ? `/${this.mediaInfo.season}/${this.mediaInfo.episode}` : '';
             return `https://xprime.tv/watch/${this.mediaInfo.tmdbId}${show}`;
           },
-          condition: () => true,
           requiredData: 'tmdbId'
         }
       ];
 
       customLinks.forEach(linkConfig => {
-        if (
-          this.config[linkConfig.name] !== false &&
-          !this.linkExists(linkConfig.name) &&
-          this.mediaInfo[linkConfig.requiredData] &&
-          linkConfig.condition()
-        ) {
+        const isEnabled = this.config[linkConfig.name] !== false;
+        const hasRequiredData = this.mediaInfo[linkConfig.requiredData];
+        const meetsCondition = !linkConfig.condition || linkConfig.condition();
+        const doesNotExist = !this.linkExists(linkConfig.name);
+
+        if (isEnabled && hasRequiredData && meetsCondition && doesNotExist) {
           this.createLink(linkConfig.name, linkConfig.url());
         }
       });
@@ -512,16 +526,17 @@
       tmdbCollectionLinks.each((index, element) => {
         const $tmdbLink = $(element);
         const tmdbUrl = $tmdbLink.attr('href');
-        const collectionId = tmdbUrl.match(/collection\/(\d+)/)?.[1];
+        const collectionIdMatch = tmdbUrl.match(/collection\/(\d+)/);
+        
+        if (!collectionIdMatch) return;
+        
+        const collectionId = collectionIdMatch[1];
+        const mediuxUrl = `https://mediux.pro/collections/${collectionId}`;
 
-        if (collectionId) {
-          const mediuxUrl = `https://mediux.pro/collections/${collectionId}`;
-          const mediuxLink = `<p><a href="${mediuxUrl}" target="_blank" class="comment-link">Mediux Collection</a></p>`;
+        if ($tmdbLink.next(`a[href="${mediuxUrl}"]`).length) return;
 
-          if (!$tmdbLink.next(`a[href="${mediuxUrl}"]`).length) {
-            $tmdbLink.after(`${mediuxLink}`);
-          }
-        }
+        const mediuxLink = `<p><a href="${mediuxUrl}" target="_blank" class="comment-link">Mediux Collection</a></p>`;
+        $tmdbLink.after(mediuxLink);
       });
     }
 
@@ -529,9 +544,9 @@
     //  Cache Management
     // ==============================
     isCacheValid(cache) {
-      return cache &&
-        !logger.debugEnabled &&
-        (Date.now() - cache.time) < CONSTANTS.CACHE_DURATION;
+      if (!cache) return false;
+      if (logger.debugEnabled) return false;
+      return (Date.now() - cache.time) < CONSTANTS.CACHE_DURATION;
     }
 
     linkExists(site) {
@@ -539,13 +554,21 @@
     }
 
     async clearExpiredCache() {
-      const values = await GMC.listValues();
-      for (const value of values) {
-        if (value === CONSTANTS.CONFIG_KEY) continue;
-        const cache = await GMC.getValue(value);
-        if (cache?.time && (Date.now() - cache.time) > CONSTANTS.CACHE_DURATION) {
-          await GMC.deleteValue(value);
+      try {
+        const values = await GMC.listValues();
+        const deletePromises = [];
+        
+        for (const value of values) {
+          if (value === CONSTANTS.CONFIG_KEY) continue;
+          const cache = await GMC.getValue(value);
+          if (cache?.time && (Date.now() - cache.time) > CONSTANTS.CACHE_DURATION) {
+            deletePromises.push(GMC.deleteValue(value));
+          }
         }
+        
+        await Promise.all(deletePromises);
+      } catch (error) {
+        logger.error(`Failed to clear expired cache: ${error.message}`);
       }
     }
 
@@ -559,14 +582,13 @@
     }
 
     openSettingsModal() {
-      // Remove existing if present
-      $(`#${CONSTANTS.SCRIPT_ID}-config`).remove();
+      const existingModal = $(`#${CONSTANTS.SCRIPT_ID}-config`);
+      if (existingModal.length) existingModal.remove();
 
       const modalHTML = this.generateSettingsModalHTML();
       $(modalHTML).appendTo('body');
       this.addModalStyles();
       this.setupModalEventListeners();
-      // Prevent background scrolling
       $('body').css('overflow', 'hidden');
     }
 
@@ -662,35 +684,44 @@
 
     setupModalEventListeners() {
       const modalSelector = `#${CONSTANTS.SCRIPT_ID}-config`;
+      const $modal = $(modalSelector);
 
-      // Close button
-      $(`${modalSelector} button.close`).on('click', () => this.closeModal());
+      $modal.find('button.close').on('click', () => this.closeModal());
 
-      // Keyboard: ESC to close
-      $(document).on('keydown.elSettings', (e) => { if (e.key === 'Escape') this.closeModal(); });
+      $(document).on('keydown.elSettings', (e) => {
+        if (e.key === 'Escape') this.closeModal();
+      });
 
-      // Reset defaults
-      $(`${modalSelector} #reset-defaults`).on('click', () => {
+      $modal.find('#reset-defaults').on('click', () => {
         if (!confirm('Reset all settings to defaults?')) return;
         this.config = { ...DEFAULT_CONFIG };
         this.refreshModalValues();
       });
 
-      // Clear cache
-      $(`${modalSelector} #clear-cache`).on('click', async () => {
-        const values = await GMC.listValues();
-        for (const value of values) {
-          if (value === CONSTANTS.CONFIG_KEY) continue;
-          await GMC.deleteValue(value);
+      $modal.find('#clear-cache').on('click', async () => {
+        try {
+          const values = await GMC.listValues();
+          const deletePromises = values
+            .filter(value => value !== CONSTANTS.CONFIG_KEY)
+            .map(value => GMC.deleteValue(value));
+          
+          await Promise.all(deletePromises);
+          alert('Cache cleared successfully.');
+        } catch (error) {
+          logger.error(`Failed to clear cache: ${error.message}`);
+          alert('Failed to clear cache. Check console for details.');
         }
-        alert('Cache cleared.');
       });
 
-      // Save & Reload
-      $(`${modalSelector} #save-reload`).on('click', async () => {
-        await this.saveSettingsFromModal();
-        this.closeModal();
-        window.location.reload();
+      $modal.find('#save-reload').on('click', async () => {
+        try {
+          await this.saveSettingsFromModal();
+          this.closeModal();
+          window.location.reload();
+        } catch (error) {
+          logger.error(`Failed to save settings: ${error.message}`);
+          alert('Failed to save settings. Check console for details.');
+        }
       });
     }
 
@@ -703,20 +734,28 @@
 
     refreshModalValues() {
       const modalSelector = `#${CONSTANTS.SCRIPT_ID}-config`;
-      [...CONSTANTS.METADATA_SITES, ...CONSTANTS.STREAMING_SITES, CONSTANTS.DUB_INFO].forEach(site => {
+      const $modal = $(modalSelector);
+      const allSites = [...CONSTANTS.METADATA_SITES, ...CONSTANTS.STREAMING_SITES, CONSTANTS.DUB_INFO];
+
+      allSites.forEach(site => {
         const checkboxId = site.name.toLowerCase().replace(/\s+/g, '_');
-        $(`${modalSelector} #${checkboxId}`).prop('checked', !!this.config[site.name]);
+        $modal.find(`#${checkboxId}`).prop('checked', !!this.config[site.name]);
       });
-      $(`${modalSelector} #dub_language`).val(this.config['Dub Language']);
+
+      $modal.find('#dub_language').val(this.config['Dub Language']);
     }
 
     async saveSettingsFromModal() {
       const modalSelector = `#${CONSTANTS.SCRIPT_ID}-config`;
-      [...CONSTANTS.METADATA_SITES, ...CONSTANTS.STREAMING_SITES, CONSTANTS.DUB_INFO].forEach(site => {
+      const $modal = $(modalSelector);
+      const allSites = [...CONSTANTS.METADATA_SITES, ...CONSTANTS.STREAMING_SITES, CONSTANTS.DUB_INFO];
+
+      allSites.forEach(site => {
         const checkboxId = site.name.toLowerCase().replace(/\s+/g, '_');
-        this.config[site.name] = $(`${modalSelector} #${checkboxId}`).is(':checked');
+        this.config[site.name] = $modal.find(`#${checkboxId}`).is(':checked');
       });
-      this.config['Dub Language'] = $(`${modalSelector} #dub_language`).val();
+
+      this.config['Dub Language'] = $modal.find('#dub_language').val();
       await GMC.setValue(CONSTANTS.CONFIG_KEY, this.config);
       logger.debug('Settings saved', this.config);
     }
