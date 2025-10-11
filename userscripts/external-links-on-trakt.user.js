@@ -61,6 +61,23 @@
       { name: 'XPrime', desc: 'Provides a direct link to the XPrime streaming page for the selected title.' }
     ],
     DUB_INFO: { name: 'Dub Information', desc: 'Show dub information for anime shows.' },
+    DUB_LANGUAGES: [
+      { name: 'English', value: 'ENGLISH' },
+      { name: 'German', value: 'GERMAN' },
+      { name: 'Italian', value: 'ITALIAN' },
+      { name: 'Spanish', value: 'SPANISH' },
+      { name: 'French', value: 'FRENCH' },
+      { name: 'Korean', value: 'KOREAN' },
+      { name: 'Portuguese', value: 'PORTUGUESE' },
+      { name: 'Hebrew', value: 'HEBREW' },
+      { name: 'Hungarian', value: 'HUNGARIAN' },
+      { name: 'Chinese', value: 'CHINESE' },
+      { name: 'Arabic', value: 'ARABIC' },
+      { name: 'Filipino', value: 'FILIPINO' },
+      { name: 'Catalan', value: 'CATALAN' },
+      { name: 'Polish', value: 'POLISH' },
+      { name: 'Norwegian', value: 'NORWEGIAN' }
+    ],
     LINK_ORDER: [
       'Official Site', 'IMDb', 'TMDB', 'TVDB', 'Rotten Tomatoes', 'Metacritic',
       'Letterboxd', 'TVmaze', 'MyAnimeList', 'AniDB', 'AniList', 'Kitsu',
@@ -74,7 +91,8 @@
   const DEFAULT_CONFIG = Object.fromEntries([
     ...CONSTANTS.METADATA_SITES.map(site => [site.name, true]),
     ...CONSTANTS.STREAMING_SITES.map(site => [site.name, true]),
-    [CONSTANTS.DUB_INFO.name, true]
+    [CONSTANTS.DUB_INFO.name, true],
+    ['Dub Language', 'ENGLISH']
   ]);
 
   // ==============================
@@ -321,34 +339,24 @@
     // ==============================
     async queryAnilist(id) {
       const query = `
-        query ($id: Int) {
-          Media(id: $id, type: ANIME) {
-            characters(sort: ROLE) {
+        query($id: Int!, $type: MediaType, $page: Int = 1, $language: StaffLanguage){
+          Media(id: $id, type: $type){
+            characters(page: $page, sort: [ROLE], role: MAIN){
               edges {
-                role
-                jpVoiceActors: voiceActors(language: JAPANESE) {
-                  name {
-                    full
-                  }
-                }
-                enVoiceActors: voiceActors(language: ENGLISH) {
-                  name {
-                    full
-                  }
-                }
-                node {
-                  name {
-                    full
-                  }
-                }
+                node{id}
+                voiceActors(language: $language){language}
               }
             }
           }
         }
       `;
 
-      const response = await this.anilist.query(query, { id: parseInt(id) });
-      return response.data.Media.characters.edges.filter(edge => edge.role === 'MAIN');
+      const response = await this.anilist.query(query, {
+        id: parseInt(id),
+        type: 'ANIME',
+        language: this.config['Dub Language']
+      });
+      return response.data.Media.characters.edges;
     }
 
     addDubInfo() {
@@ -356,28 +364,47 @@
       if (!$('.sidebar .poster').length) return;
 
       const cacheKey = this.mediaInfo.imdbId;
+      const selectedLanguage = this.config['Dub Language'];
+
       GMC.getValue(cacheKey).then(cache => {
-        if (cache && cache.isdubbed !== undefined) {
-          this.displayDubInfo(cache.isdubbed);
+        if (cache && cache.dubs && cache.dubs[selectedLanguage] !== undefined) {
+          this.displayDubInfo(cache.dubs[selectedLanguage]);
           return;
         }
 
         this.queryAnilist(this.mediaInfo.anilistId).then(edges => {
-          const hasEnglishDub = edges.some(edge => edge.enVoiceActors && edge.enVoiceActors.length > 0);
-          const updatedCache = { ...cache, isdubbed: hasEnglishDub };
+          const hasDub = edges.some(edge => edge.voiceActors && edge.voiceActors.length > 0);
+          const updatedCache = {
+            ...cache,
+            dubs: {
+              ...cache?.dubs,
+              [selectedLanguage]: hasDub
+            }
+          };
           GMC.setValue(cacheKey, updatedCache);
-          this.displayDubInfo(hasEnglishDub);
+          this.displayDubInfo(hasDub);
         }).catch(error => {
           logger.error(`Failed fetching AniList dub info: ${error.message}`);
+          // Cache false on API error to avoid repeated failed requests
+          const updatedCache = {
+            ...cache,
+            dubs: {
+              ...cache?.dubs,
+              [selectedLanguage]: false
+            }
+          };
+          GMC.setValue(cacheKey, updatedCache);
         });
       });
     }
 
-    displayDubInfo(hasEnglishDub) {
-      if (!hasEnglishDub) return;
+    displayDubInfo(hasDub) {
+      if (!hasDub) return;
+      const selectedLang = CONSTANTS.DUB_LANGUAGES.find(lang => lang.value === this.config['Dub Language']);
+      const langName = selectedLang ? selectedLang.name : 'Dub';
       const container = $('.sidebar .btn-watch-now');
       if (!container.length || $('.dub-info').length) return;
-      container.after(`<div class="dub-info" style="border: 1px solid #000; padding: 4px; margin: 5px 0; background: #1d1d1d; border-radius: 4px; text-align: center;">English Dub Exists</div>`);
+      container.after(`<div class="dub-info" style="border: 1px solid #000; padding: 4px; margin: 5px 0; background: transparent; border-radius: 4px; text-align: center;">${langName} Dub Exists</div>`);
     }
 
     // ==============================
@@ -526,96 +553,172 @@
     //  Settings UI
     // ==============================
     addSettingsMenu() {
-      const menuItem = `<li class="${CONSTANTS.SCRIPT_ID}"><a href="javascript:void(0)">EL Settings</a></li>`;
+      const menuItem = `<li class="${CONSTANTS.SCRIPT_ID}"><a href="javascript:void(0)" aria-haspopup="dialog">EL Settings</a></li>`;
       $('div.user-wrapper ul.menu li.divider').last().after(menuItem);
       $(`.${CONSTANTS.SCRIPT_ID}`).click(() => this.openSettingsModal());
     }
 
     openSettingsModal() {
+      // Remove existing if present
+      $(`#${CONSTANTS.SCRIPT_ID}-config`).remove();
+
       const modalHTML = this.generateSettingsModalHTML();
       $(modalHTML).appendTo('body');
       this.addModalStyles();
       this.setupModalEventListeners();
+      // Prevent background scrolling
+      $('body').css('overflow', 'hidden');
+    }
+
+    addModalStyles() {
+      const id = `${CONSTANTS.SCRIPT_ID}-config`;
+      const styles = `#${id}.theme-dark{--bg:#0f1720;--panel:#0b1220;--muted:#98a0ab;--accent:#5eead4;--accent-2:#60a5fa;--surface:#0c1220;--glass:rgba(255,255,255,0.03);--border:rgba(255,255,255,0.03);--text:#e6f3ef;--text-2:#eaf8f0}#${id}.theme-light{--bg:#f6f9fb;--panel:#fff;--muted:#6b7280;--accent:#0ea5a4;--accent-2:#3b82f6;--surface:#fff;--glass:rgba(0,0,0,0.04);--border:rgba(10,20,30,0.04);--text:#061426;--text-2:#0b2130}#${id}{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:99999;background:linear-gradient(180deg,rgba(4,6,8,.72),rgba(4,6,8,.9));font-family:Inter,Roboto,Arial,sans-serif}#${id} .el-panel{width:920px;max-width:96%;max-height:92vh;border-radius:12px;overflow:hidden;display:flex;flex-direction:column;border:1px solid var(--border)}#${id}.theme-dark .el-panel{background:linear-gradient(180deg,var(--panel),#071018);color:var(--text);box-shadow:0 10px 30px rgba(2,6,23,0.7)}#${id}.theme-light .el-panel{background:linear-gradient(180deg,var(--panel),#f7fbff);color:var(--text);box-shadow:0 6px 18px rgba(10,15,30,0.06)}#${id} .el-panel-header{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:20px 22px;border-bottom:1px solid var(--border)}#${id} .el-panel-header h2{margin:0;font-size:1.25rem;color:var(--text-2)}#${id} .el-panel-header .subtitle{margin:4px 0 0;font-size:.9rem;color:var(--muted)}#${id} .btn-icon{background:none;border:none;font-size:1.1rem;cursor:pointer;padding:6px 8px;border-radius:6px;color:var(--text)}#${id} .btn-icon:hover{background:var(--glass)}#${id} .el-panel-body{padding:16px 18px;flex:1;overflow:auto}#${id} .settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}#${id} .settings-column{padding:12px;border-radius:10px;background:linear-gradient(180deg,var(--glass),transparent);border:1px solid var(--border)}#${id} .settings-column h3{margin:0 0 12px;font-size:1rem;color:var(--text-2)}#${id} .site-list{display:flex;flex-direction:column;gap:8px}#${id} .site-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px;border-radius:8px;transition:background .12s,transform .06s;cursor:default}#${id} .site-row:hover{background:var(--glass);transform:translateY(-1px)}#${id} .site-info{display:flex;flex-direction:column;gap:2px;flex:1;max-width:70%}#${id} .site-name{font-weight:600;color:var(--text-2)}#${id} .site-desc{font-size:.82rem;color:var(--muted)}#${id} .toggle-checkbox{position:absolute;opacity:0;pointer-events:none}#${id} .toggle-switch{width:44px;height:26px;flex-shrink:0;display:inline-block;border-radius:20px;position:relative;transition:background .18s;cursor:pointer}#${id}.theme-dark .toggle-switch{background:rgba(255,255,255,0.06);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.04)}#${id}.theme-light .toggle-switch{background:rgba(0,0,0,0.06);box-shadow:inset 0 0 0 1px rgba(0,0,0,0.04)}#${id} .toggle-switch::after{content:'';position:absolute;width:18px;height:18px;border-radius:50%;top:4px;left:4px;background:#fff;transition:all .18s;box-shadow:0 3px 6px rgba(2,6,23,0.6)}#${id} .toggle-checkbox:checked+.toggle-switch{background:linear-gradient(90deg,var(--accent),var(--accent-2))}#${id} .toggle-checkbox:checked+.toggle-switch::after{transform:translateX(18px);background:var(--surface)}#${id} .dub-panel{grid-column:1/-1;padding:16px;border-radius:10px;background:linear-gradient(180deg,var(--glass),transparent);border:1px solid var(--border)}#${id} .dub-section{display:flex;align-items:flex-start;gap:20px;margin-bottom:12px}#${id} .dub-toggle-wrapper{display:flex;align-items:center;gap:12px;min-width:220px}#${id} .dub-toggle-wrapper .toggle-switch{flex-shrink:0}#${id} .dub-toggle-label{display:flex;flex-direction:column;gap:2px;cursor:pointer}#${id} .dub-toggle-label .label-text{font-weight:600;font-size:.95rem;color:var(--text-2)}#${id} .dub-toggle-label .label-desc{font-size:.78rem;color:var(--muted)}#${id} .dub-lang-wrapper{display:flex;flex-direction:column;gap:6px;flex:1}#${id} .select-label{font-size:.85rem;font-weight:600;color:var(--text-2)}#${id} .select{padding:8px 10px;border-radius:8px;background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:.95rem;cursor:pointer;outline:none}#${id}.theme-dark .select{background:#08111a}#${id}.theme-light .select{background:#f3f7fb}#${id} .el-panel-footer{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 18px;border-top:1px solid var(--border)}#${id} .footer-left{display:flex;gap:8px}#${id} .footer-right{display:flex;gap:8px}#${id} .btn{padding:10px 14px;border-radius:10px;background:transparent;border:1px solid var(--border);cursor:pointer;font-weight:600;font-size:.9rem;color:var(--text);transition:background .15s,transform .08s}#${id} .btn:hover{background:var(--glass);transform:translateY(-1px)}#${id} .btn.ghost{background:transparent}#${id} .btn.primary{background:linear-gradient(90deg,var(--accent),var(--accent-2));border:none}#${id}.theme-dark .btn.primary{color:#041014}#${id}.theme-light .btn.primary{color:#fff}@media (max-width:850px){#${id} .settings-grid{grid-template-columns:1fr}#${id} .site-info{max-width:58%}#${id} .dub-section{flex-direction:column;gap:12px}}`;
+      $('<style>').prop('type', 'text/css').html(styles).appendTo('head');
     }
 
     generateSettingsModalHTML() {
-      const generateSection = (title, sites, columns = 2) => `
-        <div class="settings-section">
-          <h3>${title}</h3>
-          <div class="link-settings-grid" style="grid-template-columns: repeat(${columns}, 1fr);">
-            ${sites.map(site => {
-              const id = site.name.toLowerCase().replace(/\s+/g, '_');
-              return `
-                <div class="setting-item">
-                  <label class="setting-label" for="${id}" title="${site.desc}">${site.name}</label>
-                  <input type="checkbox" id="${id}" ${this.config[site.name] ? 'checked' : ''} class="checkbox">
-                </div>
-              `;
-            }).join('')}
-          </div>
-        </div>
-      `;
+      const isDark = $('body').hasClass('dark-knight');
+      const themeClass = isDark ? 'theme-dark' : 'theme-light';
 
       return `
-        <div id="${CONSTANTS.SCRIPT_ID}-config">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h2>${CONSTANTS.TITLE}</h2>
-              <button class="close-button">&times;</button>
+        <div id="${CONSTANTS.SCRIPT_ID}-config" class="${themeClass}">
+          <div class="el-panel">
+            <div class="el-panel-header">
+              <div>
+                <h2>${CONSTANTS.TITLE}</h2>
+                <div class="subtitle">Configure external links and dub detection</div>
+              </div>
+              <button class="btn-icon close" aria-label="Close">&times;</button>
             </div>
 
-            <div class="settings-sections">
-              ${generateSection('Metadata Sites', CONSTANTS.METADATA_SITES)}
-              ${generateSection('Streaming Sites', CONSTANTS.STREAMING_SITES)}
+            <div class="el-panel-body">
+              <div class="settings-grid">
+                <div class="settings-column">
+                  <h3>Metadata Sites</h3>
+                  <div class="site-list">
+                    ${CONSTANTS.METADATA_SITES.map(site => `
+                      <div class="site-row" data-site-name="${site.name.toLowerCase()}">
+                        <div class="site-info">
+                          <div class="site-name">${site.name}</div>
+                          <div class="site-desc">${site.desc}</div>
+                        </div>
+                        <input type="checkbox" class="toggle-checkbox" id="${site.name.toLowerCase().replace(/\s+/g, '_')}" ${this.config[site.name] ? 'checked' : ''}>
+                        <label class="toggle-switch" for="${site.name.toLowerCase().replace(/\s+/g, '_')}"></label>
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
 
-              <div class="settings-section standalone">
-                <h3>Dub Information</h3>
-                <div class="setting-item">
-                  <label class="setting-label" for="dub_information" title="${CONSTANTS.DUB_INFO.desc}">${CONSTANTS.DUB_INFO.name}</label>
-                  <input type="checkbox" id="dub_information" ${this.config[CONSTANTS.DUB_INFO.name] ? 'checked' : ''} class="checkbox">
+                <div class="settings-column">
+                  <h3>Streaming Sites</h3>
+                  <div class="site-list">
+                    ${CONSTANTS.STREAMING_SITES.map(site => `
+                      <div class="site-row" data-site-name="${site.name.toLowerCase()}">
+                        <div class="site-info">
+                          <div class="site-name">${site.name}</div>
+                          <div class="site-desc">${site.desc}</div>
+                        </div>
+                        <input type="checkbox" class="toggle-checkbox" id="${site.name.toLowerCase().replace(/\s+/g, '_')}" ${this.config[site.name] ? 'checked' : ''}>
+                        <label class="toggle-switch" for="${site.name.toLowerCase().replace(/\s+/g, '_')}"></label>
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
+
+                <div class="dub-panel">
+                  <div class="dub-section">
+                    <div class="dub-toggle-wrapper">
+                      <input type="checkbox" class="toggle-checkbox" id="dub_information" ${this.config[CONSTANTS.DUB_INFO.name] ? 'checked' : ''}>
+                      <label class="toggle-switch" for="dub_information"></label>
+                      <label class="dub-toggle-label" for="dub_information">
+                        <span class="label-text">${CONSTANTS.DUB_INFO.name}</span>
+                        <span class="label-desc">${CONSTANTS.DUB_INFO.desc}</span>
+                      </label>
+                    </div>
+                    <div class="dub-lang-wrapper">
+                      <label class="select-label" for="dub_language">Dub Language</label>
+                      <select id="dub_language" class="select">
+                        ${CONSTANTS.DUB_LANGUAGES.map(lang => `<option value="${lang.value}" ${this.config['Dub Language'] === lang.value ? 'selected' : ''}>${lang.name}</option>`).join('')}
+                      </select>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div class="modal-footer">
-              <button class="btn save" id="save-config">Save & Reload</button>
-              <button class="btn warning" id="clear-cache">Clear Cache</button>
+            <div class="el-panel-footer">
+              <div class="footer-left">
+                <button class="btn ghost" id="reset-defaults">Reset to Defaults</button>
+                <button class="btn ghost" id="clear-cache">Clear Cache</button>
+              </div>
+              <div class="footer-right">
+                <button class="btn primary" id="save-reload">Save & Reload</button>
+              </div>
             </div>
           </div>
         </div>
       `;
     }
 
-    addModalStyles() {
-      const modalId = `${CONSTANTS.SCRIPT_ID}-config`;
-      const styles = `#${modalId}{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.8);display:flex;justify-content:center;align-items:center;z-index:9999;font-family:'Roboto',sans-serif}#${modalId} .modal-content{background:#121212;color:#e0e0e0;border-radius:16px;width:600px;max-width:90%;box-shadow:0 10px 40px rgba(0,0,0,.6);overflow:hidden;display:flex;flex-direction:column}#${modalId} .modal-header{padding:1.5rem;background:#1f1f1f;border-bottom:1px solid #333;display:flex;justify-content:space-between;align-items:center}#${modalId} .modal-header h2{margin:0;font-size:1.8rem;font-weight:bold}#${modalId} .close-button{background:none;border:none;color:#aaa;font-size:1.5rem;cursor:pointer;transition:color .2s}#${modalId} .close-button:hover{color:#fff}#${modalId} .settings-sections{padding:1.5rem;flex:1;overflow-y:auto}#${modalId} .settings-section{margin-bottom:2rem}#${modalId} .settings-section.standalone{margin-top:2rem;padding-top:1rem;border-top:1px solid #333}#${modalId} .settings-section h3{font-size:1.4rem;margin-bottom:1rem;color:#fff}#${modalId} .link-settings-grid{display:grid;gap:1rem}#${modalId} .setting-item{display:flex;justify-content:space-between;align-items:center;padding:.75rem 1rem;background:#1f1f1f;border-radius:8px;transition:background .2s}#${modalId} .setting-item:hover{background:#292929}#${modalId} .setting-label{font-size:1rem;color:#e0e0e0}#${modalId} .checkbox{width:20px;height:20px;accent-color:#4caf50}#${modalId} .modal-footer{padding:1.5rem;background:#1f1f1f;border-top:1px solid #333;display:flex;justify-content:flex-end;gap:1rem}#${modalId} .btn{padding:.75rem 1.5rem;border-radius:8px;border:none;cursor:pointer;font-weight:500;font-size:.9rem;text-transform:uppercase;letter-spacing:.5px;transition:background .2s}#${modalId} .btn.save{background:#4caf50;color:#fff}#${modalId} .btn.save:hover{background:#45a049}#${modalId} .btn.warning{background:#f44336;color:#fff}#${modalId} .btn.warning:hover{background:#d32f2f}`;
-      $('<style>').prop('type', 'text/css').html(styles).appendTo('head');
-    }
-
     setupModalEventListeners() {
       const modalSelector = `#${CONSTANTS.SCRIPT_ID}-config`;
-      $(`${modalSelector} .close-button`).click(() => $(modalSelector).remove());
 
-      $(`${modalSelector} #save-config`).click(async () => {
-        [...CONSTANTS.METADATA_SITES, ...CONSTANTS.STREAMING_SITES, CONSTANTS.DUB_INFO].forEach(site => {
-          const checkboxId = site.name.toLowerCase().replace(/\s+/g, '_');
-          this.config[site.name] = $(`${modalSelector} #${checkboxId}`).is(':checked');
-        });
+      // Close button
+      $(`${modalSelector} button.close`).on('click', () => this.closeModal());
 
-        await GMC.setValue(CONSTANTS.CONFIG_KEY, this.config);
-        $(modalSelector).remove();
-        window.location.reload();
+      // Keyboard: ESC to close
+      $(document).on('keydown.elSettings', (e) => { if (e.key === 'Escape') this.closeModal(); });
+
+      // Reset defaults
+      $(`${modalSelector} #reset-defaults`).on('click', () => {
+        if (!confirm('Reset all settings to defaults?')) return;
+        this.config = { ...DEFAULT_CONFIG };
+        this.refreshModalValues();
       });
 
-      $(`${modalSelector} #clear-cache`).click(async () => {
+      // Clear cache
+      $(`${modalSelector} #clear-cache`).on('click', async () => {
         const values = await GMC.listValues();
         for (const value of values) {
           if (value === CONSTANTS.CONFIG_KEY) continue;
           await GMC.deleteValue(value);
         }
-        $(modalSelector).remove();
+        alert('Cache cleared.');
+      });
+
+      // Save & Reload
+      $(`${modalSelector} #save-reload`).on('click', async () => {
+        await this.saveSettingsFromModal();
+        this.closeModal();
         window.location.reload();
       });
+    }
+
+    closeModal() {
+      const modalSelector = `#${CONSTANTS.SCRIPT_ID}-config`;
+      $(modalSelector).remove();
+      $('body').css('overflow', '');
+      $(document).off('keydown.elSettings');
+    }
+
+    refreshModalValues() {
+      const modalSelector = `#${CONSTANTS.SCRIPT_ID}-config`;
+      [...CONSTANTS.METADATA_SITES, ...CONSTANTS.STREAMING_SITES, CONSTANTS.DUB_INFO].forEach(site => {
+        const checkboxId = site.name.toLowerCase().replace(/\s+/g, '_');
+        $(`${modalSelector} #${checkboxId}`).prop('checked', !!this.config[site.name]);
+      });
+      $(`${modalSelector} #dub_language`).val(this.config['Dub Language']);
+    }
+
+    async saveSettingsFromModal() {
+      const modalSelector = `#${CONSTANTS.SCRIPT_ID}-config`;
+      [...CONSTANTS.METADATA_SITES, ...CONSTANTS.STREAMING_SITES, CONSTANTS.DUB_INFO].forEach(site => {
+        const checkboxId = site.name.toLowerCase().replace(/\s+/g, '_');
+        this.config[site.name] = $(`${modalSelector} #${checkboxId}`).is(':checked');
+      });
+      this.config['Dub Language'] = $(`${modalSelector} #dub_language`).val();
+      await GMC.setValue(CONSTANTS.CONFIG_KEY, this.config);
+      logger.debug('Settings saved', this.config);
     }
   }
 
