@@ -62,7 +62,6 @@ Agents should run linters and fix any reported issues before creating commits or
 - Write comments for non-obvious code and decisions.
 - Don't add comments for obvious code or that don't provide new information. (Remove any comments that are for obvious code or that don't provide new information)
 - Use 2-space indentation and ensure a trailing newline at the end of files. (Follow repository convention).
-- Do not remove `TAG_VIDEO_SELECTORS` from the YouTube age filter userscript.
 
 ---
 
