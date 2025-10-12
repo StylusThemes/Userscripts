@@ -28,7 +28,7 @@
   const processedVideos = new WeakSet();
 
   // ---------- Selectors ----------
-// eslint-disable-next-line no-unused-vars
+  // eslint-disable-next-line no-unused-vars
   const TAG_VIDEO_SELECTORS = [ // Currently unused
     // Generic
     '#channel-name a',

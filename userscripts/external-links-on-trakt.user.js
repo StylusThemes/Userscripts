@@ -231,9 +231,9 @@
 
     createLink(name, url) {
       const id = `external-link-${name.toLowerCase().replace(/\s/g, '-')}`;
-      
+
       if (document.getElementById(id)) return;
-      
+
       const linkElement = `<a target="_blank" id="${id}" href="${url}" data-original-title="" title="">${name}</a>`;
       $('.sidebar .external li').append(linkElement);
       logger.debug(`Added link: ${name} -> ${url}`);
@@ -406,15 +406,15 @@
 
     displayDubInfo(hasDub) {
       if (!hasDub) return;
-      
+
       const selectedLang = CONSTANTS.DUB_LANGUAGES.find(
         lang => lang.value === this.config['Dub Language']
       );
       const langName = selectedLang?.name || 'Dub';
       const container = $('.sidebar .btn-watch-now');
-      
+
       if (!container.length || $('.dub-info').length) return;
-      
+
       const dubInfoHtml = `
         <div class="dub-info" style="
           border: 1px solid #000;
@@ -425,7 +425,7 @@
           text-align: center;
         ">${langName} Dub Exists</div>
       `;
-      
+
       container.after(dubInfoHtml);
     }
 
@@ -527,9 +527,9 @@
         const $tmdbLink = $(element);
         const tmdbUrl = $tmdbLink.attr('href');
         const collectionIdMatch = tmdbUrl.match(/collection\/(\d+)/);
-        
+
         if (!collectionIdMatch) return;
-        
+
         const collectionId = collectionIdMatch[1];
         const mediuxUrl = `https://mediux.pro/collections/${collectionId}`;
 
@@ -557,7 +557,7 @@
       try {
         const values = await GMC.listValues();
         const deletePromises = [];
-        
+
         for (const value of values) {
           if (value === CONSTANTS.CONFIG_KEY) continue;
           const cache = await GMC.getValue(value);
@@ -565,7 +565,7 @@
             deletePromises.push(GMC.deleteValue(value));
           }
         }
-        
+
         await Promise.all(deletePromises);
       } catch (error) {
         logger.error(`Failed to clear expired cache: ${error.message}`);
@@ -704,7 +704,7 @@
           const deletePromises = values
             .filter(value => value !== CONSTANTS.CONFIG_KEY)
             .map(value => GMC.deleteValue(value));
-          
+
           await Promise.all(deletePromises);
           alert('Cache cleared successfully.');
         } catch (error) {
