@@ -4,13 +4,15 @@
   "type": "module",
   "scripts": {
     "build": "bun ./scripts/build.js",
-    "lint": "eslint \"userscripts/**/*.user.js\" --ext .js --report-unused-disable-directives"
+    "lint": "eslint \"userscripts/**/*.user.js\" --ext .js"
   },
   "dependencies": {
-    "terser": "^5.43.1",
+    "terser": "^5.44.0",
     "js-beautify": "^1.15.4"
   },
   "devDependencies": {
-    "eslint": "8.47.0"
+    "eslint": "9.37.0",
+    "eslint-plugin-unicorn": "61.0.2",
+    "globals": "^16.4.0"
   }
 }

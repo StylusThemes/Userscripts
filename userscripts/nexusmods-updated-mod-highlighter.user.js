@@ -4,7 +4,7 @@
 // @description   Highlight mods that have updated since you last downloaded them
 // @author        Journey Over
 // @license       MIT
-// @match         *://www.nexusmods.com/*
+// @match         *://*.nexusmods.com/*
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@c185c2777d00a6826a8bf3c43bbcdcfeba5a9566/libs/utils/utils.min.js
 // @grant         none
 // @icon          https://www.google.com/s2/favicons?sz=64&domain=nexusmods.com
@@ -16,44 +16,28 @@
 (function() {
   'use strict';
 
-  // ============================================================================
-  // CONFIGURATION
-  // ============================================================================
-
-  /**
-   * Application configuration object containing all customizable settings
-   * @type {Object}
-   */
   const CONFIG = {
-    /** Table highlighting configuration */
     table: {
-      highlightClass: 'nexus-updated-mod-highlight',
-      highlightColor: 'rgba(0,180,255,0.1)', // Electric blue
+      highlightClass: 'nm-update-row',
     },
-
-    /** Tile highlighting configuration */
     tile: {
       styleId: 'nm-highlighter-style',
       updateClass: 'nm-update-card',
       downloadClass: 'nm-downloaded-card',
-
-      /** Color schemes for different highlight types */
       colors: {
         update: {
-          primary: 'rgba(0,180,255,0.8)', // Electric blue
-          secondary: 'rgba(0,240,255,0.6)', // Cyan
-          glow: 'rgba(0,180,255,0.4)',
-          bg: 'rgba(0,180,255,0.05)'
+          primary: 'rgba(255,59,48,0.8)',
+          secondary: 'rgba(255,100,92,0.6)',
+          glow: 'rgba(255,59,48,0.4)',
+          bg: 'rgba(255,59,48,0.05)'
         },
         download: {
-          primary: 'rgba(180,0,255,0.8)', // Electric purple
-          secondary: 'rgba(255,0,180,0.6)', // Magenta
-          glow: 'rgba(180,0,255,0.4)',
-          bg: 'rgba(180,0,255,0.05)'
+          primary: 'rgba(52,199,89,0.8)',
+          secondary: 'rgba(92,255,129,0.6)',
+          glow: 'rgba(52,199,89,0.4)',
+          bg: 'rgba(52,199,89,0.05)'
         }
       },
-
-      /** CSS selectors for different tile types */
       selectors: [
         '[data-e2eid="mod-tile"]',
         '[data-e2eid="mod-tile-list"]',
@@ -63,30 +47,19 @@
         '[class*="group/mod-tile"]'
       ],
     },
-
-    /** Global style configuration */
     global: {
       styleId: 'nexus-global-style',
     },
-
-    /** Performance settings */
     debounceDelay: 100,
   };
 
-  // ============================================================================
-  // CONSTANTS
-  // ============================================================================
-
-  /** Animation durations in seconds */
   const ANIMATION_DURATIONS = {
     TILE_GLOW: 2,
     TILE_PULSE: 2.5,
     TABLE_GLOW: 3,
     TABLE_STRIPE: 4,
-    GRADIENT_SHIFT: 3,
   };
 
-  /** CSS selectors for page detection */
   const PAGE_SELECTORS = {
     DOWNLOAD_HISTORY: {
       path: '/users/myaccount',
@@ -94,442 +67,142 @@
     }
   };
 
-  // ============================================================================
-  // GLOBAL VARIABLES
-  // ============================================================================
+  class NexusModsHighlighter {
+    constructor() {
+      this.logger = Logger('Nexus Mods - Updated Mod Highlighter', { debug: false });
+      this.mutationObserver = null;
+      this.debouncedProcess = debounce(this.processAll.bind(this), CONFIG.debounceDelay);
+    }
 
-  /** Logger instance for debugging */
-  const logger = Logger('Nexus Mod - Updated Mod Highlighter', { debug: false });
+    parseDate(text) {
+      if (!text) return NaN;
+      const cleanedText = text.replace(/\s+/g, ' ').trim();
+      const parsedTimestamp = Date.parse(cleanedText);
+      return isNaN(parsedTimestamp) ? new Date(cleanedText).getTime() || NaN : parsedTimestamp;
+    }
 
-  /** MutationObserver for dynamic content changes */
-  let mutationObserver = null;
+    isDownloadHistoryPage() {
+      return window.location.pathname.includes(PAGE_SELECTORS.DOWNLOAD_HISTORY.path) &&
+        window.location.search.includes(PAGE_SELECTORS.DOWNLOAD_HISTORY.tab);
+    }
 
-  // ============================================================================
-  // UTILITY FUNCTIONS
-  // ============================================================================
+    getTileSelector() {
+      return CONFIG.tile.selectors.join(', ');
+    }
 
-  /**
-   * Parses date strings into timestamps
-   * @param {string} text - Date string to parse
-   * @returns {number} Timestamp or NaN if invalid
-   */
-  function parseDate(text) {
-    if (!text) return NaN;
+    injectStyleElement(styleId, styleCss) {
+      if (document.getElementById(styleId)) return;
+      const styleElement = document.createElement('style');
+      styleElement.id = styleId;
+      styleElement.textContent = styleCss;
+      document.head.appendChild(styleElement);
+      this.logger.debug(`Injected style: ${styleId}`);
+    }
 
-    const cleaned = text.replace(/\s+/g, ' ').trim();
-    const parsed = Date.parse(cleaned);
+    injectTableStyles() {
+      const updateColors = CONFIG.tile.colors.update;
+      const css = `@keyframes table-row-glow{0%,100%{box-shadow:inset 0 0 8px ${updateColors.glow.replace('0.4','0.1')},0 0 4px ${updateColors.glow.replace('0.4','0.2')};background:linear-gradient(90deg,${updateColors.bg} 0%,${updateColors.bg.replace('0.05','0.08')} 50%,${updateColors.bg} 100%)}50%{box-shadow:inset 0 0 12px ${updateColors.glow.replace('0.4','0.15')},0 0 8px ${updateColors.glow.replace('0.4','0.3')};background:linear-gradient(90deg,${updateColors.bg.replace('0.05','0.08')} 0%,${updateColors.bg.replace('0.05','0.12')} 50%,${updateColors.bg.replace('0.05','0.08')} 100%)}}@keyframes table-stripe{0%{background-position:-200% 0}100%{background-position:200% 0}}.${CONFIG.table.highlightClass}{position:relative;animation:table-row-glow ${ANIMATION_DURATIONS.TABLE_GLOW}s ease-in-out infinite;background:linear-gradient(90deg,${updateColors.bg.replace('0.05','0.03')} 0%,${updateColors.bg.replace('0.05','0.06')} 50%,${updateColors.bg.replace('0.05','0.03')} 100%);background-size:200% 100%;transition:all 0.3s ease}.${CONFIG.table.highlightClass}::before{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:linear-gradient(90deg,transparent 0%,${updateColors.glow.replace('0.4','0.1')} 20%,${updateColors.glow.replace('0.4','0.2')} 50%,${updateColors.glow.replace('0.4','0.1')} 80%,transparent 100%);background-size:200% 100%;animation:table-stripe ${ANIMATION_DURATIONS.TABLE_STRIPE}s linear infinite;pointer-events:none;z-index:1}.${CONFIG.table.highlightClass}::after{content:'';position:absolute;top:0;left:0;bottom:0;width:3px;background:linear-gradient(180deg,${updateColors.primary} 0%,${updateColors.secondary} 50%,${updateColors.primary} 100%);box-shadow:0 0 8px ${updateColors.glow}}`;
+      this.injectStyleElement('nexus-updated-style', css);
+    }
 
-    return isNaN(parsed) ? new Date(cleaned).getTime() || NaN : parsed;
-  }
+    injectTileStyles() {
+      const updateColors = CONFIG.tile.colors.update;
+      const downloadColors = CONFIG.tile.colors.download;
+      const css = `@keyframes nm-glow{0%,100%{box-shadow:0 0 8px ${updateColors.glow},0 0 16px ${updateColors.glow.replace('0.4','0.2')},0 0 24px ${updateColors.glow.replace('0.4','0.1')},inset 0 0 8px ${updateColors.glow.replace('0.4','0.1')};filter:brightness(1.05) saturate(1.1)}50%{box-shadow:0 0 12px ${updateColors.primary.replace('0.8','0.6')},0 0 24px ${updateColors.primary.replace('0.8','0.4')},0 0 36px ${updateColors.primary.replace('0.8','0.2')},inset 0 0 12px ${updateColors.primary.replace('0.8','0.15')};filter:brightness(1.08) saturate(1.15)}}@keyframes nm-download-pulse{0%,100%{box-shadow:0 0 6px ${downloadColors.glow},0 0 12px ${downloadColors.glow.replace('0.4','0.2')},inset 0 0 6px ${downloadColors.glow.replace('0.4','0.05')}}50%{box-shadow:0 0 10px ${downloadColors.primary.replace('0.8','0.5')},0 0 20px ${downloadColors.primary.replace('0.8','0.3')},inset 0 0 10px ${downloadColors.primary.replace('0.8','0.08')}}} .${CONFIG.tile.updateClass}{position:relative;background:linear-gradient(135deg,${updateColors.bg} 0%,${updateColors.bg.replace('0.05','0.03')} 50%,${updateColors.bg.replace('0.05','0.01')} 100%);border:2px solid transparent;border-image:linear-gradient(135deg,${updateColors.primary} 0%,${updateColors.secondary} 50%,${updateColors.primary.replace('0.8','0.4')} 100%);border-image-slice:1;animation:nm-glow ${ANIMATION_DURATIONS.TILE_GLOW}s ease-in-out infinite;transform:scale(1.02);transition:all 0.3s ease}.${CONFIG.tile.updateClass}::before{content:'';position:absolute;top:-2px;left:-2px;right:-2px;bottom:-2px;background:linear-gradient(45deg,transparent 0%,${updateColors.bg.replace('0.05','0.1')} 25%,${updateColors.bg.replace('0.05','0.2')} 50%,${updateColors.bg.replace('0.05','0.1')} 75%,transparent 100%);background-size:200% 200%;animation:nm-glow ${ANIMATION_DURATIONS.TILE_GLOW}s ease-in-out infinite;pointer-events:none;z-index:-1}.${CONFIG.tile.downloadClass}{position:relative;background:linear-gradient(135deg,${downloadColors.bg} 0%,${downloadColors.bg.replace('0.05','0.03')} 50%,${downloadColors.bg.replace('0.05','0.01')} 100%);border:2px solid transparent;border-image:linear-gradient(135deg,${downloadColors.primary} 0%,${downloadColors.secondary} 50%,${downloadColors.primary.replace('0.8','0.4')} 100%);border-image-slice:1;animation:nm-download-pulse ${ANIMATION_DURATIONS.TILE_PULSE}s ease-in-out infinite;transform:scale(1.01);transition:all 0.3s ease}.${CONFIG.tile.downloadClass}::before{content:'';position:absolute;top:-2px;left:-2px;right:-2px;bottom:-2px;background:linear-gradient(45deg,transparent 0%,${downloadColors.bg.replace('0.05','0.1')} 25%,${downloadColors.bg.replace('0.05','0.2')} 50%,${downloadColors.bg.replace('0.05','0.1')} 75%,transparent 100%);background-size:200% 200%;animation:nm-download-pulse ${ANIMATION_DURATIONS.TILE_PULSE}s ease-in-out infinite;pointer-events:none;z-index:-1}`;
+      this.injectStyleElement(CONFIG.tile.styleId, css);
+    }
 
-  /**
-   * Checks if current page is the download history page
-   * @returns {boolean} True if on download history page
-   */
-  function isDownloadHistoryPage() {
-    return window.location.pathname.includes(PAGE_SELECTORS.DOWNLOAD_HISTORY.path) &&
-      window.location.search.includes(PAGE_SELECTORS.DOWNLOAD_HISTORY.tab);
-  }
+    injectGlobalStyles() {
+      const css = `*{border-radius:0!important}`;
+      this.injectStyleElement(CONFIG.global.styleId, css);
+    }
 
-  /**
-   * Generates combined tile selector string
-   * @returns {string} Combined CSS selector
-   */
-  function getTileSelector() {
-    return CONFIG.tile.selectors.join(', ');
-  }
+    injectStyles() {
+      this.injectTableStyles();
+      this.injectTileStyles();
+      this.injectGlobalStyles();
+    }
 
-  /**
-   * Creates and injects a style element if it doesn't exist
-   * @param {string} id - Style element ID
-   * @param {string} css - CSS content
-   * @param {string} description - Description for logging
-   */
-  function injectStyleElement(id, css, description) {
-    if (document.getElementById(id)) return;
-
-    const style = document.createElement('style');
-    style.id = id;
-    style.textContent = css;
-    document.head.appendChild(style);
-
-    logger.debug(`Injected ${description}`);
-  }
-
-  // ============================================================================
-  // STYLE INJECTION FUNCTIONS
-  // ============================================================================
-
-  /**
-   * Injects all required CSS styles
-   */
-  function injectStyles() {
-    injectTableStyles();
-    injectTileStyles();
-    injectGlobalStyles();
-  }
-
-  /**
-   * Injects table highlighting styles
-   */
-  function injectTableStyles() {
-    const css = `
-      @keyframes table-row-glow {
-        0%, 100% {
-          box-shadow:
-            inset 0 0 8px rgba(0,180,255,0.1),
-            0 0 4px rgba(0,180,255,0.2);
-          background:
-            linear-gradient(90deg,
-              rgba(0,180,255,0.05) 0%,
-              rgba(0,180,255,0.08) 50%,
-              rgba(0,180,255,0.05) 100%);
-        }
-        50% {
-          box-shadow:
-            inset 0 0 12px rgba(0,180,255,0.15),
-            0 0 8px rgba(0,180,255,0.3);
-          background:
-            linear-gradient(90deg,
-              rgba(0,180,255,0.08) 0%,
-              rgba(0,180,255,0.12) 50%,
-              rgba(0,180,255,0.08) 100%);
+    processTable() {
+      if (!this.isDownloadHistoryPage()) return;
+      const tableRows = document.querySelectorAll('tr.even, tr.odd');
+      let highlightedCount = 0;
+      for (const tableRow of tableRows) {
+        const downloadDateCell = tableRow.querySelector('td.table-download');
+        const updateDateCell = tableRow.querySelector('td.table-update');
+        if (!downloadDateCell || !updateDateCell) continue;
+        const downloadTimestamp = this.parseDate(downloadDateCell.textContent);
+        const updateTimestamp = this.parseDate(updateDateCell.textContent);
+        if (!isNaN(downloadTimestamp) && !isNaN(updateTimestamp) && downloadTimestamp < updateTimestamp) {
+          tableRow.classList.add(CONFIG.table.highlightClass);
+          highlightedCount++;
         }
       }
+      this.logger.debug(`Processed ${tableRows.length} table rows, highlighted ${highlightedCount}`);
+    }
 
-      @keyframes table-stripe {
-        0% { background-position: -200% 0; }
-        100% { background-position: 200% 0; }
+    processTiles() {
+      if (this.isDownloadHistoryPage()) return;
+      const tileSelectorString = this.getTileSelector();
+      const tileElements = document.querySelectorAll(tileSelectorString);
+      for (const tileElement of tileElements) {
+        tileElement.classList.remove(CONFIG.tile.updateClass, CONFIG.tile.downloadClass);
       }
-
-      .${CONFIG.table.highlightClass} {
-        position: relative;
-        animation: table-row-glow ${ANIMATION_DURATIONS.TABLE_GLOW}s ease-in-out infinite;
-        background:
-          linear-gradient(90deg,
-            rgba(0,180,255,0.03) 0%,
-            rgba(0,180,255,0.06) 50%,
-            rgba(0,180,255,0.03) 100%);
-        background-size: 200% 100%;
-        transition: all 0.3s ease;
+      for (const updateBadge of document.querySelectorAll('[data-e2eid="mod-tile-update-available"]')) {
+        const tileElement = updateBadge.closest(tileSelectorString);
+        if (tileElement) tileElement.classList.add(CONFIG.tile.updateClass);
       }
-
-      .${CONFIG.table.highlightClass}::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background:
-          linear-gradient(90deg,
-            transparent 0%,
-            rgba(0,180,255,0.1) 20%,
-            rgba(0,180,255,0.2) 50%,
-            rgba(0,180,255,0.1) 80%,
-            transparent 100%);
-        background-size: 200% 100%;
-        animation: table-stripe ${ANIMATION_DURATIONS.TABLE_STRIPE}s linear infinite;
-        pointer-events: none;
-        z-index: 1;
-      }
-
-      .${CONFIG.table.highlightClass}::after {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        bottom: 0;
-        width: 3px;
-        background: linear-gradient(180deg,
-          rgba(0,180,255,0.8) 0%,
-          rgba(0,240,255,0.6) 50%,
-          rgba(0,180,255,0.8) 100%);
-        box-shadow: 0 0 8px rgba(0,180,255,0.4);
-        z-index: 2;
-      }
-
-      .${CONFIG.table.highlightClass} td {
-        position: relative;
-        z-index: 3;
-        color: inherit !important;
-        font-weight: 500;
-        transition: color 0.3s ease;
-      }
-
-      .${CONFIG.table.highlightClass}:hover {
-        animation-duration: 1.5s;
-        transform: translateY(-1px);
-      }
-
-      .${CONFIG.table.highlightClass}:hover::before {
-        animation-duration: 2s;
-      }
-    `;
-
-    injectStyleElement('nexus-updated-style', css, 'enhanced table styles');
-  }
-
-  /**
-   * Injects tile highlighting styles
-   */
-  function injectTileStyles() {
-    const css = `
-      @keyframes nm-glow {
-        0%, 100% {
-          box-shadow:
-            0 0 8px ${CONFIG.tile.colors.update.glow},
-            0 0 16px ${CONFIG.tile.colors.update.glow.replace('0.4', '0.2')},
-            0 0 24px ${CONFIG.tile.colors.update.glow.replace('0.4', '0.1')},
-            inset 0 0 8px ${CONFIG.tile.colors.update.glow.replace('0.4', '0.1')};
-          filter: brightness(1.05) saturate(1.1);
-        }
-        50% {
-          box-shadow:
-            0 0 12px ${CONFIG.tile.colors.update.primary.replace('0.8', '0.6')},
-            0 0 24px ${CONFIG.tile.colors.update.primary.replace('0.8', '0.4')},
-            0 0 36px ${CONFIG.tile.colors.update.primary.replace('0.8', '0.2')},
-            inset 0 0 12px ${CONFIG.tile.colors.update.primary.replace('0.8', '0.15')};
-          filter: brightness(1.08) saturate(1.15);
+      for (const downloadBadge of document.querySelectorAll('[data-e2eid="mod-tile-downloaded"]')) {
+        const tileElement = downloadBadge.closest(tileSelectorString);
+        if (tileElement && !tileElement.classList.contains(CONFIG.tile.updateClass)) {
+          tileElement.classList.add(CONFIG.tile.downloadClass);
         }
       }
+      this.logger.debug(`Processed ${tileElements.length} tiles`);
+    }
 
-      @keyframes nm-download-pulse {
-        0%, 100% {
-          box-shadow:
-            0 0 6px ${CONFIG.tile.colors.download.glow},
-            0 0 12px ${CONFIG.tile.colors.download.glow.replace('0.4', '0.2')},
-            inset 0 0 6px ${CONFIG.tile.colors.download.glow.replace('0.4', '0.05')};
-        }
-        50% {
-          box-shadow:
-            0 0 10px ${CONFIG.tile.colors.download.primary.replace('0.8', '0.5')},
-            0 0 20px ${CONFIG.tile.colors.download.primary.replace('0.8', '0.3')},
-            inset 0 0 10px ${CONFIG.tile.colors.download.primary.replace('0.8', '0.08')};
-        }
-      }
+    processAll() {
+      this.processTable();
+      this.processTiles();
+    }
 
-      .${CONFIG.tile.updateClass} {
-        position: relative;
-        background: linear-gradient(135deg,
-          ${CONFIG.tile.colors.update.bg} 0%,
-          ${CONFIG.tile.colors.update.bg.replace('0.05', '0.03')} 50%,
-          ${CONFIG.tile.colors.update.bg.replace('0.05', '0.01')} 100%);
-        border: 2px solid transparent;
-        border-image: linear-gradient(135deg,
-          ${CONFIG.tile.colors.update.primary} 0%,
-          ${CONFIG.tile.colors.update.secondary} 50%,
-          ${CONFIG.tile.colors.update.primary.replace('0.8', '0.4')} 100%);
-        border-image-slice: 1;
-        animation: nm-glow ${ANIMATION_DURATIONS.TILE_GLOW}s ease-in-out infinite;
-        transform: scale(1.02);
-        transition: all 0.3s ease;
-      }
+    setupMutationObserver() {
+      if (this.mutationObserver) this.mutationObserver.disconnect();
+      this.mutationObserver = new MutationObserver(this.debouncedProcess);
+      this.mutationObserver.observe(document.body, {
+        childList: true,
+        subtree: true
+      });
+    }
 
-      .${CONFIG.tile.updateClass}::before {
-        content: '';
-        position: absolute;
-        top: -2px;
-        left: -2px;
-        right: -2px;
-        bottom: -2px;
-        background: linear-gradient(45deg,
-          transparent 0%,
-          ${CONFIG.tile.colors.update.bg.replace('0.05', '0.1')} 25%,
-          ${CONFIG.tile.colors.update.bg.replace('0.05', '0.2')} 50%,
-          ${CONFIG.tile.colors.update.bg.replace('0.05', '0.1')} 75%,
-          transparent 100%);
-        background-size: 200% 200%;
-        animation: gradient-shift ${ANIMATION_DURATIONS.GRADIENT_SHIFT}s ease-in-out infinite;
-        pointer-events: none;
-        z-index: -1;
-      }
+    setupNavigationHooks() {
+      const originalPushState = history.pushState;
+      const originalReplaceState = history.replaceState;
+      history.pushState = (...stateArguments) => {
+        const result = originalPushState.apply(history, stateArguments);
+        this.debouncedProcess();
+        return result;
+      };
+      history.replaceState = (...stateArguments) => {
+        const result = originalReplaceState.apply(history, stateArguments);
+        this.debouncedProcess();
+        return result;
+      };
+      window.addEventListener('popstate', this.debouncedProcess);
+    }
 
-      .${CONFIG.tile.downloadClass} {
-        position: relative;
-        background: linear-gradient(135deg,
-          ${CONFIG.tile.colors.download.bg} 0%,
-          ${CONFIG.tile.colors.download.bg.replace('0.05', '0.03')} 50%,
-          ${CONFIG.tile.colors.download.bg.replace('0.05', '0.01')} 100%);
-        border: 2px solid transparent;
-        border-image: linear-gradient(135deg,
-          ${CONFIG.tile.colors.download.primary} 0%,
-          ${CONFIG.tile.colors.download.secondary} 50%,
-          ${CONFIG.tile.colors.download.primary.replace('0.8', '0.3')} 100%);
-        border-image-slice: 1;
-        animation: nm-download-pulse ${ANIMATION_DURATIONS.TILE_PULSE}s ease-in-out infinite;
-        transform: scale(1.01);
-        transition: all 0.3s ease;
-      }
-
-      .${CONFIG.tile.downloadClass}::after {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: radial-gradient(circle at center,
-          ${CONFIG.tile.colors.download.bg.replace('0.05', '0.03')} 0%,
-          transparent 70%);
-        pointer-events: none;
-        z-index: -1;
-      }
-
-      @keyframes gradient-shift {
-        0% { background-position: 0% 0%; }
-        50% { background-position: 100% 100%; }
-        100% { background-position: 0% 0%; }
-      }
-    `;
-
-    injectStyleElement(CONFIG.tile.styleId, css, 'enhanced tile styles');
+    init() {
+      this.injectStyles();
+      this.processAll();
+      this.setupMutationObserver();
+      this.setupNavigationHooks();
+    }
   }
 
-  /**
-   * Injects global styles (border-radius removal)
-   */
-  function injectGlobalStyles() {
-    const css = `*{border-radius: 0 !important;}`;
-    injectStyleElement(CONFIG.global.styleId, css, 'global styles');
-  }
-
-  // ============================================================================
-  // PROCESSING FUNCTIONS
-  // ============================================================================
-
-  /**
-   * Processes table rows for highlighting updated mods
-   */
-  function processTable() {
-    if (!isDownloadHistoryPage()) return;
-
-    const rows = document.querySelectorAll('tr.even, tr.odd');
-    let highlighted = 0;
-
-    rows.forEach(row => {
-      const downloadCell = row.querySelector('td.table-download');
-      const updateCell = row.querySelector('td.table-update');
-
-      if (!downloadCell || !updateCell) return;
-
-      const downloadDate = parseDate(downloadCell.textContent);
-      const updateDate = parseDate(updateCell.textContent);
-
-      if (!isNaN(downloadDate) && !isNaN(updateDate) && downloadDate < updateDate) {
-        row.classList.add(CONFIG.table.highlightClass);
-        highlighted++;
-      }
-    });
-
-    logger.debug(`Processed ${rows.length} table rows, highlighted ${highlighted}`);
-  }
-
-  /**
-   * Processes mod tiles for highlighting based on badges
-   */
-  function processTiles() {
-    if (isDownloadHistoryPage()) return;
-
-    const tileSelector = getTileSelector();
-    const tiles = document.querySelectorAll(tileSelector);
-
-    // Clear existing highlights
-    tiles.forEach(tile => {
-      tile.classList.remove(CONFIG.tile.updateClass, CONFIG.tile.downloadClass);
-    });
-
-    // Apply highlights based on badges
-    document.querySelectorAll('[data-e2eid="mod-tile-update-available"]').forEach(badge => {
-      const tile = badge.closest(tileSelector);
-      if (tile) tile.classList.add(CONFIG.tile.updateClass);
-    });
-
-    document.querySelectorAll('[data-e2eid="mod-tile-downloaded"]').forEach(badge => {
-      const tile = badge.closest(tileSelector);
-      if (tile && !tile.classList.contains(CONFIG.tile.updateClass)) {
-        tile.classList.add(CONFIG.tile.downloadClass);
-      }
-    });
-
-    logger.debug(`Processed ${tiles.length} tiles`);
-  }
-
-  /**
-   * Processes both table and tiles based on current page
-   */
-  function processAll() {
-    processTable();
-    processTiles();
-  }
-
-  /**
-   * Debounced version of processAll to prevent excessive processing
-   */
-  const debouncedProcess = debounce(processAll, CONFIG.debounceDelay);
-
-  // ============================================================================
-  // OBSERVER & EVENT SETUP
-  // ============================================================================
-
-  /**
-   * Sets up MutationObserver for dynamic content changes
-   */
-  function setupMutationObserver() {
-    if (mutationObserver) mutationObserver.disconnect();
-
-    mutationObserver = new MutationObserver(debouncedProcess);
-    mutationObserver.observe(document.body, {
-      childList: true,
-      subtree: true
-    });
-  }
-
-  /**
-   * Sets up navigation event listeners for SPA support
-   */
-  function setupNavigationHooks() {
-    const originalPushState = history.pushState;
-    const originalReplaceState = history.replaceState;
-
-    history.pushState = function(...args) {
-      const result = originalPushState.apply(this, args);
-      debouncedProcess();
-      return result;
-    };
-
-    history.replaceState = function(...args) {
-      const result = originalReplaceState.apply(this, args);
-      debouncedProcess();
-      return result;
-    };
-
-    window.addEventListener('popstate', debouncedProcess);
-  }
-
-  // ============================================================================
-  // INITIALIZATION
-  // ============================================================================
-
-  /**
-   * Main initialization function
-   */
-  function init() {
-    injectStyles();
-    processAll();
-    setupMutationObserver();
-    setupNavigationHooks();
-  }
-
-  // ============================================================================
-  // SCRIPT STARTUP
-  // ============================================================================
-
-  // Start the script when DOM is ready
+  const highlighter = new NexusModsHighlighter();
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
+    document.addEventListener('DOMContentLoaded', () => highlighter.init());
   } else {
-    init();
+    highlighter.init();
   }
-
 })();

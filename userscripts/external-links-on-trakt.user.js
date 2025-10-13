@@ -30,11 +30,8 @@
 
   const logger = Logger('External links on Trakt', { debug: false });
 
-  // ==============================
-  //  Constants and Configuration
-  // ==============================
   const CONSTANTS = {
-    CACHE_DURATION: 36e5, // 1 hour in milliseconds
+    CACHE_DURATION: 24 * 60 * 60 * 1000,
     SCRIPT_ID: GM.info.script.name.toLowerCase().replace(/\s/g, '-'),
     CONFIG_KEY: 'external-trakt-links-config',
     TITLE: `${GM.info.script.name} Settings`,
@@ -88,7 +85,6 @@
     ]
   };
 
-  // Default configuration values
   const DEFAULT_CONFIG = Object.fromEntries([
     ...CONSTANTS.METADATA_SITES.map(site => [site.name, true]),
     ...CONSTANTS.STREAMING_SITES.map(site => [site.name, true]),
@@ -96,9 +92,6 @@
     [CONSTANTS.DUB_LANGUAGE_KEY, 'ENGLISH']
   ]);
 
-  // ==============================
-  //  Main Application Class
-  // ==============================
   class TraktExternalLinks {
     constructor() {
       this.config = { ...DEFAULT_CONFIG };
@@ -108,9 +101,6 @@
       this.anilist = null;
     }
 
-    // ==============================
-    //  Initialization
-    // ==============================
     async init() {
       await this.loadConfig();
       this.initializeAPIs();
@@ -130,18 +120,13 @@
       this.anilist = new AniList();
     }
 
-    // ==============================
-    //  Event Handling
-    // ==============================
     setupEventListeners() {
       NodeCreationObserver.onCreation('.sidebar .external', () => this.handleExternalLinks());
       NodeCreationObserver.onCreation('body', () => this.addSettingsMenu());
       NodeCreationObserver.onCreation('.text.readmore', () => this.handleCollectionLinks());
     }
 
-    // ==============================
-    //  Media Information Extraction
-    // ==============================
+    // Extract media information from URL path and existing external links
     getMediaInfo() {
       const pathParts = location.pathname.split('/');
       const type = pathParts[1] === 'movies' ? 'movie' : 'tv';
@@ -176,9 +161,6 @@
       };
     }
 
-    // ==============================
-    //  Link Processing
-    // ==============================
     async handleExternalLinks() {
       try {
         await this.clearExpiredCache();
@@ -202,22 +184,23 @@
       }
     }
 
+    // Sort links according to predefined order, keeping unknown links at the end
     sortLinks() {
       const container = $('.sidebar .external');
       const listItem = container.find('li').first();
       const links = listItem.children('a').detach();
+
+      const getKey = element => {
+        const $element = $(element);
+        const key = $element.data('site') || $element.data('original-title') || $element.text().trim();
+        return key.toLowerCase();
+      };
 
       const orderMap = new Map(
         CONSTANTS.LINK_ORDER.map((name, index) => [name.toLowerCase(), index])
       );
 
       const sorted = links.toArray().sort((a, b) => {
-        const getKey = el => {
-          const $el = $(el);
-          const key = $el.data('site') || $el.data('original-title') || $el.text().trim();
-          return key.toLowerCase();
-        };
-
         const aKey = getKey(a);
         const bKey = getKey(b);
         const aOrder = orderMap.get(aKey) ?? Infinity;
@@ -239,9 +222,7 @@
       logger.debug(`Added link: ${name} -> ${url}`);
     }
 
-    // ==============================
-    //  Wikidata / ArmHaglung Integration
-    // ==============================
+    // Fetch Wikidata links with fallback to ArmHaglund for missing anime IDs
     async processWikidataLinks() {
       const cache = await GMC.getValue(this.mediaInfo.imdbId);
 
@@ -254,6 +235,7 @@
       try {
         let data = await this.wikidata.links(this.mediaInfo.imdbId, 'IMDb', this.mediaInfo.type);
 
+        // ArmHaglund provides better anime ID coverage than Wikidata
         if (this.needsExtraIds(data.links)) {
           await this.fetchExtraIds(data);
         }
@@ -272,6 +254,7 @@
       }
     }
 
+    // Check if we're missing key anime database links that ArmHaglund can provide
     needsExtraIds(links) {
       const required = ['MyAnimeList', 'AniDB', 'AniList', 'Kitsu', 'AniSearch', 'LiveChart'];
       return required.some(site => !links[site]);
@@ -279,16 +262,17 @@
 
     async fetchExtraIds(data) {
       try {
-        const extData = await this.armhaglund.fetchIds('imdb', this.mediaInfo.imdbId);
-        if (extData) {
-          this.mergeExtraIds(data.links, extData);
+        const extensionData = await this.armhaglund.fetchIds('imdb', this.mediaInfo.imdbId);
+        if (extensionData) {
+          this.mergeExtraIds(data.links, extensionData);
         }
-      } catch (extError) {
-        logger.debug(`Failed to fetch from Arm Haglund: ${extError.message}`);
+      } catch (extensionError) {
+        logger.debug(`Failed to fetch from Arm Haglund: ${extensionError.message}`);
       }
     }
 
-    mergeExtraIds(links, extData) {
+    // Map ArmHaglund API response keys to Wikidata link format and URLs
+    mergeExtraIds(links, extensionData) {
       const URL_MAPPINGS = {
         themoviedb: (id) => `https://www.themoviedb.org/${this.mediaInfo.type === 'movie' ? 'movie' : 'tv'}/${id}`,
         thetvdb: (id) => `https://thetvdb.com/dereferrer/${this.mediaInfo.type === 'movie' ? 'movie' : 'series'}/${id}`,
@@ -313,32 +297,31 @@
         livechart: 'LiveChart'
       };
 
-      Object.entries(LINK_MAPPINGS).forEach(([apiKey, linkKey]) => {
-        if (!links[linkKey] && extData[apiKey]) {
-          links[linkKey] = { value: URL_MAPPINGS[apiKey](extData[apiKey]) };
+      for (const [apiKey, linkKey] of Object.entries(LINK_MAPPINGS)) {
+        if (!links[linkKey] && extensionData[apiKey]) {
+          links[linkKey] = { value: URL_MAPPINGS[apiKey](extensionData[apiKey]) };
         }
-      });
+      }
     }
 
     addWikidataLinks(links) {
       const animeSites = new Set(['MyAnimeList', 'AniDB', 'AniList', 'Kitsu', 'AniSearch', 'LiveChart']);
 
-      Object.entries(links).forEach(([site, link]) => {
+      for (const [site, link] of Object.entries(links)) {
         if (
           site !== 'Trakt' &&
           link?.value &&
           this.config[site] !== false &&
           !this.linkExists(site) &&
+          // Don't show anime sites on season pages (they're show-level only for now)
           !(this.mediaInfo.isSeasonPage && animeSites.has(site))
         ) {
           this.createLink(site, link.value);
         }
-      });
+      }
     }
 
-    // ==============================
-    //  AniList Integration
-    // ==============================
+    // Query AniList for dub information using voice actor language filtering
     async queryAnilist(id) {
       const query = `
         query($id: Int!, $type: MediaType, $page: Int = 1, $language: StaffLanguage){
@@ -370,18 +353,19 @@
 
       GMC.getValue(cacheKey)
         .then(cache => {
-          if (cache?.dubs?.[selectedLanguage] !== undefined) {
-            this.displayDubInfo(cache.dubs[selectedLanguage]);
-            return Promise.resolve();
+          if (cache?.dubStatus?.[selectedLanguage] !== undefined) {
+            this.displayDubInfo(cache.dubStatus[selectedLanguage]);
+            return;
           }
 
           return this.queryAnilist(this.mediaInfo.anilistId)
             .then(edges => {
+              // Check if any main characters have voice actors in the selected language
               const hasDub = edges.some(edge => edge.voiceActors?.length > 0);
               const updatedCache = {
                 ...cache,
-                dubs: {
-                  ...cache?.dubs,
+                dubStatus: {
+                  ...cache?.dubStatus,
                   [selectedLanguage]: hasDub
                 }
               };
@@ -391,11 +375,12 @@
         })
         .catch(error => {
           logger.error(`Failed fetching AniList dub info: ${error.message}`);
+          // Cache the failure to avoid repeated API calls
           return GMC.getValue(cacheKey).then(cache => {
             const updatedCache = {
               ...cache,
-              dubs: {
-                ...cache?.dubs,
+              dubStatus: {
+                ...cache?.dubStatus,
                 [selectedLanguage]: false
               }
             };
@@ -413,10 +398,10 @@
       const langName = selectedLang?.name || 'Dub';
       const container = $('.sidebar .btn-watch-now');
 
-      if (!container.length || $('.dub-info').length) return;
+      if (!container.length || $('.dubbed-info').length) return;
 
-      const dubInfoHtml = `
-        <div class="dub-info" style="
+      const dubbedInfoHtml = `
+        <div class="dubbed-info" style="
           border: 1px solid #000;
           padding: 4px;
           margin: 5px 0;
@@ -426,12 +411,9 @@
         ">${langName} Dub Exists</div>
       `;
 
-      container.after(dubInfoHtml);
+      container.after(dubbedInfoHtml);
     }
 
-    // ==============================
-    //  Custom Link Builders
-    // ==============================
     addCustomLinks() {
       const customLinks = [
         {
@@ -503,7 +485,7 @@
         }
       ];
 
-      customLinks.forEach(linkConfig => {
+      for (const linkConfig of customLinks) {
         const isEnabled = this.config[linkConfig.name] !== false;
         const hasRequiredData = this.mediaInfo[linkConfig.requiredData];
         const meetsCondition = !linkConfig.condition || linkConfig.condition();
@@ -512,39 +494,34 @@
         if (isEnabled && hasRequiredData && meetsCondition && doesNotExist) {
           this.createLink(linkConfig.name, linkConfig.url());
         }
-      });
+      }
     }
 
-    // ==============================
-    //  Collection Link Handling
-    // ==============================
     handleCollectionLinks() {
       if (!this.config.Mediux) return;
 
       const tmdbCollectionLinks = $('.text.readmore a[href*="themoviedb.org/collection/"]');
 
-      tmdbCollectionLinks.each((index, element) => {
+      for (const element of tmdbCollectionLinks) {
         const $tmdbLink = $(element);
         const tmdbUrl = $tmdbLink.attr('href');
         const collectionIdMatch = tmdbUrl.match(/collection\/(\d+)/);
 
-        if (!collectionIdMatch) return;
+        if (!collectionIdMatch) continue;
 
         const collectionId = collectionIdMatch[1];
         const mediuxUrl = `https://mediux.pro/collections/${collectionId}`;
 
-        if ($tmdbLink.next(`a[href="${mediuxUrl}"]`).length) return;
+        if ($tmdbLink.next(`a[href="${mediuxUrl}"]`).length) continue;
 
         const mediuxLink = `<p><a href="${mediuxUrl}" target="_blank" class="comment-link">Mediux Collection</a></p>`;
         $tmdbLink.after(mediuxLink);
-      });
+      }
     }
 
-    // ==============================
-    //  Cache Management
-    // ==============================
     isCacheValid(cache) {
       if (!cache) return false;
+      // Bypass cache in debug mode to test fresh data
       if (logger.debugEnabled) return false;
       return (Date.now() - cache.time) < CONSTANTS.CACHE_DURATION;
     }
@@ -572,9 +549,6 @@
       }
     }
 
-    // ==============================
-    //  Settings UI
-    // ==============================
     addSettingsMenu() {
       const menuItem = `<li class="${CONSTANTS.SCRIPT_ID}"><a href="javascript:void(0)" aria-haspopup="dialog">EL Settings</a></li>`;
       $('div.user-wrapper ul.menu li.divider').last().after(menuItem);
@@ -594,7 +568,7 @@
 
     addModalStyles() {
       const id = `${CONSTANTS.SCRIPT_ID}-config`;
-      const styles = `#${id}.theme-dark{--bg:#0f1720;--panel:#0b1220;--muted:#98a0ab;--accent:#5eead4;--accent-2:#60a5fa;--surface:#0c1220;--glass:rgba(255,255,255,0.03);--border:rgba(255,255,255,0.03);--text:#e6f3ef;--text-2:#eaf8f0}#${id}.theme-light{--bg:#f6f9fb;--panel:#fff;--muted:#6b7280;--accent:#0ea5a4;--accent-2:#3b82f6;--surface:#fff;--glass:rgba(0,0,0,0.04);--border:rgba(10,20,30,0.04);--text:#061426;--text-2:#0b2130}#${id}{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:99999;background:linear-gradient(180deg,rgba(4,6,8,.72),rgba(4,6,8,.9));font-family:Inter,Roboto,Arial,sans-serif}#${id} .el-panel{width:920px;max-width:96%;max-height:92vh;border-radius:12px;overflow:hidden;display:flex;flex-direction:column;border:1px solid var(--border)}#${id}.theme-dark .el-panel{background:linear-gradient(180deg,var(--panel),#071018);color:var(--text);box-shadow:0 10px 30px rgba(2,6,23,0.7)}#${id}.theme-light .el-panel{background:linear-gradient(180deg,var(--panel),#f7fbff);color:var(--text);box-shadow:0 6px 18px rgba(10,15,30,0.06)}#${id} .el-panel-header{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:20px 22px;border-bottom:1px solid var(--border)}#${id} .el-panel-header h2{margin:0;font-size:1.25rem;color:var(--text-2)}#${id} .el-panel-header .subtitle{margin:4px 0 0;font-size:.9rem;color:var(--muted)}#${id} .btn-icon{background:none;border:none;font-size:1.1rem;cursor:pointer;padding:6px 8px;border-radius:6px;color:var(--text)}#${id} .btn-icon:hover{background:var(--glass)}#${id} .el-panel-body{padding:16px 18px;flex:1;overflow:auto}#${id} .settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}#${id} .settings-column{padding:12px;border-radius:10px;background:linear-gradient(180deg,var(--glass),transparent);border:1px solid var(--border)}#${id} .settings-column h3{margin:0 0 12px;font-size:1rem;color:var(--text-2)}#${id} .site-list{display:flex;flex-direction:column;gap:8px}#${id} .site-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px;border-radius:8px;transition:background .12s,transform .06s;cursor:default}#${id} .site-row:hover{background:var(--glass);transform:translateY(-1px)}#${id} .site-info{display:flex;flex-direction:column;gap:2px;flex:1;max-width:70%}#${id} .site-name{font-weight:600;color:var(--text-2)}#${id} .site-desc{font-size:.82rem;color:var(--muted)}#${id} .toggle-checkbox{position:absolute;opacity:0;pointer-events:none}#${id} .toggle-switch{width:44px;height:26px;flex-shrink:0;display:inline-block;border-radius:20px;position:relative;transition:background .18s;cursor:pointer}#${id}.theme-dark .toggle-switch{background:rgba(255,255,255,0.06);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.04)}#${id}.theme-light .toggle-switch{background:rgba(0,0,0,0.06);box-shadow:inset 0 0 0 1px rgba(0,0,0,0.04)}#${id} .toggle-switch::after{content:'';position:absolute;width:18px;height:18px;border-radius:50%;top:4px;left:4px;background:#fff;transition:all .18s;box-shadow:0 3px 6px rgba(2,6,23,0.6)}#${id} .toggle-checkbox:checked+.toggle-switch{background:linear-gradient(90deg,var(--accent),var(--accent-2))}#${id} .toggle-checkbox:checked+.toggle-switch::after{transform:translateX(18px);background:var(--surface)}#${id} .dub-panel{grid-column:1/-1;padding:16px;border-radius:10px;background:linear-gradient(180deg,var(--glass),transparent);border:1px solid var(--border)}#${id} .dub-section{display:flex;align-items:flex-start;gap:20px;margin-bottom:12px}#${id} .dub-toggle-wrapper{display:flex;align-items:center;gap:12px;min-width:220px}#${id} .dub-toggle-wrapper .toggle-switch{flex-shrink:0}#${id} .dub-toggle-label{display:flex;flex-direction:column;gap:2px;cursor:pointer}#${id} .dub-toggle-label .label-text{font-weight:600;font-size:.95rem;color:var(--text-2)}#${id} .dub-toggle-label .label-desc{font-size:.78rem;color:var(--muted)}#${id} .dub-lang-wrapper{display:flex;flex-direction:column;gap:6px;flex:1}#${id} .select-label{font-size:.85rem;font-weight:600;color:var(--text-2)}#${id} .select{padding:8px 10px;border-radius:8px;background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:.95rem;cursor:pointer;outline:none}#${id}.theme-dark .select{background:#08111a}#${id}.theme-light .select{background:#f3f7fb}#${id} .el-panel-footer{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 18px;border-top:1px solid var(--border)}#${id} .footer-left{display:flex;gap:8px}#${id} .footer-right{display:flex;gap:8px}#${id} .btn{padding:10px 14px;border-radius:10px;background:transparent;border:1px solid var(--border);cursor:pointer;font-weight:600;font-size:.9rem;color:var(--text);transition:background .15s,transform .08s}#${id} .btn:hover{background:var(--glass);transform:translateY(-1px)}#${id} .btn.ghost{background:transparent}#${id} .btn.primary{background:linear-gradient(90deg,var(--accent),var(--accent-2));border:none}#${id}.theme-dark .btn.primary{color:#041014}#${id}.theme-light .btn.primary{color:#fff}@media (max-width:850px){#${id} .settings-grid{grid-template-columns:1fr}#${id} .site-info{max-width:58%}#${id} .dub-section{flex-direction:column;gap:12px}}`;
+      const styles = `#${id}.theme-dark{--bg:#0f1720;--panel:#0b1220;--muted:#98a0ab;--accent:#5eead4;--accent-2:#60a5fa;--surface:#0c1220;--glass:rgba(255,255,255,0.03);--border:rgba(255,255,255,0.03);--text:#e6f3ef;--text-2:#eaf8f0}#${id}.theme-light{--bg:#f6f9fb;--panel:#fff;--muted:#6b7280;--accent:#0ea5a4;--accent-2:#3b82f6;--surface:#fff;--glass:rgba(0,0,0,0.04);--border:rgba(10,20,30,0.04);--text:#061426;--text-2:#0b2130}#${id}{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:99999;background:linear-gradient(180deg,rgba(4,6,8,.72),rgba(4,6,8,.9));font-family:Inter,Roboto,Arial,sans-serif}#${id} .ext-panel{width:920px;max-width:96%;max-height:92vh;border-radius:12px;overflow:hidden;display:flex;flex-direction:column;border:1px solid var(--border)}#${id}.theme-dark .ext-panel{background:linear-gradient(180deg,var(--panel),#071018);color:var(--text);box-shadow:0 10px 30px rgba(2,6,23,0.7)}#${id}.theme-light .ext-panel{background:linear-gradient(180deg,var(--panel),#f7fbff);color:var(--text);box-shadow:0 6px 18px rgba(10,15,30,0.06)}#${id} .ext-panel-header{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:20px 22px;border-bottom:1px solid var(--border)}#${id} .ext-panel-header h2{margin:0;font-size:1.25rem;color:var(--text-2)}#${id} .ext-panel-header .subtitle{margin:4px 0 0;font-size:.9rem;color:var(--muted)}#${id} .btn-icon{background:none;border:none;font-size:1.1rem;cursor:pointer;padding:6px 8px;border-radius:6px;color:var(--text)}#${id} .btn-icon:hover{background:var(--glass)}#${id} .ext-panel-body{padding:16px 18px;flex:1;overflow:auto}#${id} .settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}#${id} .settings-column{padding:12px;border-radius:10px;background:linear-gradient(180deg,var(--glass),transparent);border:1px solid var(--border)}#${id} .settings-column h3{margin:0 0 12px;font-size:1rem;color:var(--text-2)}#${id} .site-list{display:flex;flex-direction:column;gap:8px}#${id} .site-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px;border-radius:8px;transition:background .12s,transform .06s;cursor:default}#${id} .site-row:hover{background:var(--glass);transform:translateY(-1px)}#${id} .site-info{display:flex;flex-direction:column;gap:2px;flex:1;max-width:70%}#${id} .site-name{font-weight:600;color:var(--text-2)}#${id} .site-desc{font-size:.82rem;color:var(--muted)}#${id} .toggle-checkbox{position:absolute;opacity:0;pointer-events:none}#${id} .toggle-switch{width:44px;height:26px;flex-shrink:0;display:inline-block;border-radius:20px;position:relative;transition:background .18s;cursor:pointer}#${id}.theme-dark .toggle-switch{background:rgba(255,255,255,0.06);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.04)}#${id}.theme-light .toggle-switch{background:rgba(0,0,0,0.06);box-shadow:inset 0 0 0 1px rgba(0,0,0,0.04)}#${id} .toggle-switch::after{content:'';position:absolute;width:18px;height:18px;border-radius:50%;top:4px;left:4px;background:#fff;transition:all .18s;box-shadow:0 3px 6px rgba(2,6,23,0.6)}#${id} .toggle-checkbox:checked+.toggle-switch{background:linear-gradient(90deg,var(--accent),var(--accent-2))}#${id} .toggle-checkbox:checked+.toggle-switch::after{transform:translateX(18px);background:var(--surface)}#${id} .dubbed-panel{grid-column:1/-1;padding:16px;border-radius:10px;background:linear-gradient(180deg,var(--glass),transparent);border:1px solid var(--border)}#${id} .dubbed-section{display:flex;align-items:flex-start;gap:20px;margin-bottom:12px}#${id} .dubbed-toggle-wrapper{display:flex;align-items:center;gap:12px;min-width:220px}#${id} .dubbed-toggle-wrapper .toggle-switch{flex-shrink:0}#${id} .dubbed-toggle-label{display:flex;flex-direction:column;gap:2px;cursor:pointer}#${id} .dubbed-toggle-label .label-text{font-weight:600;font-size:.95rem;color:var(--text-2)}#${id} .dubbed-toggle-label .label-desc{font-size:.78rem;color:var(--muted)}#${id} .dubbed-lang-wrapper{display:flex;flex-direction:column;gap:6px;flex:1}#${id} .select-label{font-size:.85rem;font-weight:600;color:var(--text-2)}#${id} .select{padding:8px 10px;border-radius:8px;background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:.95rem;cursor:pointer;outline:none}#${id}.theme-dark .select{background:#08111a}#${id}.theme-light .select{background:#f3f7fb}#${id} .ext-panel-footer{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 18px;border-top:1px solid var(--border)}#${id} .footer-left{display:flex;gap:8px}#${id} .footer-right{display:flex;gap:8px}#${id} .btn{padding:10px 14px;border-radius:10px;background:transparent;border:1px solid var(--border);cursor:pointer;font-weight:600;font-size:.9rem;color:var(--text);transition:background .15s,transform .08s}#${id} .btn:hover{background:var(--glass);transform:translateY(-1px)}#${id} .btn.ghost{background:transparent}#${id} .btn.primary{background:linear-gradient(90deg,var(--accent),var(--accent-2));border:none}#${id}.theme-dark .btn.primary{color:#041014}#${id}.theme-light .btn.primary{color:#fff}@media (max-width:850px){#${id} .settings-grid{grid-template-columns:1fr}#${id} .site-info{max-width:58%}#${id} .dubbed-section{flex-direction:column;gap:12px}}`;
       $('<style>').prop('type', 'text/css').html(styles).appendTo('head');
     }
 
@@ -604,8 +578,8 @@
 
       return `
         <div id="${CONSTANTS.SCRIPT_ID}-config" class="${themeClass}">
-          <div class="el-panel">
-            <div class="el-panel-header">
+          <div class="ext-panel">
+            <div class="ext-panel-header">
               <div>
                 <h2>${CONSTANTS.TITLE}</h2>
                 <div class="subtitle">Configure external links and dub detection</div>
@@ -613,7 +587,7 @@
               <button class="btn-icon close" aria-label="Close">&times;</button>
             </div>
 
-            <div class="el-panel-body">
+            <div class="ext-panel-body">
               <div class="settings-grid">
                 <div class="settings-column">
                   <h3>Metadata Sites</h3>
@@ -647,28 +621,28 @@
                   </div>
                 </div>
 
-                <div class="dub-panel">
-                  <div class="dub-section">
-                    <div class="dub-toggle-wrapper">
-                      <input type="checkbox" class="toggle-checkbox" id="dub_information" ${this.config[CONSTANTS.DUB_INFO.name] ? 'checked' : ''}>
-                      <label class="toggle-switch" for="dub_information"></label>
-                      <label class="dub-toggle-label" for="dub_information">
-                        <span class="label-text">${CONSTANTS.DUB_INFO.name}</span>
-                        <span class="label-desc">${CONSTANTS.DUB_INFO.desc}</span>
-                      </label>
-                    </div>
-                    <div class="dub-lang-wrapper">
-                      <label class="select-label" for="dub_language">Dub Language</label>
-                      <select id="dub_language" class="select">
-                        ${CONSTANTS.DUB_LANGUAGES.map(lang => `<option value="${lang.value}" ${this.config['Dub Language'] === lang.value ? 'selected' : ''}>${lang.name}</option>`).join('')}
-                      </select>
-                    </div>
-                  </div>
-                </div>
+                 <div class="dubbed-panel">
+                   <div class="dubbed-section">
+                     <div class="dubbed-toggle-wrapper">
+                       <input type="checkbox" class="toggle-checkbox" id="dub_information" ${this.config[CONSTANTS.DUB_INFO.name] ? 'checked' : ''}>
+                       <label class="toggle-switch" for="dub_information"></label>
+                       <label class="dubbed-toggle-label" for="dub_information">
+                         <span class="label-text">${CONSTANTS.DUB_INFO.name}</span>
+                         <span class="label-desc">${CONSTANTS.DUB_INFO.desc}</span>
+                       </label>
+                     </div>
+                     <div class="dubbed-lang-wrapper">
+                       <label class="select-label" for="dub_language">Dub Language</label>
+                       <select id="dub_language" class="select">
+                         ${CONSTANTS.DUB_LANGUAGES.map(lang => `<option value="${lang.value}" ${this.config['Dub Language'] === lang.value ? 'selected' : ''}>${lang.name}</option>`).join('')}
+                       </select>
+                     </div>
+                   </div>
+                 </div>
               </div>
             </div>
 
-            <div class="el-panel-footer">
+            <div class="ext-panel-footer">
               <div class="footer-left">
                 <button class="btn ghost" id="reset-defaults">Reset to Defaults</button>
                 <button class="btn ghost" id="clear-cache">Clear Cache</button>
@@ -688,8 +662,8 @@
 
       $modal.find('button.close').on('click', () => this.closeModal());
 
-      $(document).on('keydown.elSettings', (e) => {
-        if (e.key === 'Escape') this.closeModal();
+      $(document).on('keydown.extLinksSettings', (keyboardEvent) => {
+        if (keyboardEvent.key === 'Escape') this.closeModal();
       });
 
       $modal.find('#reset-defaults').on('click', () => {
@@ -729,7 +703,7 @@
       const modalSelector = `#${CONSTANTS.SCRIPT_ID}-config`;
       $(modalSelector).remove();
       $('body').css('overflow', '');
-      $(document).off('keydown.elSettings');
+      $(document).off('keydown.extLinksSettings');
     }
 
     refreshModalValues() {
@@ -737,10 +711,10 @@
       const $modal = $(modalSelector);
       const allSites = [...CONSTANTS.METADATA_SITES, ...CONSTANTS.STREAMING_SITES, CONSTANTS.DUB_INFO];
 
-      allSites.forEach(site => {
+      for (const site of allSites) {
         const checkboxId = site.name.toLowerCase().replace(/\s+/g, '_');
         $modal.find(`#${checkboxId}`).prop('checked', !!this.config[site.name]);
-      });
+      }
 
       $modal.find('#dub_language').val(this.config['Dub Language']);
     }
@@ -750,10 +724,10 @@
       const $modal = $(modalSelector);
       const allSites = [...CONSTANTS.METADATA_SITES, ...CONSTANTS.STREAMING_SITES, CONSTANTS.DUB_INFO];
 
-      allSites.forEach(site => {
+      for (const site of allSites) {
         const checkboxId = site.name.toLowerCase().replace(/\s+/g, '_');
         this.config[site.name] = $modal.find(`#${checkboxId}`).is(':checked');
-      });
+      }
 
       this.config['Dub Language'] = $modal.find('#dub_language').val();
       await GMC.setValue(CONSTANTS.CONFIG_KEY, this.config);
@@ -761,9 +735,6 @@
     }
   }
 
-  // ==============================
-  //  Script Initialization
-  // ==============================
   $(document).ready(async () => {
     const traktLinks = new TraktExternalLinks();
     await traktLinks.init();

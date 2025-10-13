@@ -23,10 +23,6 @@
 
   const logger = Logger('DMM - Add Trash Guide Regex Buttons', { debug: false });
 
-  /**
-   * Configuration constants for the userscript
-   * Defines selectors, storage keys, and behavioral settings
-   */
   const CONFIG = {
     // Page and DOM selectors
     RELEVANT_PAGE_RX: /debridmediamanager\.com\/(movie|show)\/[^\/]+/, // Pages where buttons should appear
@@ -45,7 +41,7 @@
     CACHE_KEY: 'cache',
     CACHE_PREFIX: 'dmm-anime-cache-',
     CACHE_LAST_CLEANUP_KEY: 'cache-last-cleanup',
-    CACHE_DURATION: 24 * 60 * 60 * 1000, // 24 hours in milliseconds
+    CACHE_DURATION: 24 * 60 * 60 * 1000,
 
     // Regex patterns for quality removal
     REGEX_PATTERNS: {
@@ -56,17 +52,10 @@
     }
   };
 
-  // Validate BUTTON_DATA from external CDN
   const BUTTON_DATA = Array.isArray(window?.DMM_BUTTON_DATA) ? window.DMM_BUTTON_DATA : [];
-
-  // Initialize ArmHaglund API
   const armhaglund = new ArmHaglund();
 
-  /**
-   * Quality tokens for building regex patterns
-   * Each token represents a quality indicator that can be matched in filenames
-   * Used to generate both positive and negative lookaheads in AND mode
-   */
+  // Quality tokens for building regex patterns - each represents a quality indicator in filenames
   const QUALITY_TOKENS = [
     { key: '720p', name: '720p', values: ['720p'] },
     { key: '1080p', name: '1080p', values: ['1080p'] },
@@ -79,14 +68,8 @@
     { key: 'atmos', name: 'Atmos', values: ['atmos'] }
   ];
 
-  // Flatten all quality values for pattern matching
   const allQualityValues = QUALITY_TOKENS.flatMap(token => token.values);
 
-  /**
-   * Retrieves cached anime data for an IMDB ID
-   * @param {string} imdbId - The IMDB ID
-   * @returns {Promise<Object|null>} Cached data or null
-   */
   const getCachedAnimeData = async (imdbId) => {
     const cache = await GMC.getValue(CONFIG.CACHE_KEY) || {};
     if (typeof cache !== 'object' || Array.isArray(cache)) return null;
@@ -98,36 +81,23 @@
     return null;
   };
 
-  /**
-   * Fetches anime data from ArmHaglund API
-   * @param {string} imdbId - The IMDB ID
-   * @returns {Promise<Object>} Result object with isAnime, anilistId
-   */
   const fetchAnimeData = async (imdbId) => {
     try {
       const data = await armhaglund.fetchIds('imdb', imdbId);
-      if (data && data.anilist) {
-        return { isAnime: true, anilistId: data.anilist };
-      } else {
-        return { isAnime: false, anilistId: null };
-      }
+      return data && data.anilist ? { isAnime: true, anilistId: data.anilist } : { isAnime: false, anilistId: null };
     } catch (error) {
       logger.debug(`Failed to fetch from ArmHaglund: ${error.message}`);
       return { isAnime: false, anilistId: null };
     }
   };
 
-  /**
-   * Updates the cache with new data
-   * @param {string} imdbId - The IMDB ID
-   * @param {Object} result - The result to cache
-   */
   const updateCache = async (imdbId, result) => {
     let cache = await GMC.getValue(CONFIG.CACHE_KEY) || {};
     if (typeof cache !== 'object' || Array.isArray(cache)) cache = {};
     const cacheKey = `${CONFIG.CACHE_PREFIX}${imdbId}`;
     cache[cacheKey] = { data: result, timestamp: Date.now() };
-    // Cleanup old entries
+
+    // Cleanup old entries to prevent cache bloat
     const now = Date.now();
     const lastCleanup = await GMC.getValue(CONFIG.CACHE_LAST_CLEANUP_KEY) || 0;
     if (now - lastCleanup >= CONFIG.CACHE_DURATION) {
@@ -146,11 +116,6 @@
     await GMC.setValue(CONFIG.CACHE_KEY, cache);
   };
 
-  /**
-   * Checks if an anime exists on Releases.moe
-   * @param {string} anilistId - The AniList ID to check
-   * @returns {Promise<boolean>} Whether the anime exists on Releases.moe
-   */
   const checkReleasesMoeExists = (anilistId) => {
     return new Promise((resolve) => {
       const apiUrl = `https://releases.moe/api/collections/entries/records?filter=alID=${anilistId}`;
@@ -177,13 +142,8 @@
     });
   };
 
-  /**
-   * Removes quality-related regex patterns from a base pattern
-   * Handles both AND mode lookaheads (^.*(?=.*quality)) and OR mode alternations (|quality)
-   * Only removes patterns that contain known quality values to preserve user input
-   * @param {string} regex - Input regex pattern to clean
-   * @returns {string} Cleaned regex with quality patterns removed
-   */
+  // Remove quality-related regex patterns while preserving user input
+  // Handles both AND mode lookaheads (^.*(?=.*quality)) and OR mode alternations (|quality)
   const removeQualityFromRegex = (regex) => {
     if (!regex || typeof regex !== 'string') return '';
 
@@ -193,25 +153,23 @@
     const andMatch = cleaned.match(CONFIG.REGEX_PATTERNS.AND_LOOKAHEAD);
     if (andMatch && andMatch.index === 0) {
       const matched = andMatch[0];
-      const hasQuality = allQualityValues.some(q => matched.includes(q));
-      if (hasQuality) {
-        cleaned = cleaned.replace(matched, '');
-      }
+      const hasQuality = allQualityValues.some(qualityValue => matched.includes(qualityValue));
+      cleaned = hasQuality ? cleaned.replace(matched, '') : cleaned;
     }
 
     // Remove OR patterns: alternations at the end
     const orMatch = cleaned.match(CONFIG.REGEX_PATTERNS.OR_ALTERNATION);
     if (orMatch) {
       const matched = orMatch[0];
-      const hasQuality = allQualityValues.some(q => matched.includes(q));
+      const hasQuality = allQualityValues.some(qualityValue => matched.includes(qualityValue));
       if (hasQuality) {
         cleaned = cleaned.replace(matched, '');
       }
     }
 
-    // If the remaining string is just a quality pattern, clear it
+    // Clear standalone quality patterns that contain known quality values
     if (cleaned.match(CONFIG.REGEX_PATTERNS.QUALITY_GROUP) || cleaned.match(CONFIG.REGEX_PATTERNS.NEGATIVE_LOOKAHEAD)) {
-      const hasQuality = allQualityValues.some(q => cleaned.includes(q));
+      const hasQuality = allQualityValues.some(qualityValue => cleaned.includes(qualityValue));
       if (hasQuality) {
         cleaned = '';
       }
@@ -220,37 +178,31 @@
     return cleaned.trim();
   };
 
-  /**
-   * Builds quality regex string based on selected options and logic mode
-   * @param {string[]} selectedOptions - Array of selected quality token keys
-   * @param {boolean} useAndLogic - Whether to use AND logic (true) or OR logic (false)
-   * @param {Map} qualityPolarity - Map of quality key to polarity (true=positive, false=negative)
-   * @returns {string} Constructed regex pattern
-   */
+  // Build quality regex string based on selected options and logic mode
+  // AND mode uses lookaheads (?=.*quality), OR mode uses alternations (quality|other)
   const buildQualityString = (selectedOptions, useAndLogic = false, qualityPolarity = new Map()) => {
     if (!selectedOptions.length) return '';
 
-    // Gather all regex values for selected quality tokens
     const tokenValues = [];
-    selectedOptions.forEach((optionKey) => {
-      const token = QUALITY_TOKENS.find((q) => q.key === optionKey);
+    for (const optionKey of selectedOptions) {
+      const token = QUALITY_TOKENS.find((qualityToken) => qualityToken.key === optionKey);
       if (token && token.values) tokenValues.push(token.values);
-    });
+    }
 
     if (!tokenValues.length) return '';
 
     if (useAndLogic) {
       // AND logic: Each token uses positive or negative lookaheads based on polarity
       const lookaheads = selectedOptions.map((optionKey, index) => {
-        const vals = tokenValues[index];
-        const isPositive = qualityPolarity.get(optionKey) !== false; // default to positive
+        const values = tokenValues[index];
+        const isPositive = qualityPolarity.get(optionKey) !== false;
         const lookaheadType = isPositive ? '=' : '!';
 
-        if (vals.length === 1) {
-          return `(?${lookaheadType}.*${vals[0]})`;
+        if (values.length === 1) {
+          return `(?${lookaheadType}.*${values[0]})`;
         }
         // Multiple values for one token = internal OR with non-capturing group
-        return `(?${lookaheadType}.*(?:${vals.join('|')}))`;
+        return `(?${lookaheadType}.*(?:${values.join('|')}))`;
       }).join('');
       return lookaheads;
     } else {
@@ -260,59 +212,47 @@
     }
   };
 
-  /**
-   * Generates CSS styles for the UI components
-   * @returns {string} CSS string for injection
-   */
   const generateStyles = () => {
-    const p = CONFIG.CSS_CLASS_PREFIX;
+    const prefix = CONFIG.CSS_CLASS_PREFIX;
     return `
-      .${p}-btn{cursor:pointer;display:inline-flex;align-items:center;gap:.35rem;margin-right:.5rem;padding:.25rem .5rem;font-size:12px;line-height:1;border-radius:.375rem;color:#e6f0ff;background:rgba(15,23,42,.5);border:1px solid rgba(59,130,246,.55);box-shadow:none;user-select:none;white-space:nowrap;}
-      .${p}-btn:hover{background:rgba(59,130,246,.08);}
-      .${p}-btn:focus{outline:2px solid rgba(59,130,246,.18);outline-offset:2px;}
-      .${p}-chev{width:12px;height:12px;color:rgba(226,240,255,.95);margin-left:.15rem;display:inline-block;transition:transform 160ms ease;transform-origin:center;}
-      .${p}-btn[aria-expanded="true"] .${p}-chev{transform:rotate(180deg);}
-      .${p}-menu{position:absolute;min-width:10rem;background:#111827;color:#fff;border:1px solid rgba(148,163,184,.06);border-radius:.375rem;box-shadow:0 6px 18px rgba(2,6,23,.6);padding:.25rem 0;z-index:9999;display:none;}
-      .${p}-menu::before{content:"";position:absolute;top:-6px;left:12px;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:6px solid #111827;}
-      .${p}-item{padding:.45rem .75rem;cursor:pointer;font-size:13px;white-space:nowrap;border-bottom:1px solid rgba(255,255,255,.03);}
-      .${p}-item:last-child{border-bottom:none;}
-      .${p}-item:hover{background:#1f2937;}
-      .${p}-quality-section{display:flex;align-items:center;gap:.75rem;margin-left:.75rem;padding-left:.75rem;border-left:1px solid rgba(148,163,184,.15);}
-      .${p}-quality-grid{display:flex;flex-wrap:wrap;gap:.6rem;}
-      .${p}-quality-item{display:inline-flex;align-items:center;font-size:12px;}
-      .${p}-quality-button{padding:.25rem .5rem;border-radius:.375rem;border:1px solid rgba(148,163,184,.15);background:transparent;color:#e6f0ff;cursor:pointer;font-size:12px;line-height:1}
-      .${p}-quality-button.active{background:#3b82f6;color:#fff;border-color:#3b82f6}
-      .${p}-quality-button.active.negative{background:#dc2626;color:#fff;border-color:#dc2626}
-      .${p}-quality-button:focus{outline:1px solid rgba(59,130,246,.5);}
-      .${p}-quality-label{color:#e6f0ff;cursor:pointer;white-space:nowrap;}
-      .${p}-logic-selector{margin-right:.75rem;padding-right:.75rem;border-right:1px solid rgba(148,163,184,.15);display:flex;align-items:center;}
-      .${p}-logic-toggle{display:inline-flex;border:1px solid rgba(148,163,184,.4);border-radius:.375rem;overflow:hidden;}
-      .${p}-logic-option{background:#1f2937;color:#e6f0ff;border:none;padding:.25rem .5rem;font-size:12px;cursor:pointer;transition:all 0.2s ease;line-height:1;display:flex;align-items:center;position:relative;}
-      .${p}-logic-option:hover{background:#374151;}
-      .${p}-logic-option.active{background:#3b82f6;color:#fff;border-left:1px solid #3b82f6;border-right:1px solid #3b82f6;margin-left:-1px;margin-right:-1px;z-index:1;}
-      .${p}-logic-option:focus{outline:1px solid rgba(59,130,246,.5);}
-      .${p}-help-icon{background:#1f2937;color:#e6f0ff;border:1px solid rgba(148,163,184,.4);border-radius:50%;width:16px;height:16px;font-size:11px;cursor:help;margin-left:.25rem;display:inline-flex;align-items:center;justify-content:center;font-weight:bold;}
-      .${p}-help-icon:hover{background:#374151;}
+      .${prefix}-btn{cursor:pointer;display:inline-flex;align-items:center;gap:.35rem;margin-right:.5rem;padding:.25rem .5rem;font-size:12px;line-height:1;border-radius:.375rem;color:#e6f0ff;background:rgba(15,23,42,.5);border:1px solid rgba(59,130,246,.55);box-shadow:none;user-select:none;white-space:nowrap;}
+      .${prefix}-btn:hover{background:rgba(59,130,246,.08);}
+      .${prefix}-btn:focus{outline:2px solid rgba(59,130,246,.18);outline-offset:2px;}
+      .${prefix}-chev{width:12px;height:12px;color:rgba(226,240,255,.95);margin-left:.15rem;display:inline-block;transition:transform 160ms ease;transform-origin:center;}
+      .${prefix}-btn[aria-expanded="true"] .${prefix}-chev{transform:rotate(180deg);}
+      .${prefix}-menu{position:absolute;min-width:10rem;background:#111827;color:#fff;border:1px solid rgba(148,163,184,.06);border-radius:.375rem;box-shadow:0 6px 18px rgba(2,6,23,.6);padding:.25rem 0;z-index:9999;display:none;}
+      .${prefix}-menu::before{content:"";position:absolute;top:-6px;left:12px;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:6px solid #111827;}
+      .${prefix}-item{padding:.45rem .75rem;cursor:pointer;font-size:13px;white-space:nowrap;border-bottom:1px solid rgba(255,255,255,.03);}
+      .${prefix}-item:last-child{border-bottom:none;}
+      .${prefix}-item:hover{background:#1f2937;}
+      .${prefix}-quality-section{display:flex;align-items:center;gap:.75rem;margin-left:.75rem;padding-left:.75rem;border-left:1px solid rgba(148,163,184,.15);}
+      .${prefix}-quality-grid{display:flex;flex-wrap:wrap;gap:.6rem;}
+      .${prefix}-quality-item{display:inline-flex;align-items:center;font-size:12px;}
+      .${prefix}-quality-button{padding:.25rem .5rem;border-radius:.375rem;border:1px solid rgba(148,163,184,.15);background:transparent;color:#e6f0ff;cursor:pointer;font-size:12px;line-height:1}
+      .${prefix}-quality-button.active{background:#3b82f6;color:#fff;border-color:#3b82f6}
+      .${prefix}-quality-button.active.negative{background:#dc2626;color:#fff;border-color:#dc2626}
+      .${prefix}-quality-button:focus{outline:1px solid rgba(59,130,246,.5);}
+      .${prefix}-quality-label{color:#e6f0ff;cursor:pointer;white-space:nowrap;}
+      .${prefix}-logic-selector{margin-right:.75rem;padding-right:.75rem;border-right:1px solid rgba(148,163,184,.15);display:flex;align-items:center;}
+      .${prefix}-logic-toggle{display:inline-flex;border:1px solid rgba(148,163,184,.4);border-radius:.375rem;overflow:hidden;}
+      .${prefix}-logic-option{background:#1f2937;color:#e6f0ff;border:none;padding:.25rem .5rem;font-size:12px;cursor:pointer;transition:all 0.2s ease;line-height:1;display:flex;align-items:center;position:relative;}
+      .${prefix}-logic-option:hover{background:#374151;}
+      .${prefix}-logic-option.active{background:#3b82f6;color:#fff;border-left:1px solid #3b82f6;border-right:1px solid #3b82f6;margin-left:-1px;margin-right:-1px;z-index:1;}
+      .${prefix}-logic-option:focus{outline:1px solid rgba(59,130,246,.5);}
+      .${prefix}-help-icon{background:#1f2937;color:#e6f0ff;border:1px solid rgba(148,163,184,.4);border-radius:50%;width:16px;height:16px;font-size:11px;cursor:help;margin-left:.25rem;display:inline-flex;align-items:center;justify-content:center;font-weight:bold;}
+      .${prefix}-help-icon:hover{background:#374151;}
       /* DMM Fixes below */
       h2.line-clamp-2{display:block!important;-webkit-line-clamp:unset!important;-webkit-box-orient:unset!important;overflow:visible!important;text-overflow:unset!important;white-space:normal!important;} /* show full title without truncation */
       .max-w-2xl{max-width: min-content;} /* media info better fit to width */
     `;
   };
 
-  /**
-   * Injects CSS styles for the UI components
-   * Creates a cohesive dark theme that matches DMM's design
-   */
   (function injectStyles() {
     const style = document.createElement('style');
     style.textContent = generateStyles();
     document.head.appendChild(style);
   })();
 
-  /**
-   * Manages quality selection buttons and logic mode
-   * Persists user preferences and handles regex generation
-   */
   class QualityManager {
     constructor() {
       this.selectedOptions = [];
@@ -323,11 +263,6 @@
       this.logicSelect = null;
     }
 
-    /**
-     * Initializes the quality manager with a container element
-     * Loads persisted settings and creates the UI
-     * @param {HTMLElement} container - Container element for the quality UI
-     */
     async initialize(container) {
       this.container = container;
       this.createQualitySection();
@@ -340,10 +275,6 @@
       }
     }
 
-    /**
-     * Loads user preferences from Greasemonkey storage
-     * Handles migration from older storage formats and error recovery
-     */
     async loadPersistedSettings() {
       try {
         const stored = await GMC.getValue(CONFIG.QUALITY_OPTIONS_KEY, null);
@@ -355,28 +286,26 @@
 
         const logicStored = await GMC.getValue(CONFIG.LOGIC_MODE_KEY, null);
         this.useAndLogic = logicStored ? JSON.parse(logicStored) : false;
-      } catch (err) {
-        logger.error('Failed to load quality options:', err);
+      } catch (error) {
+        logger.error('Failed to load quality options:', error);
         this.selectedOptions = [];
         this.qualityPolarity = new Map();
         this.useAndLogic = false;
       }
     }
 
-    /**
-     * Creates the quality selection UI with buttons and logic selector
-     */
     createQualitySection() {
       if (!this.container) return;
 
-      // Remove any existing section to prevent duplicates
       const existing = this.container.querySelector(`.${CONFIG.CSS_CLASS_PREFIX}-quality-section`);
-      if (existing) existing.remove();
+      if (existing) {
+        logger.debug('Quality section already exists');
+        return;
+      }
 
       const section = document.createElement('div');
       section.className = `${CONFIG.CSS_CLASS_PREFIX}-quality-section`;
 
-      // AND/OR logic selector dropdown
       const logicSelector = document.createElement('div');
       logicSelector.className = `${CONFIG.CSS_CLASS_PREFIX}-logic-selector`;
 
@@ -387,7 +316,7 @@
         <button type="button" class="${CONFIG.CSS_CLASS_PREFIX}-logic-option active" data-mode="or">OR</button>
         <button type="button" class="${CONFIG.CSS_CLASS_PREFIX}-logic-option" data-mode="and">AND</button>
       `;
-      logicSelect.addEventListener('click', (e) => this.onLogicToggle(e));
+      logicSelect.addEventListener('click', (event_) => this.onLogicToggle(event_));
 
       const helpIcon = document.createElement('button');
       helpIcon.type = 'button';
@@ -402,77 +331,73 @@
       const grid = document.createElement('div');
       grid.className = `${CONFIG.CSS_CLASS_PREFIX}-quality-grid`;
 
-      QUALITY_TOKENS.forEach((token) => {
+      for (const token of QUALITY_TOKENS) {
         const item = document.createElement('div');
         item.className = `${CONFIG.CSS_CLASS_PREFIX}-quality-item`;
 
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = `${CONFIG.CSS_CLASS_PREFIX}-quality-button`;
-        btn.id = `${CONFIG.CSS_CLASS_PREFIX}-${token.key}`;
-        btn.textContent = token.name;
-        btn.addEventListener('click', () => this.onToggleOption(token.key, btn));
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `${CONFIG.CSS_CLASS_PREFIX}-quality-button`;
+        button.id = `${CONFIG.CSS_CLASS_PREFIX}-${token.key}`;
+        button.textContent = token.name;
+        button.addEventListener('click', () => this.onToggleOption(token.key, button));
 
-        item.appendChild(btn);
+        item.appendChild(button);
         grid.appendChild(item);
 
-        this.buttons.set(token.key, btn);
-      });
+        this.buttons.set(token.key, button);
+      }
 
       section.appendChild(logicSelector);
       section.appendChild(grid);
       this.container.appendChild(section);
     }
 
-    /**
-     * Restores UI state from saved preferences
-     */
     restoreStates() {
-      this.selectedOptions.forEach((key) => {
-        const btn = this.buttons.get(key);
-        if (btn) {
-          btn.classList.add('active');
-          // Only show negative styling in AND mode
+      for (const key of this.selectedOptions) {
+        const button = this.buttons.get(key);
+        if (button) {
+          button.classList.add('active');
           if (this.useAndLogic) {
-            const isPositive = this.qualityPolarity.get(key) !== false; // default to positive
+            const isPositive = this.qualityPolarity.get(key) !== false;
             if (!isPositive) {
-              btn.classList.add('negative');
+              button.classList.add('negative');
             }
           }
         }
-      });
+      }
 
       if (this.logicSelect) {
         const allOptions = this.logicSelect.querySelectorAll(`.${CONFIG.CSS_CLASS_PREFIX}-logic-option`);
-        allOptions.forEach(option => {
+        for (const option of allOptions) {
           option.classList.remove('active');
           if ((option.dataset.mode === 'and' && this.useAndLogic) ||
             (option.dataset.mode === 'or' && !this.useAndLogic)) {
             option.classList.add('active');
           }
-        });
+        }
       }
     }
 
-    async onLogicToggle(e) {
-      e.preventDefault();
-      e.stopPropagation();
+    async onLogicToggle(event_) {
+      event_.preventDefault();
+      event_.stopPropagation();
 
-      const target = e.target;
+      const target = event_.target;
       if (!target.classList.contains(`${CONFIG.CSS_CLASS_PREFIX}-logic-option`)) return;
 
       const mode = target.dataset.mode;
       const useAndLogic = mode === 'and';
 
       const allOptions = this.logicSelect.querySelectorAll(`.${CONFIG.CSS_CLASS_PREFIX}-logic-option`);
-      allOptions.forEach(option => option.classList.remove('active'));
+      for (const option of allOptions) option.classList.remove('active');
       target.classList.add('active');
 
       await this.onLogicChange(useAndLogic);
     }
 
     async onLogicChange(useAndLogic) {
-      // Clean existing patterns before switching modes
+      // Clean existing patterns before switching modes to prevent regex conflicts
       const target = findTargetInput(this.container);
       if (target) {
         const currentValue = target.value || '';
@@ -483,114 +408,84 @@
       this.useAndLogic = useAndLogic;
 
       // Update button visual states based on new mode
-      this.selectedOptions.forEach((key) => {
-        const btn = this.buttons.get(key);
-        if (btn) {
+      for (const key of this.selectedOptions) {
+        const button = this.buttons.get(key);
+        if (button) {
           if (useAndLogic) {
             const isPositive = this.qualityPolarity.get(key) !== false;
             if (!isPositive) {
-              btn.classList.add('negative');
+              button.classList.add('negative');
             }
           } else {
-            btn.classList.remove('negative');
+            button.classList.remove('negative');
           }
         }
-      });
+      }
 
       try {
         await GMC.setValue(CONFIG.LOGIC_MODE_KEY, JSON.stringify(this.useAndLogic));
-      } catch (err) {
-        logger.error('Failed to save logic mode:', err);
+      } catch (error) {
+        logger.error('Failed to save logic mode:', error);
       }
 
       this.updateInputWithQualityOptions();
     }
 
-    /**
-     * Toggle option handler for button UI
-     * Implements different behavior based on current logic mode:
-     * OR mode: off -> on -> off
-     * AND mode: off -> positive -> negative -> off
-     * @param {string} key - Quality token key
-     * @param {HTMLElement} btn - Button element that was clicked
-     */
-    onToggleOption(key, btn) {
-      const isActive = btn.classList.contains('active');
-      const isNegative = btn.classList.contains('negative');
+    // Toggle behavior differs by mode: OR mode (off->on->off), AND mode (off->positive->negative->off)
+    onToggleOption(key, button) {
+      const isActive = button.classList.contains('active');
+      const isNegative = button.classList.contains('negative');
 
-      // Determine next state based on current state and logic mode
       if (!isActive && !isNegative) {
-        // Off -> On (positive in AND mode, just active in OR mode)
-        this._activateOption(key, btn);
+        this._activateOption(key, button);
       } else if (isActive && !isNegative) {
         if (this.useAndLogic) {
-          // Positive -> Negative (only in AND mode)
-          this._makeNegative(key, btn);
+          this._makeNegative(key, button);
         } else {
-          // On -> Off (in OR mode)
-          this._deactivateOption(key, btn);
+          this._deactivateOption(key, button);
         }
       } else {
-        // Negative -> Off (only possible in AND mode)
-        this._deactivateOption(key, btn);
+        this._deactivateOption(key, button);
       }
 
       this._saveOptions();
       this.updateInputWithQualityOptions();
     }
 
-    /**
-     * Activate an option (add to selected and make positive)
-     */
-    _activateOption(key, btn) {
-      btn.classList.add('active');
+    _activateOption(key, button) {
+      button.classList.add('active');
       if (!this.selectedOptions.includes(key)) {
         this.selectedOptions.push(key);
       }
       if (this.useAndLogic) {
-        this.qualityPolarity.set(key, true); // positive
+        this.qualityPolarity.set(key, true);
       }
     }
 
-    /**
-     * Make an option negative (only in AND mode)
-     */
-    _makeNegative(key, btn) {
-      btn.classList.add('negative');
-      this.qualityPolarity.set(key, false); // negative
+    _makeNegative(key, button) {
+      button.classList.add('negative');
+      this.qualityPolarity.set(key, false);
     }
 
-    /**
-     * Deactivate an option (remove from selected and clean up)
-     */
-    _deactivateOption(key, btn) {
-      btn.classList.remove('active');
-      btn.classList.remove('negative');
-      const idx = this.selectedOptions.indexOf(key);
-      if (idx > -1) {
-        this.selectedOptions.splice(idx, 1);
+    _deactivateOption(key, button) {
+      button.classList.remove('active');
+      button.classList.remove('negative');
+      const index = this.selectedOptions.indexOf(key);
+      if (index > -1) {
+        this.selectedOptions.splice(index, 1);
       }
       this.qualityPolarity.delete(key);
     }
 
-    /**
-     * Save current options to storage
-     */
     async _saveOptions() {
       try {
         await GMC.setValue(CONFIG.QUALITY_OPTIONS_KEY, JSON.stringify(this.selectedOptions));
         await GMC.setValue(CONFIG.QUALITY_POLARITY_KEY, JSON.stringify(Object.fromEntries(this.qualityPolarity)));
-      } catch (err) {
-        logger.error('Failed to save quality options:', err);
+      } catch (error) {
+        logger.error('Failed to save quality options:', error);
       }
     }
 
-    /**
-     * Updates the input field with current quality options
-     * Appends or prepends quality regex based on logic mode, cleans when turning off
-     * AND mode: Prepends ^(?=.*quality).* to require all qualities
-     * OR mode: Appends |quality to allow any quality
-     */
     updateInputWithQualityOptions() {
       const target = findTargetInput(this.container);
       if (!target) return;
@@ -600,7 +495,6 @@
 
       let newValue;
       if (qualityString) {
-        // Clean existing quality patterns first to prevent duplication
         const cleanedBase = removeQualityFromRegex(currentValue);
         if (this.useAndLogic) {
           newValue = cleanedBase ? `^${qualityString}.*${cleanedBase}` : `^${qualityString}.*`;
@@ -608,17 +502,12 @@
           newValue = cleanedBase ? `${cleanedBase}|${qualityString}` : qualityString;
         }
       } else {
-        // No quality options selected, clean any existing quality patterns
         newValue = removeQualityFromRegex(currentValue);
       }
 
       setInputValueReactive(target, newValue);
     }
 
-    /**
-     * Applies quality options to a base regex pattern
-     * Used when selecting patterns from dropdown buttons
-     */
     applyQualityOptionsToValue(baseValue) {
       const qualityString = buildQualityString(this.selectedOptions, this.useAndLogic, this.qualityPolarity);
       if (!qualityString) return baseValue;
@@ -640,11 +529,6 @@
     }
   }
 
-  /**
-   * Manages dropdown buttons and their menus
-   * Handles button creation, menu positioning, and pattern selection
-   * Coordinates with QualityManager for combined regex generation
-   */
   class ButtonManager {
     constructor() {
       this.dropdowns = new Map();
@@ -668,7 +552,6 @@
       this.container = null;
       this.openMenu = null;
 
-      // Remove global event listeners
       if (this.listenersAttached) {
         document.removeEventListener('click', this.documentClickHandler, true);
         document.removeEventListener('keydown', this.keydownHandler);
@@ -678,36 +561,44 @@
     }
 
     async initialize(container) {
-      if (!container || this.container === container) return;
+      if (!container) return;
       logger.debug('ButtonManager initialized', { container: !!container, sameContainer: this.container === container });
+
+      // Check if buttons are already present to avoid re-adding during content re-renders
+      const existingButtons = container.querySelectorAll(`.${CONFIG.CSS_CLASS_PREFIX}-btn`);
+      if (existingButtons.length > 0) {
+        logger.debug('Buttons already exist, skipping initialization');
+        this.container = container;
+        this.cachedContainer = container;
+        return;
+      }
+
       this.cleanup();
       this.container = container;
-      this.cachedContainer = container; // Cache for performance
+      this.cachedContainer = container;
 
-      // Create buttons for each pattern group
-      BUTTON_DATA.forEach((spec) => {
+      for (const spec of BUTTON_DATA) {
         const name = String(spec.name || 'Pattern');
-        if (this.dropdowns.has(name)) return;
+        if (this.dropdowns.has(name)) continue;
 
-        const btn = this._createButton(name);
+        const button = this._createButton(name);
         const menu = this._createMenu(spec.buttonData || [], name);
 
         document.body.appendChild(menu);
-        this.container.appendChild(btn);
-        this.dropdowns.set(name, { button: btn, menu });
+        this.container.appendChild(button);
+        this.dropdowns.set(name, { button: button, menu });
 
-        btn.addEventListener('click', (ev) => {
-          ev.stopPropagation();
+        button.addEventListener('click', (event_) => {
+          event_.stopPropagation();
           this.toggleMenu(name);
         });
-      });
+      }
 
       await this.qualityManager.initialize(container);
       logger.debug('Created dropdown buttons:', { count: this.dropdowns.size });
 
       await this.detectExternalLinksForCurrentPage();
 
-      // Only attach listeners once
       if (!this.listenersAttached) {
         document.addEventListener('click', this.documentClickHandler, true);
         document.addEventListener('keydown', this.keydownHandler);
@@ -716,58 +607,50 @@
       }
     }
 
-    onDocumentKeydown(e) {
+    onDocumentKeydown(event_) {
       if (!this.openMenu) return;
-      if (e.key === 'Escape' || e.key === 'Esc') {
-        e.preventDefault();
+      if (event_.key === 'Escape' || event_.key === 'Esc') {
+        event_.preventDefault();
         this.closeOpenMenu();
       }
     }
 
-    /**
-     * Creates a dropdown button with chevron icon
-     */
     _createButton(name) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = `${CONFIG.CSS_CLASS_PREFIX}-btn`;
-      btn.appendChild(document.createTextNode(name));
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `${CONFIG.CSS_CLASS_PREFIX}-btn`;
+      button.appendChild(document.createTextNode(name));
 
-      // Add chevron SVG icon
       const svgNs = 'http://www.w3.org/2000/svg';
-      const chev = document.createElementNS(svgNs, 'svg');
-      chev.setAttribute('viewBox', '0 0 20 20');
-      chev.setAttribute('aria-hidden', 'true');
-      chev.setAttribute('class', `${CONFIG.CSS_CLASS_PREFIX}-chev`);
-      chev.innerHTML = '<path d="M6 8l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />';
-      btn.appendChild(chev);
+      const chevron = document.createElementNS(svgNs, 'svg');
+      chevron.setAttribute('viewBox', '0 0 20 20');
+      chevron.setAttribute('aria-hidden', 'true');
+      chevron.setAttribute('class', `${CONFIG.CSS_CLASS_PREFIX}-chev`);
+      chevron.innerHTML = '<path d="M6 8l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />';
+      button.appendChild(chevron);
 
-      // Accessibility attributes
-      btn.setAttribute('aria-haspopup', 'true');
-      btn.setAttribute('aria-expanded', 'false');
-      btn.tabIndex = 0;
-      return btn;
+      button.setAttribute('aria-haspopup', 'true');
+      button.setAttribute('aria-expanded', 'false');
+      button.tabIndex = 0;
+      return button;
     }
 
-    /**
-     * Creates dropdown menu with pattern items
-     */
     _createMenu(items = [], name) {
       const menu = document.createElement('div');
       menu.className = `${CONFIG.CSS_CLASS_PREFIX}-menu`;
       menu.dataset.owner = name;
 
-      items.forEach((item) => {
+      for (const item of items) {
         const menuItem = document.createElement('div');
         menuItem.className = `${CONFIG.CSS_CLASS_PREFIX}-item`;
         menuItem.textContent = item.name || item.value || 'apply';
-        menuItem.addEventListener('click', (ev) => {
-          ev.stopPropagation();
+        menuItem.addEventListener('click', (event_) => {
+          event_.stopPropagation();
           this.onSelectPattern(item.value, item.name);
           this.closeOpenMenu();
         });
         menu.appendChild(menuItem);
-      });
+      }
 
       return menu;
     }
@@ -777,7 +660,6 @@
       if (!entry) return;
       const { button, menu } = entry;
 
-      // Close other open menus
       if (this.openMenu && this.openMenu !== menu) this.openMenu.style.display = 'none';
 
       if (menu.style.display === 'block') {
@@ -792,9 +674,6 @@
       }
     }
 
-    /**
-     * Positions dropdown menu below its button with proper viewport constraints
-     */
     positionMenuUnderButton(menu, button) {
       const rect = button.getBoundingClientRect();
       const left = Math.max(8, rect.left);
@@ -803,10 +682,10 @@
       menu.style.top = `${top}px`;
     }
 
-    onDocumentClick(e) {
+    onDocumentClick(event_) {
       if (!this.openMenu) return;
-      const target = e.target;
-      const matchingButton = Array.from(this.dropdowns.values()).find((v) => v.menu === this.openMenu)?.button;
+      const target = event_.target;
+      const matchingButton = [...this.dropdowns.values()].find((value) => value.menu === this.openMenu)?.button;
       if (matchingButton && (matchingButton.contains(target) || this.openMenu.contains(target))) return;
       this.closeOpenMenu();
     }
@@ -827,12 +706,6 @@
       this.openMenu = null;
     }
 
-    /**
-     * Handles pattern selection from dropdown menus
-     * Applies base pattern with quality options and sets input value
-     * @param {string} value - The regex pattern from the selected menu item
-     * @param {string} name - The display name of the selected pattern
-     */
     onSelectPattern(value, name) {
       let target = findTargetInput(this.cachedContainer || this.container);
 
@@ -845,8 +718,8 @@
         const finalValue = this.qualityManager.applyQualityOptionsToValue(value || '');
         logger.debug('Applied pattern to input:', { name, value, finalValue, targetId: target.id || null });
         setInputValueReactive(target, finalValue);
-      } catch (err) {
-        logger.error('Failed to set input value:', err, {
+      } catch (error) {
+        logger.error('Failed to set input value:', error, {
           value,
           name,
           target: target?.id || target?.className || 'unknown'
@@ -854,12 +727,8 @@
       }
     }
 
-    /**
-     * Detects external links for the current page (Trakt, Releases.moe, etc.)
-     */
     async detectExternalLinksForCurrentPage() {
       try {
-        // Extract IMDB ID directly from the URL path
         const urlMatch = location.pathname.match(/\/(movie|show)\/(tt\d+)/);
         if (!urlMatch) {
           logger.debug('Could not extract IMDB ID from URL:', location.pathname);
@@ -868,21 +737,14 @@
         const mediaType = urlMatch[1]; // 'movie' or 'show'
         const imdbId = urlMatch[2]; // IMDB ID like 'tt0111161'
 
-        // Create Trakt button for all content
         this.createTraktButton(imdbId, mediaType);
-
-        // Detect anime and create Releases.moe button if applicable
         await this.detectAnimeForCurrentPage(imdbId);
       } catch (error) {
         logger.error(`External links detection failed for ${location.href}:`, error);
       }
     }
 
-    /**
-     * Detects if the current page is for an anime and creates Releases.moe button if applicable
-     */
     async detectAnimeForCurrentPage(imdbId) {
-      // Check cache first
       const cachedData = await getCachedAnimeData(imdbId);
       if (cachedData) {
         logger.debug(`Anime cache hit for ${imdbId}`);
@@ -894,12 +756,10 @@
 
       const result = await fetchAnimeData(imdbId);
       if (result.isAnime && result.anilistId) {
-        // Check Releases.moe availability before creating button to avoid race condition
         const releasesExists = await checkReleasesMoeExists(result.anilistId);
         const fullResult = { ...result, releasesExists };
         await updateCache(imdbId, fullResult);
 
-        // Only create button if anime exists on Releases.moe
         if (releasesExists) {
           this.createReleasesMoeButton(result.anilistId);
         }
@@ -909,10 +769,6 @@
       }
     }
 
-    /**
-     * Handles the result of anime detection
-     * @param {Object} result - The result object
-     */
     handleAnimeResult(result) {
       const { isAnime, anilistId, releasesExists } = result;
       if (isAnime && anilistId && releasesExists !== false) {
@@ -927,20 +783,7 @@
       }
     }
 
-    /**
-     * Creates a generic external link button
-     * @param {Object} options - Button configuration options
-     * @param {string} options.link - The URL for the button
-     * @param {string} options.iconUrl - The favicon URL
-     * @param {string} options.iconAlt - Alt text for the icon
-     * @param {string} options.label - Button text label
-     * @param {string} options.className - CSS classes for styling
-     * @param {string} options.existingSelector - Selector to check for existing buttons
-     * @param {string} options.debugName - Name for debug logging
-     * @returns {HTMLElement|null} The created button or null if container not found
-     */
     createExternalLinkButton({ link, iconUrl, iconAlt, label, className, existingSelector, debugName }) {
-      // Check if button already exists to prevent duplicates
       const existingButton = qs(existingSelector);
       if (existingButton) {
         logger.debug(`${debugName} button already exists, skipping creation`);
@@ -968,9 +811,6 @@
       }
     }
 
-    /**
-     * Creates the Releases.moe button element
-     */
     createReleasesMoeButton(anilistId) {
       const link = `https://releases.moe/${anilistId}/`;
       return this.createExternalLinkButton({
@@ -984,9 +824,6 @@
       });
     }
 
-    /**
-     * Creates the Trakt.tv button element
-     */
     createTraktButton(imdbId, mediaType) {
       const link = `https://trakt.tv/${mediaType}s/${imdbId}`;
       return this.createExternalLinkButton({
@@ -1001,11 +838,6 @@
     }
   }
 
-  /**
-   * Manages SPA navigation detection and DOM change monitoring
-   * Handles initialization and cleanup when navigating between pages
-   * Uses mutation observers and URL polling for reliable detection
-   */
   class PageManager {
     constructor() {
       this.buttonManager = new ButtonManager();
@@ -1013,24 +845,18 @@
       this.retry = 0;
       this.mutationObserver = null;
       this.lastProcessedUrl = null;
-      this.cachedContainer = null; // Cache for container element
+      this.cachedContainer = null;
       this.pollingInterval = null;
 
-      // Debounced check for page changes
-      this.debouncedCheck = debounce(this.checkPage.bind(this), 150);
+      this.debouncedCheck = debounce(this.checkPage.bind(this), 50);
 
-      // Setup navigation detection
       this.setupNavigationDetection();
       this.setupMutationObserver();
       this.checkPage();
     }
 
-    /**
-     * Sets up navigation detection using event listeners and polling
-     * Listens for popstate and hashchange, and polls for URL changes
-     */
+    // Sets up navigation detection using event listeners and polling for SPA navigation
     setupNavigationDetection() {
-      // Listen for native navigation events
       window.addEventListener('popstate', () => {
         this.buttonManager.cleanup();
         this.lastProcessedUrl = null;
@@ -1042,7 +868,7 @@
         this.debouncedCheck();
       });
 
-      // Start lightweight polling to detect SPA navigation (pushState/replaceState)
+      // Poll for URL changes to detect SPA navigation that doesn't trigger events
       this.pollingInterval = setInterval(() => {
         if (location.href !== this.lastUrl) {
           this.buttonManager.cleanup();
@@ -1050,18 +876,14 @@
           this.debouncedCheck();
           this.lastUrl = location.href;
         }
-      }, 300); // Poll every 300ms to balance responsiveness and performance
+      }, 100);
     }
 
-    /**
-     * Sets up mutation observer to detect DOM changes
-     * Only triggers on significant content changes to avoid spam
-     */
     setupMutationObserver() {
       if (this.mutationObserver) this.mutationObserver.disconnect();
       this.mutationObserver = new MutationObserver((mutations) => {
-        for (const m of mutations) {
-          if (m.type === 'childList' && m.addedNodes.length > 0) {
+        for (const mutation of mutations) {
+          if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
             this.debouncedCheck();
             break;
           }
@@ -1070,28 +892,15 @@
       this.mutationObserver.observe(document.body, { childList: true, subtree: true, attributes: false });
     }
 
-    /**
-     * Checks current page and initializes buttons if on relevant page
-     * Uses retry mechanism for SPA pages that load content asynchronously
-     * Only activates on movie/show detail pages in DMM
-     */
     async checkPage() {
       const url = location.href;
 
-      // Only run on movie/show pages
       if (!CONFIG.RELEVANT_PAGE_RX.test(url)) {
         this.buttonManager.cleanup();
         this.lastUrl = url;
         return;
       }
 
-      // Early exit if we've already processed this exact URL
-      if (url === this.lastProcessedUrl) {
-        this.lastUrl = url;
-        return;
-      }
-
-      // Wait for container element to be available
       let container = this.cachedContainer;
       if (!container || !document.contains(container)) {
         container = qs(CONFIG.CONTAINER_SELECTOR);
@@ -1114,9 +923,6 @@
       this.lastUrl = url;
     }
 
-    /**
-     * Cleans up resources when the page manager is no longer needed
-     */
     cleanup() {
       if (this.mutationObserver) {
         this.mutationObserver.disconnect();
@@ -1130,17 +936,12 @@
     }
   }
 
-  /**
-   * Initialize when DOM is ready
-   * Creates the PageManager instance which handles all userscript functionality
-   * Only initializes if BUTTON_DATA is available (loaded from CDN)
-   */
   ready(() => {
     try {
       if (!BUTTON_DATA.length) return;
       new PageManager();
-    } catch (err) {
-      logger.error('Load error:', err);
+    } catch (error) {
+      logger.error('Load error:', error);
     }
   });
 })();

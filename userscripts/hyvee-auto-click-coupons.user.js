@@ -18,7 +18,6 @@
 
   const logger = Logger('Hy-Vee - Auto Clip Coupons', { debug: false });
 
-  // Constants for button styling and timing
   const BUTTON_STYLES = {
     position: 'fixed',
     bottom: '20px',
@@ -34,25 +33,20 @@
     fontSize: '16px',
   };
 
-  const CLICK_DELAY = 500; // Delay between coupon clicks in milliseconds
+  const CLICK_DELAY = 500; // Delay between clicks to avoid overwhelming the site and allow UI updates
 
-  // Create and append the clipping button to the page
   function createClippingButton() {
     const button = document.createElement('button');
     button.innerText = 'Clip All Coupons';
     button.id = 'clipCouponsButton';
 
-    // Apply styles to the button
     Object.assign(button.style, BUTTON_STYLES);
 
-    // Add the button to the page
     document.body.appendChild(button);
 
-    // Attach the click event listener
     button.addEventListener('click', handleClipCoupons);
   }
 
-  // Handle the coupon clipping process
   function handleClipCoupons() {
     const clipButtons = document.querySelectorAll('button[aria-label^="Clip coupon"]');
 
@@ -66,44 +60,47 @@
 
     logger(`Found ${totalCoupons} coupons. Clipping...`);
 
-    // Clip coupons one by one with a delay
-    clipButtons.forEach((button, index) => {
+    // Click each coupon button sequentially with delay to avoid rate limiting
+    for (let couponIndex = 0; couponIndex < clipButtons.length; couponIndex++) {
+      const couponButton = clipButtons[couponIndex];
       setTimeout(() => {
-        button.click();
-        updateButtonProgress(clipButton, totalCoupons, index);
+        couponButton.click();
+        updateButtonProgress(clipButton, totalCoupons, couponIndex);
 
-        logger(`Clipped coupon ${index + 1}/${totalCoupons}`);
+        logger(`Clipped coupon ${couponIndex + 1}/${totalCoupons}`);
 
-        // If all coupons are clipped, disable the button
-        if (index === totalCoupons - 1) {
+        if (couponIndex === totalCoupons - 1) {
           finalizeButtonState(clipButton);
         }
-      }, index * CLICK_DELAY);
-    });
+      }, couponIndex * CLICK_DELAY);
+    }
   }
 
-  // Update the button text to show progress
   function updateButtonProgress(button, totalCoupons, currentIndex) {
     const remainingCoupons = totalCoupons - (currentIndex + 1);
     button.innerText = `Clipping Coupons... ${remainingCoupons} left`;
   }
 
-  // Finalize the button state after all coupons are clipped
   function finalizeButtonState(button) {
     button.innerText = 'All Coupons Clipped!';
-    button.style.backgroundColor = '#6c757d'; // Gray color
+    button.style.backgroundColor = '#6c757d';
     button.style.cursor = 'default';
-    button.disabled = true; // Disable the button
+    button.disabled = true;
   }
 
-  // Initialize the script after the page loads
   function initializeScript() {
-    if (window.location.href === 'https://www.hy-vee.com/deals/coupons?offerState=Available') {
+    checkPage();
+  }
+
+  function checkPage() {
+    if (window.location.href === 'https://www.hy-vee.com/deals/coupons?offerState=Available' && !document.getElementById('clipCouponsButton')) {
       createClippingButton();
       logger('Clipping button added to the page.');
     }
   }
 
-  // Wait for the page to load before initializing the script
   window.addEventListener('load', initializeScript);
+
+  // Poll for URL changes to detect SPA navigation
+  setInterval(checkPage, 500);
 })();

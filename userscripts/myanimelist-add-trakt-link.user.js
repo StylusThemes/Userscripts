@@ -26,94 +26,86 @@
 
   const animeapi = new AnimeAPI();
 
-  const malId = window.location.pathname.split('/')[2];
-  if (!malId) {
+  const myAnimeListId = window.location.pathname.split('/')[2];
+  if (!myAnimeListId) {
     logger.warn('No MAL ID found in URL');
     return;
   }
 
-  // Find navigation elements
-  const navUl = document.querySelector('#horiznav_nav ul');
-  if (!navUl) {
+  const navigationList = document.querySelector('#horiznav_nav ul');
+  if (!navigationList) {
     logger.error('Could not find navigation list');
     return;
   }
 
-  // Check for existing Trakt link
-  if (navUl.querySelector('a[href*="trakt.tv"]')) {
+  // Prevent duplicate links if already added
+  if (navigationList.querySelector('a[href*="trakt.tv"]')) {
     logger.debug('Trakt link already exists');
     return;
   }
 
-  // Check cache first
-  const cachedData = await GMC.getValue(malId);
-  if (cachedData) {
+  // Check cache first (24-hour validity)
+  const cachedEntry = await GMC.getValue(myAnimeListId);
+  if (cachedEntry) {
     try {
-      // Check if cache is still valid (24 hours)
-      if (Date.now() - cachedData.timestamp < 24 * 60 * 60 * 1000) {
-        logger.debug(`Using cached data for MAL ID ${malId}`);
-        createTraktLink(cachedData.data);
+      if (Date.now() - cachedEntry.timestamp < 24 * 60 * 60 * 1000) {
+        logger.debug(`Using cached data for MAL ID ${myAnimeListId}`);
+        addTraktLink(cachedEntry.data.trakt, cachedEntry.data.trakt_type);
         return;
       } else {
-        logger.debug(`Cache expired for MAL ID ${malId}`);
+        logger.debug(`Cache expired for MAL ID ${myAnimeListId}`);
       }
-    } catch (err) {
-      logger.error(`Error parsing cached data: ${err.message}`);
+    } catch (error) {
+      logger.error(`Error parsing cached data: ${error.message}`);
     }
   }
 
-  // Fetch from API if no valid cache
-  logger(`Fetching Trakt data for MAL ID ${malId}`);
-  animeapi.fetch('myanimelist', malId).then(data => {
-    if (!data.trakt || !data.trakt_type) {
+  logger(`Fetching Trakt data for MAL ID ${myAnimeListId}`);
+  animeapi.fetch('myanimelist', myAnimeListId).then(apiData => {
+    if (!apiData.trakt || !apiData.trakt_type) {
       logger.warn('No Trakt data found in API response');
       return;
     }
 
-    // Store in GMC storage with timestamp
-    GMC.setValue(malId, {
-      data: data,
+    // Cache successful response with timestamp
+    GMC.setValue(myAnimeListId, {
+      data: apiData,
       timestamp: Date.now()
     });
 
-    // Add Trakt link to page
-    addTraktLink(data.trakt, data.trakt_type);
+    addTraktLink(apiData.trakt, apiData.trakt_type);
   }).catch(error => {
     logger.error(`Failed to fetch from AnimeAPI: ${error.message}`);
   });
 
-  function createTraktLink(data) {
-    // Create Trakt URL
-    const traktUrl = `https://trakt.tv/${data.trakt_type}/${data.trakt}`;
+  function addTraktLink(traktIdentifier, traktContentType) {
+    const traktUrl = `https://trakt.tv/${traktContentType}/${traktIdentifier}`;
 
-    // Create list item matching MAL's style
-    const listItem = document.createElement('li');
-    const link = document.createElement('a');
+    const listItemElement = document.createElement('li');
+    const linkElement = document.createElement('a');
 
-    // Styling to match MAL's navigation links
-    link.href = traktUrl;
-    link.textContent = 'Trakt';
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    link.className = 'horiznav_link';
-    link.style.cssText = `
+    linkElement.href = traktUrl;
+    linkElement.textContent = 'Trakt';
+    linkElement.target = '_blank';
+    linkElement.rel = 'noopener noreferrer';
+    linkElement.className = 'horiznav_link';
+    linkElement.style.cssText = `
           color: inherit;
           text-decoration: none;
           transition: color 0.2s ease;
       `;
 
-    // Hover effect
-    link.addEventListener('mouseover', () => {
-      link.style.color = '#2e51a2';
-      link.style.textDecoration = 'none';
+    // Match MAL's blue hover color
+    linkElement.addEventListener('mouseover', () => {
+      linkElement.style.color = '#2e51a2';
+      linkElement.style.textDecoration = 'none';
     });
-    link.addEventListener('mouseout', () => {
-      link.style.color = 'inherit';
+    linkElement.addEventListener('mouseout', () => {
+      linkElement.style.color = 'inherit';
     });
 
-    // Append as the last item in the navigation list
-    navUl.appendChild(listItem);
-    listItem.appendChild(link);
+    navigationList.appendChild(listItemElement);
+    listItemElement.appendChild(linkElement);
 
     logger(`Added Trakt link: ${traktUrl}`);
   }
