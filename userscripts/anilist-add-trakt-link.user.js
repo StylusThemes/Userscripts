@@ -44,7 +44,7 @@
     }
 
     setupSPAWatcher() {
-      const mutationObserver = new MutationObserver(mutations => {
+      this.mutationObserver = createMutationObserver(mutations => {
         for (const mutation of mutations) {
           for (const node of mutation.addedNodes) {
             if (this.isExternalLinksContainer(node)) {
@@ -53,11 +53,6 @@
           }
         }
       });
-
-      mutationObserver.observe(document.body, {
-        childList: true,
-        subtree: true
-      });
     }
 
     // Check both direct matches and child elements because SPA might insert wrapper elements
@@ -65,7 +60,7 @@
     isExternalLinksContainer(node) {
       return node.nodeType === Node.ELEMENT_NODE &&
         (node.matches('.external-links-wrap') ||
-          node.querySelector('.external-links-wrap'));
+          qs('.external-links-wrap', node));
     }
 
     handleCurrentPage() {
@@ -86,7 +81,7 @@
 
     async processPage(anilistId) {
       try {
-        const externalLinksContainer = await this.waitForElement('.external-links-wrap');
+        const externalLinksContainer = await waitForElement('.external-links-wrap');
         if (!externalLinksContainer) {
           logger.error('External links container not found');
           return;
@@ -185,31 +180,6 @@
       return linkElement;
     }
 
-    // Wait for element to appear in DOM with MutationObserver fallback
-    // for dynamically loaded content in single-page applications
-    waitForElement(selector) {
-      return new Promise(resolve => {
-        const element = document.querySelector(selector);
-        if (element) {
-          resolve(element);
-          return;
-        }
-
-        const observer = new MutationObserver(() => {
-          const element = document.querySelector(selector);
-          if (element) {
-            observer.disconnect();
-            resolve(element);
-          }
-        });
-
-        observer.observe(document.body, {
-          childList: true,
-          subtree: true
-        });
-      });
-    }
-
     // Extract AniList ID from URL path: /anime/{id}/{slug} - assumes standard AniList URL structure
     getAniListId() {
       const pathParts = window.location.pathname.split('/');
@@ -222,12 +192,12 @@
     }
 
     hasTraktLink(container) {
-      return !!container.querySelector('a[href*="trakt.tv"]');
+      return !!qs('a[href*="trakt.tv"]', container);
     }
 
     // Validates cache has timestamp and hasn't expired (24 hours)
     isCacheValid(cachedEntry) {
-      return cachedEntry.timestamp && (Date.now() - cachedEntry.timestamp < CONFIG.CACHE_DURATION);
+      return isCacheValid(cachedEntry, CONFIG.CACHE_DURATION);
     }
   }
 

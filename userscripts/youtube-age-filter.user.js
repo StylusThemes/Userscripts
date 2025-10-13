@@ -105,7 +105,7 @@
   }
 
   function getVideoAgeTextAndYears(videoElement) {
-    const ageText = [...videoElement.querySelectorAll(AGE_SELECTORS.join(','))]
+    const ageText = qsa(AGE_SELECTORS.join(','), videoElement)
       .map(ageElement => (ageElement.textContent || '').trim())
       .find(text => /\bago\b/i.test(text));
 
@@ -129,7 +129,7 @@
 
   function getVideoTitle(videoElement) {
     for (const titleSelector of TITLE_SELECTORS) {
-      const titleElement = videoElement.querySelector(titleSelector);
+      const titleElement = qs(titleSelector, videoElement);
       if (titleElement && titleElement.innerText.trim()) return titleElement.innerText.trim();
     }
     return '';
@@ -165,7 +165,7 @@
     if (window.location.href.includes('@')) return;
     while (true) {
       try {
-        const unprocessedVideos = [...document.querySelectorAll(
+        const unprocessedVideos = [...qsa(
           VIDEO_SELECTORS.map(selector => `${selector}:not([data-processed])`).join(',')
         )];
         for (const videoElement of unprocessedVideos) {

@@ -30,14 +30,13 @@
       enabled: false,
       mutationObserver: null,
       removeBigModeClasses() {
-        const bigModeElements = document.querySelectorAll('.ytp-big-mode');
+        const bigModeElements = qsa('.ytp-big-mode');
         for (const bigModeElement of bigModeElements) bigModeElement.classList.remove('ytp-big-mode');
       },
       start() {
         if (this.mutationObserver) return;
         this.removeBigModeClasses();
-        this.mutationObserver = new MutationObserver(() => this.removeBigModeClasses());
-        this.mutationObserver.observe(document.body, { childList: true, subtree: true, attributes: true });
+        this.mutationObserver = createMutationObserver(() => this.removeBigModeClasses(), { attributes: true });
       },
       stop() {
         if (this.mutationObserver) {
@@ -55,17 +54,17 @@
       eventHandlers: {},
       createPlaySingleButtons() {
         if (location.href.indexOf('/playlist?') <= 0) return;
-        const playlistVideoRenderers = document.querySelectorAll('ytd-playlist-video-renderer');
+        const playlistVideoRenderers = qsa('ytd-playlist-video-renderer');
         for (const videoRenderer of playlistVideoRenderers) {
-          const thumbnailAnchor = videoRenderer.querySelector('a#thumbnail');
+          const thumbnailAnchor = qs('a#thumbnail', videoRenderer);
           if (!thumbnailAnchor) continue;
           const thumbnailHref = thumbnailAnchor.getAttribute('href') || '';
           const urlParts = thumbnailHref.split('&list=');
           if (urlParts.length <= 1) continue;
           const singlePlayUrl = urlParts[0];
 
-          let playSingleButton = videoRenderer.querySelector('button-view-model#button-play-single');
-          if (playSingleButton) { const buttonLink = playSingleButton.querySelector('a'); if (buttonLink) buttonLink.setAttribute('href', singlePlayUrl); continue; }
+          let playSingleButton = qs('button-view-model#button-play-single', videoRenderer);
+          if (playSingleButton) { const buttonLink = qs('a', playSingleButton); if (buttonLink) buttonLink.setAttribute('href', singlePlayUrl); continue; }
 
           playSingleButton = document.createElement('button-view-model');
           playSingleButton.className = 'yt-spec-button-view-model';
@@ -85,7 +84,7 @@
           iconDiv.appendChild(iconImage);
           buttonLink.appendChild(iconDiv);
           playSingleButton.appendChild(buttonLink);
-          const menuDiv = videoRenderer.querySelector('div#menu');
+          const menuDiv = qs('div#menu', videoRenderer);
           if (menuDiv) menuDiv.before(playSingleButton);
         }
       },
@@ -102,7 +101,7 @@
         if (!this.eventHandlers._started) return;
         document.removeEventListener('yt-navigate-finish', this.eventHandlers.handleNavigateFinish);
         document.removeEventListener('yt-action', this.eventHandlers.handleAction);
-        for (const playSingleButton of document.querySelectorAll('button-view-model#button-play-single')) playSingleButton.remove();
+        for (const playSingleButton of qsa('button-view-model#button-play-single')) playSingleButton.remove();
         this.eventHandlers = {};
       }
     },
@@ -164,9 +163,8 @@
       },
       start() {
         if (this.mutationObserver) return;
-        this.mutationObserver = new MutationObserver(() => { for (const video of document.querySelectorAll('video')) this.applyAudioFix(video) });
-        this.mutationObserver.observe(document.body, { childList: true, subtree: true });
-        for (const video of document.querySelectorAll('video')) this.applyAudioFix(video);
+        this.mutationObserver = createMutationObserver(() => { for (const video of qsa('video')) this.applyAudioFix(video) });
+        for (const video of qsa('video')) this.applyAudioFix(video);
       },
       stop() {
         if (this.mutationObserver) {
@@ -187,10 +185,7 @@
       isUpdatePending: false,
       mutationObserver: null,
       initializeStyles() {
-        if (document.getElementById('gm-dimwatched-style')) return;
-        const style = document.createElement('style');
-        style.id = 'gm-dimwatched-style';
-        style.textContent = `
+        const css = `
                     ytd-rich-grid-media,
                     ytd-rich-item-renderer,
                     ytd-grid-video-renderer,
@@ -202,17 +197,17 @@
                     .${this.DIMMED_CLASS_NAME} { opacity: ${this.DIMMED_OPACITY} !important; }
                     .${this.DIMMED_CLASS_NAME}:hover { opacity: ${this.DIMMED_OPACITY_HOVER} !important; }
                 `;
-        document.head.appendChild(style);
+        injectStyles(css, 'gm-dimwatched-style');
       },
       isVideoWatched(element) {
-        return element.querySelector('ytd-thumbnail-overlay-resume-playback-renderer #progress') || element.querySelector('.ytThumbnailOverlayProgressBarHostWatchedProgressBarSegment');
+        return qs('ytd-thumbnail-overlay-resume-playback-renderer #progress', element) || qs('.ytThumbnailOverlayHostWatchedProgressBarSegment', element);
       },
       updateDimmedVideos() {
         const processedVideoElements = new WeakSet();
         const videoRendererSelectors = { grid: ['ytd-rich-item-renderer'], channel: ['ytd-grid-video-renderer'], playlist: ['ytd-playlist-video-renderer'], sidebar: ['yt-lockup-view-model'], search: ['ytd-video-renderer'] };
         for (const [selectorCategory, selectorsForCategory] of Object.entries(videoRendererSelectors)) {
           for (const selector of selectorsForCategory) {
-            for (const videoElement of document.querySelectorAll(selector)) {
+            for (const videoElement of qsa(selector)) {
               if (processedVideoElements.has(videoElement)) continue;
 
               // Avoid double-dimming nested elements
@@ -242,8 +237,7 @@
       start() {
         this.initializeStyles();
         if (this.mutationObserver) return;
-        this.mutationObserver = new MutationObserver(() => this.debouncedUpdateDimmed());
-        this.mutationObserver.observe(document.body, { childList: true, subtree: true });
+        this.mutationObserver = createMutationObserver(() => this.debouncedUpdateDimmed());
         this.updateDimmedVideos();
       },
       stop() {
@@ -251,7 +245,7 @@
           this.mutationObserver.disconnect();
           this.mutationObserver = null;
         }
-        for (const videoElement of document.querySelectorAll('.' + this.DIMMED_CLASS_NAME)) videoElement.classList.remove(this.DIMMED_CLASS_NAME);
+        for (const videoElement of qsa('.' + this.DIMMED_CLASS_NAME)) videoElement.classList.remove(this.DIMMED_CLASS_NAME);
       }
     }
   };
@@ -313,7 +307,7 @@
     const closeModalButton = document.createElement('button');
     closeModalButton.textContent = 'Close';
     saveSettingsButton.addEventListener('click', async () => {
-      for (const checkboxElement of settingsModal.querySelectorAll('input[type="checkbox"]')) {
+      for (const checkboxElement of qsa('input[type="checkbox"]', settingsModal)) {
         const featureId = checkboxElement.dataset.feature;
         const featureConfig = Object.values(features).find(featureItem => featureItem.id === featureId);
         if (!featureConfig) continue;

@@ -5,6 +5,7 @@
 // @author        Journey Over
 // @license       MIT
 // @match         *://nyaa.si/*
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@c185c2777d00a6826a8bf3c43bbcdcfeba5a9566/libs/utils/utils.min.js
 // @grant         none
 // @run-at        document-start
 // @icon          https://www.google.com/s2/favicons?sz=64&domain=nyaa.si
@@ -44,7 +45,7 @@
   }
 
   function updateTimestamps() {
-    for (const tableDataCell of document.querySelectorAll('td.text-center')) {
+    for (const tableDataCell of qsa('td.text-center')) {
       const cellContent = tableDataCell.textContent.trim();
       if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(cellContent)) {
         tableDataCell.textContent = convertTo12Hour(cellContent);
@@ -54,14 +55,13 @@
 
   function observeTimestamps() {
     updateTimestamps();
-    const timestampObserver = new MutationObserver(updateTimestamps);
-    timestampObserver.observe(document.body, { childList: true, subtree: true });
+    createMutationObserver(updateTimestamps);
   }
 
   // --------------------------------------------------------
   // Init
   // --------------------------------------------------------
   enforceEnglishFilter();
-  window.addEventListener('DOMContentLoaded', observeTimestamps);
+  ready(observeTimestamps);
 
 })();

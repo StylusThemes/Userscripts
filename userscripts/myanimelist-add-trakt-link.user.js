@@ -32,32 +32,24 @@
     return;
   }
 
-  const navigationList = document.querySelector('#horiznav_nav ul');
+  const navigationList = qs('#horiznav_nav ul');
   if (!navigationList) {
     logger.error('Could not find navigation list');
     return;
   }
 
   // Prevent duplicate links if already added
-  if (navigationList.querySelector('a[href*="trakt.tv"]')) {
+  if (qs('a[href*="trakt.tv"]', navigationList)) {
     logger.debug('Trakt link already exists');
     return;
   }
 
   // Check cache first (24-hour validity)
   const cachedEntry = await GMC.getValue(myAnimeListId);
-  if (cachedEntry) {
-    try {
-      if (Date.now() - cachedEntry.timestamp < 24 * 60 * 60 * 1000) {
-        logger.debug(`Using cached data for MAL ID ${myAnimeListId}`);
-        addTraktLink(cachedEntry.data.trakt, cachedEntry.data.trakt_type);
-        return;
-      } else {
-        logger.debug(`Cache expired for MAL ID ${myAnimeListId}`);
-      }
-    } catch (error) {
-      logger.error(`Error parsing cached data: ${error.message}`);
-    }
+  if (cachedEntry && isCacheValid(cachedEntry.timestamp, 24 * 60 * 60 * 1000)) {
+    logger.debug(`Using cached data for MAL ID ${myAnimeListId}`);
+    addTraktLink(cachedEntry.data.trakt, cachedEntry.data.trakt_type);
+    return;
   }
 
   logger(`Fetching Trakt data for MAL ID ${myAnimeListId}`);

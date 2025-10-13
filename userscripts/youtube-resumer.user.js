@@ -284,16 +284,16 @@
   }
 
   function initVideoLoad() {
-    const player = document.querySelector('#movie_player');
+    const player = qs('#movie_player');
     if (!player) return;
-    const videoElement = player.querySelector('video');
+    const videoElement = qs('video', player);
     if (videoElement) handleVideo(player, player.player_ || player, videoElement);
   }
 
   function onVideoContainerLoad(event_) {
     const videoContainer = event_.target;
     const playerInstance = videoContainer?.player_;
-    const videoElement = videoContainer?.querySelector('video');
+    const videoElement = videoContainer && qs('video', videoContainer);
     if (playerInstance && videoElement) handleVideo(videoContainer, playerInstance, videoElement);
   }
 

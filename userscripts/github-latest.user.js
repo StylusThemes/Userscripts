@@ -22,13 +22,13 @@
 
   // Find Issues tab first (preferred template), fallback to any tab with anchor
   const findTemplateTab = (navigationBody) => {
-    const issuesAnchor = navigationBody.querySelector('a[href*="/issues"]');
+    const issuesAnchor = qs('a[href*="/issues"]', navigationBody);
     if (issuesAnchor) {
       logger.debug('Issues tab found as template');
       return issuesAnchor.closest(':scope > *') || issuesAnchor;
     }
 
-    const fallback = [...navigationBody.children].find(child => child.querySelector && child.querySelector('a'));
+    const fallback = [...navigationBody.children].find(child => qs('a', child));
     if (fallback) logger.debug('Fallback tab found as template');
     return fallback || null;
   };
@@ -36,7 +36,7 @@
   // Clone template tab and transform it into "Latest issues" with custom icon and query
   const createLatestIssuesTab = (templateTab) => {
     const clonedTab = templateTab.cloneNode(true);
-    const anchorElement = clonedTab.querySelector('a') || clonedTab;
+    const anchorElement = qs('a', clonedTab) || clonedTab;
 
     if (!anchorElement) {
       logger.warn('Template tab has no anchor');
@@ -59,7 +59,7 @@
     if (clonedTab.style) clonedTab.style.marginLeft = 'auto';
 
     // Replace existing icon with flame SVG for "latest" indicator
-    const svgElement = clonedTab.querySelector('svg');
+    const svgElement = qs('svg', clonedTab);
     if (svgElement) {
       svgElement.setAttribute('viewBox', '0 0 16 16');
       svgElement.style.margin = '0 4px';
@@ -70,11 +70,11 @@
       1.8-1.86 1.33-0.67-0.41-0.66-1.19-0.06-1.78 1.25-1.23 1.75-4.09-1.88-6.22l-0.02-0.02z"/>`;
     }
 
-    const spanElement = clonedTab.querySelector('span');
+    const spanElement = qs('span', clonedTab);
     if (spanElement) spanElement.textContent = 'Latest issues';
 
     // Remove counter since we're showing all recent activity, not a specific count
-    const counterElement = clonedTab.querySelector('.Counter, .counter');
+    const counterElement = qs('.Counter, .counter', clonedTab);
     if (counterElement) counterElement.remove();
 
     return clonedTab;
@@ -87,7 +87,7 @@
       const tryAddButton = (navigationBody) => {
         if (!navigationBody) return false;
 
-        if (navigationBody.querySelector(`#${BUTTON_ID}`)) {
+        if (qs(`#${BUTTON_ID}`, navigationBody)) {
           logger.debug('Latest issues button already exists');
           return true;
         }
@@ -103,12 +103,12 @@
         return true;
       };
 
-      const navigationBody = document.querySelector(NAVIGATION_SELECTOR);
+      const navigationBody = qs(NAVIGATION_SELECTOR);
       if (tryAddButton(navigationBody)) return;
 
       // Observe for SPA navigation - GitHub uses dynamic content loading
       const observer = new MutationObserver((_, observerInstance) => {
-        const navigationBody = document.querySelector(NAVIGATION_SELECTOR);
+        const navigationBody = qs(NAVIGATION_SELECTOR);
         if (tryAddButton(navigationBody)) {
           observerInstance.disconnect();
         }

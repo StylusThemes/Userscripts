@@ -75,7 +75,7 @@
     if (typeof cache !== 'object' || Array.isArray(cache)) return null;
     const cacheKey = `${CONFIG.CACHE_PREFIX}${imdbId}`;
     const cached = cache[cacheKey];
-    if (cached && (Date.now() - cached.timestamp) < CONFIG.CACHE_DURATION) {
+    if (cached && isCacheValid(cached, CONFIG.CACHE_DURATION)) {
       return cached.data;
     }
     return null;
@@ -248,9 +248,7 @@
   };
 
   (function injectStyles() {
-    const style = document.createElement('style');
-    style.textContent = generateStyles();
-    document.head.appendChild(style);
+    injectStyles(generateStyles());
   })();
 
   class QualityManager {
@@ -297,7 +295,7 @@
     createQualitySection() {
       if (!this.container) return;
 
-      const existing = this.container.querySelector(`.${CONFIG.CSS_CLASS_PREFIX}-quality-section`);
+      const existing = qs(`.${CONFIG.CSS_CLASS_PREFIX}-quality-section`, this.container);
       if (existing) {
         logger.debug('Quality section already exists');
         return;
@@ -368,7 +366,7 @@
       }
 
       if (this.logicSelect) {
-        const allOptions = this.logicSelect.querySelectorAll(`.${CONFIG.CSS_CLASS_PREFIX}-logic-option`);
+        const allOptions = qsa(`.${CONFIG.CSS_CLASS_PREFIX}-logic-option`, this.logicSelect);
         for (const option of allOptions) {
           option.classList.remove('active');
           if ((option.dataset.mode === 'and' && this.useAndLogic) ||
@@ -389,7 +387,7 @@
       const mode = target.dataset.mode;
       const useAndLogic = mode === 'and';
 
-      const allOptions = this.logicSelect.querySelectorAll(`.${CONFIG.CSS_CLASS_PREFIX}-logic-option`);
+      const allOptions = qsa(`.${CONFIG.CSS_CLASS_PREFIX}-logic-option`, this.logicSelect);
       for (const option of allOptions) option.classList.remove('active');
       target.classList.add('active');
 
@@ -524,7 +522,7 @@
     cleanup() {
       this.buttons.clear();
       this.qualityPolarity.clear();
-      const existing = this.container?.querySelector(`.${CONFIG.CSS_CLASS_PREFIX}-quality-section`);
+      const existing = qs(`.${CONFIG.CSS_CLASS_PREFIX}-quality-section`, this.container);
       if (existing) existing.remove();
     }
   }
@@ -565,7 +563,7 @@
       logger.debug('ButtonManager initialized', { container: !!container, sameContainer: this.container === container });
 
       // Check if buttons are already present to avoid re-adding during content re-renders
-      const existingButtons = container.querySelectorAll(`.${CONFIG.CSS_CLASS_PREFIX}-btn`);
+      const existingButtons = qsa(`.${CONFIG.CSS_CLASS_PREFIX}-btn`, container);
       if (existingButtons.length > 0) {
         logger.debug('Buttons already exist, skipping initialization');
         this.container = container;

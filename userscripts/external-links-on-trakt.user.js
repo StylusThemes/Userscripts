@@ -523,7 +523,7 @@
       if (!cache) return false;
       // Bypass cache in debug mode to test fresh data
       if (logger.debugEnabled) return false;
-      return (Date.now() - cache.time) < CONSTANTS.CACHE_DURATION;
+      return isCacheValid(cache, CONSTANTS.CACHE_DURATION);
     }
 
     linkExists(site) {

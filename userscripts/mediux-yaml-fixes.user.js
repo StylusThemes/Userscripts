@@ -50,7 +50,7 @@
 
       showNotification(message, duration = 3000) {
         const notification = document.createElement('div');
-        const myleftDiv = document.querySelector('#myleftdiv');
+        const myleftDiv = qs('#myleftdiv');
         const parentDiv = $(myleftDiv).parent();
 
         Object.assign(notification.style, {
@@ -104,7 +104,7 @@
       // Extract poster data from Next.js script tags by searching from end (newer scripts tend to be last)
       getPosters() {
         const regexPosterCheck = /posterCheck/g;
-        const scriptElements = document.querySelectorAll('script');
+        const scriptElements = qsa('script');
 
         for (let index = scriptElements.length - 1; index >= 0; index--) {
           const element = scriptElements[index];
@@ -123,7 +123,7 @@
       // Extract set data and store creator info for later use
       getSets() {
         const regexPosterCheck = /posterCheck/g;
-        const scriptElements = document.querySelectorAll('script');
+        const scriptElements = qsa('script');
 
         for (let index = scriptElements.length - 1; index >= 0; index--) {
           const element = scriptElements[index];
@@ -165,7 +165,7 @@
     yaml: {
       // Process entire boxset by fetching each set and generating YAML for all items
       async loadBoxset(codeblock) {
-        const button = document.querySelector('#bsetbutton');
+        const button = qs('#bsetbutton');
         let yamlOutput = codeblock.textContent + '\n';
         const sets = MediuxFixes.data.getSets();
         const creator = await GMC.getValue('creator');
@@ -255,7 +255,7 @@
 
       // Add missing season posters to YAML (seasons without explicit poster entries)
       fixPosters(codeblock) {
-        const button = document.querySelector('#fpbutton');
+        const button = qs('#fpbutton');
         let yamlContent = codeblock.textContent;
         const posters = MediuxFixes.data.getPosters();
 
@@ -278,7 +278,7 @@
 
       // Fix Kometa TitleCard YAML by adding missing season numbers before episodes
       fixCards(codeblock) {
-        const button = document.querySelector('#fcbutton');
+        const button = qs('#fcbutton');
         const yamlContent = codeblock.innerText;
 
         const regexSeasonsEpisodes = /(seasons:\n)(        episodes:)/g;
@@ -304,12 +304,12 @@
 
       // Transform TV show YAML to Kometa-compatible format with proper metadata structure
       formatTvYml(codeblock) {
-        const button = document.querySelector('#fytvbutton');
+        const button = qs('#fytvbutton');
         let yamlContent = codeblock.textContent;
 
         const regexSetInfo = /(\d+): # TVDB id for (.*?)\. Set by (.*?) on MediUX\. (https:\/\/mediux\.pro\/sets\/\d+)/;
 
-        const pageTitle = document.querySelector('h1').textContent;
+        const pageTitle = qs('h1').textContent;
         const yearMatch = pageTitle.match(/\((\d{4})\)/);
         const year = yearMatch ? yearMatch[1] : 'Unknown';
 
@@ -337,7 +337,7 @@
 
       // Transform movie YAML to Kometa format with standardized headers and URL quoting
       formatMovieYml(codeblock) {
-        const button = document.querySelector('#fymoviebutton');
+        const button = qs('#fymoviebutton');
         let yamlContent = codeblock.textContent;
 
         const regexSetUrl = /https:\/\/mediux\.pro\/sets\/\d+/;
@@ -371,14 +371,14 @@
 
     ui: {
       createInterface() {
-        const codeblock = document.querySelector('code.whitespace-pre-wrap');
+        const codeblock = qs('code.whitespace-pre-wrap');
         MediuxFixes.elements.codeblock = codeblock;
 
         // Restructure page layout to make space for custom buttons
-        const mainContainerDiv = document.querySelector('.flex.flex-col.space-y-1\\.5.text-center.sm\\:text-left');
+        const mainContainerDiv = qs('.flex.flex-col.space-y-1\\.5.text-center.sm\\:text-left');
         $(mainContainerDiv).children('h2, p').wrapAll('<div class="flex flex-row" style="align-items: center"><div id="myleftdiv" style="width: 25%; align: left"></div></div>');
 
-        const leftContainerDiv = document.querySelector('#myleftdiv');
+        const leftContainerDiv = qs('#myleftdiv');
 
         const buttonConfigs = [{
             id: 'fcbutton',

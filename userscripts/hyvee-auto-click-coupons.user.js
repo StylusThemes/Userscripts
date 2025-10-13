@@ -48,14 +48,14 @@
   }
 
   function handleClipCoupons() {
-    const clipButtons = document.querySelectorAll('button[aria-label^="Clip coupon"]');
+    const clipButtons = qsa('button[aria-label^="Clip coupon"]');
 
     if (clipButtons.length === 0) {
       alert('No coupons found to clip.');
       return;
     }
 
-    const clipButton = document.getElementById('clipCouponsButton');
+    const clipButton = qs('#clipCouponsButton');
     const totalCoupons = clipButtons.length;
 
     logger(`Found ${totalCoupons} coupons. Clipping...`);

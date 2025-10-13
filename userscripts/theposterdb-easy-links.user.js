@@ -6,6 +6,7 @@
 // @license       MIT
 // @match         *://theposterdb.com/*
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@c185c2777d00a6826a8bf3c43bbcdcfeba5a9566/libs/gm/gmcompat.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@c185c2777d00a6826a8bf3c43bbcdcfeba5a9566/libs/utils/utils.min.js
 // @require       https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js
 // @grant         GM.setClipboard
 // @grant         GM.addStyle
@@ -83,18 +84,18 @@
     }
 
     extractPosterId() {
-      const overlayElement = this.element.querySelector(CONFIG.selectors.overlay);
+      const overlayElement = qs(CONFIG.selectors.overlay, this.element);
       return overlayElement?.getAttribute(CONFIG.attributes.posterId);
     }
 
     // Extract title and remove year from parentheses for cleaner metadata
     extractTitle() {
-      const titleElement = this.element.querySelector(CONFIG.selectors.titleText);
+      const titleElement = qs(CONFIG.selectors.titleText, this.element);
       return titleElement?.textContent.trim().replace(/\(\d{4}\)/, '').trim() || '';
     }
 
     extractYear() {
-      const titleElement = this.element.querySelector(CONFIG.selectors.titleText);
+      const titleElement = qs(CONFIG.selectors.titleText, this.element);
       const yearMatch = titleElement?.textContent.match(/\((\d{4})\)/);
       return yearMatch ? parseInt(yearMatch[1], 10) : null;
     }
@@ -119,24 +120,16 @@
       GMC.addStyle(STYLES);
     }
 
-    createButton(text, className, clickHandler) {
-      const buttonElement = document.createElement('button');
-      buttonElement.className = `tpdb-button ${className}`;
-      buttonElement.textContent = text;
-      buttonElement.addEventListener('click', clickHandler);
-      return buttonElement;
-    }
-
     createButtonContainer(posterId) {
       const buttonContainer = document.createElement('div');
       buttonContainer.className = 'tpdb-button-container';
 
-      const copyLinkButton = this.createButton('Copy Link', 'tpdb-button-link', () => {
+      const copyLinkButton = createButton('Copy Link', 'tpdb-button tpdb-button-link', () => {
         GMC.setClipboard(Utilities.createUrl(posterId));
         NotificationManager.show(CONFIG.notifications.messages.link);
       });
 
-      const copyIdButton = this.createButton('Copy ID', 'tpdb-button-id', () => {
+      const copyIdButton = createButton('Copy ID', 'tpdb-button tpdb-button-id', () => {
         GMC.setClipboard(posterId);
         NotificationManager.show(CONFIG.notifications.messages.id);
       });
@@ -147,7 +140,7 @@
 
     // Enhance main poster page with additional copy buttons alongside existing ones
     setupMainPosterButtons() {
-      const existingCopyLinkButton = document.querySelector(CONFIG.selectors.copyLinkBtn);
+      const existingCopyLinkButton = qs(CONFIG.selectors.copyLinkBtn);
       if (!existingCopyLinkButton) return;
 
       const posterId = existingCopyLinkButton.getAttribute(CONFIG.attributes.posterId);
@@ -178,7 +171,7 @@
     }
 
     setupGridPosters() {
-      for (const posterElement of document.querySelectorAll(CONFIG.selectors.gridPosters)) {
+      for (const posterElement of qsa(CONFIG.selectors.gridPosters)) {
         const posterData = new PosterData(posterElement);
         if (!Utilities.isValidPosterId(posterData.posterId)) continue;
 
@@ -188,22 +181,19 @@
     }
 
     setupMetadataButton() {
-      const posterDataList = [...document.querySelectorAll(CONFIG.selectors.gridPosters)]
+      const posterDataList = [...qsa(CONFIG.selectors.gridPosters)]
         .map(posterElement => new PosterData(posterElement))
         .filter(poster => Utilities.isValidPosterId(poster.posterId));
 
       if (posterDataList.length === 0) return;
 
-      const metadataButton = document.createElement('button');
-      metadataButton.className = 'tpdb-metadata-button';
-      metadataButton.textContent = 'Copy Metadata';
-      metadataButton.addEventListener('click', () => {
+      const metadataButton = createButton('Copy Metadata', 'tpdb-metadata-button', () => {
         const metadataString = `metadata:\n\n${posterDataList.map(poster => poster.toMetadata()).join('\n\n')}`;
         GMC.setClipboard(metadataString);
         NotificationManager.show(CONFIG.notifications.messages.metadata);
       });
 
-      document.querySelector('div')?.appendChild(metadataButton);
+      qs('div')?.appendChild(metadataButton);
     }
 
     initializeUI() {

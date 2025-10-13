@@ -565,12 +565,12 @@
       this.injectStyles();
       document.body.appendChild(dialog);
 
-      const saveButton = dialog.querySelector('#saveButton');
-      const cancelButton = dialog.querySelector('#cancelButton');
-      const cancelButtonTop = dialog.querySelector('#cancelButtonTop');
-      const manualCheckbox = dialog.querySelector('#manualFileSelectionCheckbox');
-      const allowedExtensionsTextarea = dialog.querySelector('#allowedExtensionsTextarea');
-      const filterKeywordsTextarea = dialog.querySelector('#filterKeywordsTextarea');
+      const saveButton = qs('#saveButton', dialog);
+      const cancelButton = qs('#cancelButton', dialog);
+      const cancelButtonTop = qs('#cancelButtonTop', dialog);
+      const manualCheckbox = qs('#manualFileSelectionCheckbox', dialog);
+      const allowedExtensionsTextarea = qs('#allowedExtensionsTextarea', dialog);
+      const filterKeywordsTextarea = qs('#filterKeywordsTextarea', dialog);
 
       const toggleFiltering = () => {
         const disabled = manualCheckbox.checked;
@@ -595,11 +595,11 @@
 
       saveButton.addEventListener('click', async () => {
         const newConfig = {
-          apiKey: dialog.querySelector('#apiKeyInput').value.trim(),
-          allowedExtensions: dialog.querySelector('#allowedExtensionsTextarea').value.split(',').map(extension => extension.trim()).filter(Boolean),
-          filterKeywords: dialog.querySelector('#filterKeywordsTextarea').value.split(',').map(k => k.trim()).filter(Boolean),
-          manualFileSelection: dialog.querySelector('#manualFileSelectionCheckbox').checked,
-          debugEnabled: dialog.querySelector('#debugEnabledCheckbox').checked
+          apiKey: qs('#apiKeyInput', dialog).value.trim(),
+          allowedExtensions: qs('#allowedExtensionsTextarea', dialog).value.split(',').map(extension => extension.trim()).filter(Boolean),
+          filterKeywords: qs('#filterKeywordsTextarea', dialog).value.split(',').map(k => k.trim()).filter(Boolean),
+          manualFileSelection: qs('#manualFileSelectionCheckbox', dialog).checked,
+          debugEnabled: qs('#debugEnabledCheckbox', dialog).checked
         };
         try {
           await ConfigManager.saveConfig(newConfig);
@@ -614,7 +614,7 @@
       cancelButton.addEventListener('click', close);
       cancelButtonTop.addEventListener('click', close);
 
-      const apiInput = dialog.querySelector('#apiKeyInput');
+      const apiInput = qs('#apiKeyInput', dialog);
       if (apiInput) apiInput.focus();
 
       return dialog;
@@ -655,12 +655,12 @@
         this.injectStyles();
         document.body.appendChild(dialog);
 
-        const treeContainer = dialog.querySelector('#fileTreeContainer');
-        const toggleAllButton = dialog.querySelector('#toggleAllButton');
-        const fileStatsLabel = dialog.querySelector('#fileStatsLabel');
-        const okButton = dialog.querySelector('#okButton');
-        const cancelButton = dialog.querySelector('#cancelButton');
-        const cancelButtonTop = dialog.querySelector('#cancelButtonTop');
+        const treeContainer = qs('#fileTreeContainer', dialog);
+        const toggleAllButton = qs('#toggleAllButton', dialog);
+        const fileStatsLabel = qs('#fileStatsLabel', dialog);
+        const okButton = qs('#okButton', dialog);
+        const cancelButton = qs('#cancelButton', dialog);
+        const cancelButtonTop = qs('#cancelButtonTop', dialog);
 
         const setFolderChecked = (folder, checked) => {
           folder.checked = checked;
@@ -724,10 +724,10 @@
               </div>
             `;
 
-            const expander = element.querySelector('.rd-expander');
-            const checkbox = element.querySelector('.rd-checkbox');
-            const folderName = element.querySelector('.rd-folder-name');
-            const childrenContainer = element.querySelector('.rd-folder-children');
+            const expander = qs('.rd-expander', element);
+            const checkbox = qs('.rd-checkbox', element);
+            const folderName = qs('.rd-folder-name', element);
+            const childrenContainer = qs('.rd-folder-children', element);
 
             expander.addEventListener('click', (event_) => {
               event_.stopPropagation();
@@ -763,8 +763,8 @@
               </div>
             `;
 
-            const checkbox = element.querySelector('.rd-checkbox');
-            const fileName = element.querySelector('.rd-file-name');
+            const checkbox = qs('.rd-checkbox', element);
+            const fileName = qs('.rd-file-name', element);
 
             const toggleFile = () => {
               node.checked = !node.checked;
@@ -845,16 +845,10 @@
     },
 
     injectStyles() {
-      if (document.getElementById('rd-styles')) return;
-
       const styles = `
         .rd-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;z-index:10000;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,Cantarell,sans-serif;backdrop-filter:blur(4px)}.rd-dialog{background:#1a1d23;border-radius:12px;padding:0;max-width:600px;width:95vw;max-height:90vh;display:flex;flex-direction:column;border:1px solid #2a2f3a;box-shadow:0 20px 60px rgba(0,0,0,0.5);animation:rdSlideIn .2s ease-out}.rd-file-dialog{max-width:800px}.rd-header{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid #2a2f3a}.rd-title{margin:0;font-size:18px;font-weight:600;color:#e2e8f0;flex:1}.rd-close{background:none;border:none;color:#94a3b8;font-size:24px;cursor:pointer;padding:4px;border-radius:4px;transition:all .2s}.rd-close:hover{background:#2a2f3a;color:#e2e8f0}.rd-content{padding:24px;flex:1;overflow-y:auto}.rd-form-group{margin-bottom:20px}.rd-label{display:block;margin-bottom:6px;font-weight:500;color:#e2e8f0;font-size:14px}.rd-input,.rd-textarea{width:100%;padding:10px 12px;border:1px solid #374151;border-radius:8px;background:#0f1117;color:#e2e8f0;font-size:14px;transition:all .2s}.rd-input:focus,.rd-textarea:focus{outline:none;border-color:#3b82f6;box-shadow:0 0 0 2px rgba(59,130,246,0.2)}.rd-textarea{min-height:80px;resize:vertical}.rd-help{margin-top:4px;font-size:12px;color:#94a3b8}.rd-checkbox-label{display:flex;align-items:center;gap:8px;cursor:pointer;color:#e2e8f0;font-size:14px}.rd-footer{padding:20px 24px;border-top:1px solid #2a2f3a;display:flex;gap:12px;justify-content:flex-end}.rd-button{padding:10px 20px;border:none;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;transition:all .2s}.rd-primary{background:#3b82f6;color:#fff}.rd-primary:hover{background:#2563eb}.rd-secondary{background:#374151;color:#e2e8f0}.rd-secondary:hover{background:#4b5563}.rd-small{padding:6px 12px;font-size:12px}.rd-file-help{background:#0f1117;border:1px solid #2a2f3a;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#94a3b8;line-height:1.4}.rd-file-toolbar{display:flex;align-items:center;gap:16px;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid #2a2f3a}.rd-file-stats{font-size:13px;color:#94a3b8;font-weight:500}.rd-file-tree{max-height:400px;overflow-y:auto}.rd-tree-item{margin:2px 0}.rd-folder-header{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;transition:background .2s}.rd-folder-header:hover{background:#2a2f3a}.rd-expander{width:16px;height:16px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#94a3b8;cursor:pointer;user-select:none}.rd-checkbox{margin:0}.rd-checkbox[data-indeterminate=true]{opacity:.7}.rd-folder-name{color:#e2e8f0;font-weight:500;font-size:14px;cursor:pointer}.rd-folder-badge{background:#374151;color:#94a3b8;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:500}.rd-folder-children{margin-left:20px;border-left:1px solid #2a2f3a;padding-left:12px}.rd-file{display:flex;align-items:center;gap:8px;padding:4px 8px;border-radius:6px;transition:background .2s}.rd-file:hover{background:#2a2f3a}.rd-file-name{color:#cbd5e1;font-size:13px;flex:1;cursor:pointer}.rd-file-size{color:#94a3b8;font-size:12px;font-family:monospace}@keyframes rdSlideIn{from{opacity:0;transform:scale(0.95) translateY(-10px)}to{opacity:1;transform:scale(1) translateY(0)}}.rd-file-tree::-webkit-scrollbar{width:6px}.rd-file-tree::-webkit-scrollbar-track{background:#1a1d23}.rd-file-tree::-webkit-scrollbar-thumb{background:#374151;border-radius:3px}.rd-file-tree::-webkit-scrollbar-thumb:hover{background:#4b5563}
       `;
-
-      const styleSheet = document.createElement('style');
-      styleSheet.id = 'rd-styles';
-      styleSheet.textContent = styles;
-      document.head.appendChild(styleSheet);
+      injectStyles(styles, 'rd-styles');
     },
 
     showToast(message, type = 'info') {
@@ -960,7 +954,7 @@
     }
 
     addIconsTo(documentRoot = document) {
-      const links = [...documentRoot.querySelectorAll('a[href^="magnet:"]')];
+      const links = [...qsa('a[href^="magnet:"]', documentRoot)];
       const newlyAddedKeys = [];
       for (const link of links) {
         if (!link.parentNode) continue;
@@ -1013,11 +1007,7 @@
         }
       }, MUTATION_DEBOUNCE_MS);
 
-      this.observer = new MutationObserver(debouncedHandler);
-      this.observer.observe(document.body, {
-        childList: true,
-        subtree: true
-      });
+      this.observer = createMutationObserver(debouncedHandler);
     }
 
     stopObserving() {
@@ -1037,7 +1027,7 @@
     if (_apiInitPromise) return _apiInitPromise;
 
     try {
-      if (!document.querySelector || !document.querySelector('a[href^="magnet:"]')) {
+      if (!qs('a[href^="magnet:"]')) {
         return false;
       }
     } catch {

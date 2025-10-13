@@ -5,7 +5,7 @@
 // @name         @journeyover/utils
 // @description  Utility helpers for my userscripts
 // @license      MIT
-// @version      1.0.2
+// @version      1.0.4
 // @homepageURL  https://github.com/StylusThemes/Userscripts
 // ==/UserScript==
 
@@ -227,9 +227,137 @@ function ready(fn) {
   }
 }
 
+/**
+ * Validates if cached data is still fresh based on timestamp and duration
+ * @param {Object} cacheEntry - Cache entry with timestamp and data
+ * @param {number} durationMs - Cache duration in milliseconds
+ * @returns {boolean} True if cache is valid
+ */
+function isCacheValid(cacheEntry, durationMs) {
+  return cacheEntry && cacheEntry.timestamp && (Date.now() - cacheEntry.timestamp < durationMs);
+}
+
+/**
+ * Creates a MutationObserver with flexible configuration
+ * @param {Function} callback - Observer callback function
+ * @param {Object} options - Observer options
+ * @param {Element} [target=document.body] - Element to observe
+ * @returns {MutationObserver} Configured observer
+ */
+function createMutationObserver(callback, options = {}, target = document.body) {
+  const defaultOptions = {
+    childList: true,
+    subtree: true,
+    ...options
+  };
+  const observer = new MutationObserver(callback);
+  observer.observe(target, defaultOptions);
+  return observer;
+}
+
+/**
+ * Creates a temporary MutationObserver that disconnects after a condition is met
+ * @param {Function} conditionFn - Function that returns true when observer should disconnect
+ * @param {Function} callback - Observer callback function
+ * @param {Object} options - Observer options
+ * @param {Element} [target=document.body] - Element to observe
+ * @returns {MutationObserver} Configured observer
+ */
+function createTemporaryObserver(conditionFn, callback, options = {}, target = document.body) {
+  const wrappedCallback = (mutations, observer) => {
+    if (conditionFn(mutations, observer)) {
+      observer.disconnect();
+      return;
+    }
+    callback(mutations, observer);
+  };
+  return createMutationObserver(wrappedCallback, options, target);
+}
+
+/**
+ * Waits for an element to appear in the DOM
+ * @param {string} selector - CSS selector to wait for
+ * @param {Element} [root=document] - Root element to search within
+ * @param {number} [timeout=10000] - Timeout in milliseconds
+ * @returns {Promise<Element>} Promise that resolves with the found element
+ */
+function waitForElement(selector, root = document, timeout = 10000) {
+  return new Promise((resolve, reject) => {
+    const element = root.querySelector(selector);
+    if (element) {
+      resolve(element);
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      observer.disconnect();
+      reject(new Error(`Element "${selector}" not found within ${timeout}ms`));
+    }, timeout);
+
+    const observer = createTemporaryObserver(
+      () => {
+        const found = root.querySelector(selector);
+        if (found) {
+          clearTimeout(timeoutId);
+          resolve(found);
+          return true; // Disconnect
+        }
+        return false; // Continue observing
+      },
+      () => {} // No-op callback, condition does the work
+    );
+  });
+}
+
+/**
+ * Creates a styled button element with common properties
+ * @param {string} text - Button text content
+ * @param {string} className - CSS class name
+ * @param {Function} clickHandler - Click event handler
+ * @returns {HTMLButtonElement} Created button element
+ */
+function createButton(text, className = '', clickHandler = null) {
+  const button = document.createElement('button');
+  button.textContent = text;
+  if (className) button.className = className;
+  if (clickHandler) button.addEventListener('click', clickHandler);
+  return button;
+}
+
+/**
+ * Injects CSS styles into the document head
+ * @param {string} css - CSS string to inject
+ * @param {string} id - Optional ID for the style element
+ * @returns {HTMLStyleElement} The created style element
+ */
+function injectStyles(css, id = null) {
+  const style = document.createElement('style');
+  style.textContent = css;
+  if (id) {
+    // Remove existing style with same ID
+    const existing = document.getElementById(id);
+    if (existing) existing.remove();
+    style.id = id;
+  }
+  document.head.appendChild(style);
+  return style;
+}
+
+/**
+ * Parses a date string with fallback parsing methods
+ * @param {string} dateString - Date string to parse
+ * @returns {number} Timestamp in milliseconds, or NaN if invalid
+ */
+function parseDate(dateString) {
+  if (!dateString) return NaN;
+  const cleanedText = dateString.replace(/\s+/g, ' ').trim();
+  const parsedTimestamp = Date.parse(cleanedText);
+  return isNaN(parsedTimestamp) ? new Date(cleanedText).getTime() || NaN : parsedTimestamp;
+}
+
 // Expose utilities.
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { debounce, Logger, qs, qsa, isVisible, findTargetInput, getNativeValueSetter, setInputValueReactive, ready };
+  module.exports = { debounce, Logger, qs, qsa, isVisible, findTargetInput, getNativeValueSetter, setInputValueReactive, ready, isCacheValid, createMutationObserver, createButton, injectStyles, parseDate, createTemporaryObserver, waitForElement };
 }
 
 if (typeof window !== 'undefined') {
@@ -242,4 +370,11 @@ if (typeof window !== 'undefined') {
   window.getNativeValueSetter = getNativeValueSetter;
   window.setInputValueReactive = setInputValueReactive;
   window.ready = ready;
+  window.isCacheValid = isCacheValid;
+  window.createMutationObserver = createMutationObserver;
+  window.createButton = createButton;
+  window.injectStyles = injectStyles;
+  window.parseDate = parseDate;
+  window.createTemporaryObserver = createTemporaryObserver;
+  window.waitForElement = waitForElement;
 }
