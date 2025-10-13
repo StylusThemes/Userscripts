@@ -5,7 +5,7 @@
 // @author        Journey Over
 // @license       MIT
 // @match         *://nyaa.si/*
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@c185c2777d00a6826a8bf3c43bbcdcfeba5a9566/libs/utils/utils.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@5b2ab3fb08fc27251c42944fcc05ff7443881da6/libs/utils/utils.min.js
 // @grant         none
 // @run-at        document-start
 // @icon          https://www.google.com/s2/favicons?sz=64&domain=nyaa.si

@@ -5,11 +5,11 @@
 // @author        Journey Over
 // @license       MIT
 // @match         *://trakt.tv/*
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@c185c2777d00a6826a8bf3c43bbcdcfeba5a9566/libs/gm/gmcompat.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@c185c2777d00a6826a8bf3c43bbcdcfeba5a9566/libs/utils/utils.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@[wip]/libs/metadata/wikidata/wikidata.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@[wip]/libs/metadata/armhaglund/armhaglund.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@[wip]/libs/metadata/anilist/anilist.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@5b2ab3fb08fc27251c42944fcc05ff7443881da6/libs/gm/gmcompat.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@5b2ab3fb08fc27251c42944fcc05ff7443881da6/libs/utils/utils.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@5b2ab3fb08fc27251c42944fcc05ff7443881da6/libs/metadata/wikidata/wikidata.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@5b2ab3fb08fc27251c42944fcc05ff7443881da6/libs/metadata/armhaglund/armhaglund.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@5b2ab3fb08fc27251c42944fcc05ff7443881da6/libs/metadata/anilist/anilist.min.js
 // @require       https://cdn.jsdelivr.net/npm/node-creation-observer@1.2.0/release/node-creation-observer-latest.min.js
 // @require       https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js
 // @grant         GM.deleteValue
