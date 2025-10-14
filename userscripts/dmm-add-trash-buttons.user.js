@@ -247,9 +247,7 @@
     `;
   };
 
-  (function injectStyles() {
-    injectStyles(generateStyles());
-  })();
+  injectStyles(generateStyles());
 
   class QualityManager {
     constructor() {
@@ -522,8 +520,10 @@
     cleanup() {
       this.buttons.clear();
       this.qualityPolarity.clear();
-      const existing = qs(`.${CONFIG.CSS_CLASS_PREFIX}-quality-section`, this.container);
-      if (existing) existing.remove();
+      if (this.container) {
+        const existing = qs(`.${CONFIG.CSS_CLASS_PREFIX}-quality-section`, this.container);
+        if (existing) existing.remove();
+      }
     }
   }
 
