@@ -240,17 +240,22 @@
           await this.fetchExtraIds(data);
         }
 
-        await GMC.setValue(this.mediaInfo.imdbId, {
-          links: data.links,
-          item: data.item,
-          time: Date.now()
-        });
+        const hasMeaningfulData = Object.keys(data.links).length > 0 || data.item;
 
-        this.addWikidataLinks(data.links);
-        this.mediaInfo.anilistId = data.links.AniList?.value.match(/\/anime\/(\d+)/)?.[1];
-        logger.debug(`Fetched new Wikidata links: ${JSON.stringify(data.links)}`);
+        if (hasMeaningfulData) {
+          await GMC.setValue(this.mediaInfo.imdbId, {
+            links: data.links,
+            item: data.item,
+            time: Date.now()
+          });
+
+          this.addWikidataLinks(data.links);
+          this.mediaInfo.anilistId = data.links.AniList?.value.match(/\/anime\/(\d+)/)?.[1];
+          logger.debug(`Fetched new Wikidata links: ${JSON.stringify(data.links)}`);
+        }
       } catch (error) {
         logger.error(`Failed fetching Wikidata links: ${error.message}`);
+        // Don't create empty cache entries on failure
       }
     }
 
