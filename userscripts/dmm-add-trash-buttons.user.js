@@ -524,8 +524,10 @@
     cleanup() {
       this.buttons.clear();
       this.qualityPolarity.clear();
-      const existing = this.container?.querySelector(`.${CONFIG.CSS_CLASS_PREFIX}-quality-section`);
-      if (existing) existing.remove();
+      if (this.container) {
+        const existing = this.container?.querySelector(`.${CONFIG.CSS_CLASS_PREFIX}-quality-section`);
+        if (existing) existing.remove();
+      }
     }
   }
 
