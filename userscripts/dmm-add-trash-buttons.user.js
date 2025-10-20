@@ -5,10 +5,10 @@
 // @author        Journey Over
 // @license       MIT
 // @match         *://debridmediamanager.com/*
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@c185c2777d00a6826a8bf3c43bbcdcfeba5a9566/libs/dmm/button-data.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@a5e43775690efdc12335b59f8089957e6d9c77f8/libs/gm/gmcompat.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@a5e43775690efdc12335b59f8089957e6d9c77f8/libs/utils/utils.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@a5e43775690efdc12335b59f8089957e6d9c77f8/libs/metadata/armhaglund/armhaglund.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@807f8f21e147eb4fbbd11173b30334f28665bf69/libs/dmm/button-data.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@807f8f21e147eb4fbbd11173b30334f28665bf69/libs/gm/gmcompat.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@807f8f21e147eb4fbbd11173b30334f28665bf69/libs/utils/utils.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@807f8f21e147eb4fbbd11173b30334f28665bf69/libs/metadata/armhaglund/armhaglund.min.js
 // @grant         GM.getValue
 // @grant         GM.setValue
 // @grant         GM.xmlHttpRequest

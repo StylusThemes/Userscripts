@@ -5,11 +5,11 @@
 // @author        Journey Over
 // @license       MIT
 // @match         *://trakt.tv/*
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@a5e43775690efdc12335b59f8089957e6d9c77f8/libs/gm/gmcompat.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@a5e43775690efdc12335b59f8089957e6d9c77f8/libs/utils/utils.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@a5e43775690efdc12335b59f8089957e6d9c77f8/libs/metadata/wikidata/wikidata.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@a5e43775690efdc12335b59f8089957e6d9c77f8/libs/metadata/armhaglund/armhaglund.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@a5e43775690efdc12335b59f8089957e6d9c77f8/libs/metadata/anilist/anilist.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@807f8f21e147eb4fbbd11173b30334f28665bf69/libs/gm/gmcompat.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@807f8f21e147eb4fbbd11173b30334f28665bf69/libs/utils/utils.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@807f8f21e147eb4fbbd11173b30334f28665bf69/libs/metadata/wikidata/wikidata.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@807f8f21e147eb4fbbd11173b30334f28665bf69/libs/metadata/armhaglund/armhaglund.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@807f8f21e147eb4fbbd11173b30334f28665bf69/libs/metadata/anilist/anilist.min.js
 // @require       https://cdn.jsdelivr.net/npm/node-creation-observer@1.2.0/release/node-creation-observer-latest.min.js
 // @require       https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js
 // @grant         GM.deleteValue
@@ -17,6 +17,7 @@
 // @grant         GM.listValues
 // @grant         GM.setValue
 // @grant         GM.xmlHttpRequest
+// @grant         GM.info
 // @run-at        document-start
 // @inject-into   content
 // @icon          https://www.google.com/s2/favicons?sz=64&domain=trakt.tv

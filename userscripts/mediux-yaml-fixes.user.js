@@ -5,8 +5,8 @@
 // @author        Journey Over
 // @license       MIT
 // @match         *://mediux.pro/*
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@a5e43775690efdc12335b59f8089957e6d9c77f8/libs/gm/gmcompat.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@a5e43775690efdc12335b59f8089957e6d9c77f8/libs/utils/utils.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@807f8f21e147eb4fbbd11173b30334f28665bf69/libs/gm/gmcompat.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@807f8f21e147eb4fbbd11173b30334f28665bf69/libs/utils/utils.min.js
 // @require       https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js
 // @grant         GM.xmlHttpRequest
 // @grant         GM.setValue
@@ -89,12 +89,12 @@
       copyToClipboard(text) {
         return navigator.clipboard.writeText(text)
           .then(() => {
-            this.showNotification("Results copied to clipboard!");
+            this.showNotification('Results copied to clipboard!');
             return true;
           })
           .catch(error => {
             logger.error('Failed to copy: ', error);
-            this.showNotification("Failed to copy to clipboard", 3000);
+            this.showNotification('Failed to copy to clipboard', 3000);
             return false;
           });
       }
@@ -173,7 +173,7 @@
         let elapsedTime = 0;
         let processedMovieTitles = [];
 
-        codeblock.innerText = "Processing... 0 seconds";
+        codeblock.innerText = 'Processing... 0 seconds';
 
         const timerInterval = setInterval(() => {
           elapsedTime = Math.floor((Date.now() - startTime) / 1000);
@@ -229,10 +229,10 @@
           clearInterval(timerInterval);
         }
 
-        codeblock.innerText = "Processing complete!";
+        codeblock.innerText = 'Processing complete!';
         const copyLink = document.createElement('a');
-        copyLink.href = "#";
-        copyLink.innerText = "Click here to copy the results";
+        copyLink.href = '#';
+        copyLink.innerText = 'Click here to copy the results';
         copyLink.style.color = 'blue';
         copyLink.style.cursor = 'pointer';
 
@@ -242,7 +242,7 @@
             await navigator.clipboard.writeText(yamlOutput);
             codeblock.innerText = yamlOutput;
             MediuxFixes.utils.updateButtonState(button);
-            MediuxFixes.utils.showNotification("Results copied to clipboard!");
+            MediuxFixes.utils.showNotification('Results copied to clipboard!');
           } catch (error) {
             logger.error('Failed to copy: ', error);
           }
@@ -259,7 +259,7 @@
         let yamlContent = codeblock.textContent;
         const posters = MediuxFixes.data.getPosters();
 
-        const seasonPosters = posters.filter(poster => poster.title.includes("Season"));
+        const seasonPosters = posters.filter(poster => poster.title.includes('Season'));
 
         for (let seasonIndex in seasonPosters) {
           const matchingSeasonPosters = seasonPosters.filter(season => season.title.includes(`Season ${seasonIndex}`));
@@ -271,7 +271,7 @@
         codeblock.innerText = yamlContent;
         navigator.clipboard.writeText(yamlContent)
           .then(() => {
-            MediuxFixes.utils.showNotification("Results copied to clipboard!");
+            MediuxFixes.utils.showNotification('Results copied to clipboard!');
             MediuxFixes.utils.updateButtonState(button);
           });
       },
@@ -294,11 +294,11 @@
           codeblock.innerText = modifiedYaml;
           navigator.clipboard.writeText(modifiedYaml)
             .then(() => {
-              MediuxFixes.utils.showNotification("Results copied to clipboard!");
+              MediuxFixes.utils.showNotification('Results copied to clipboard!');
               MediuxFixes.utils.updateButtonState(button);
             });
         } else {
-          MediuxFixes.utils.showNotification("No card formatting needed");
+          MediuxFixes.utils.showNotification('No card formatting needed');
         }
       },
 
@@ -330,7 +330,7 @@
         codeblock.innerText = yamlContent;
         navigator.clipboard.writeText(yamlContent)
           .then(() => {
-            MediuxFixes.utils.showNotification("YAML transformed and copied to clipboard!");
+            MediuxFixes.utils.showNotification('YAML transformed and copied to clipboard!');
             MediuxFixes.utils.updateButtonState(button);
           });
       },
@@ -363,7 +363,7 @@
         codeblock.innerText = yamlContent;
         navigator.clipboard.writeText(yamlContent)
           .then(() => {
-            MediuxFixes.utils.showNotification("YAML transformed and copied to clipboard!");
+            MediuxFixes.utils.showNotification('YAML transformed and copied to clipboard!');
             MediuxFixes.utils.updateButtonState(button);
           });
       }
@@ -427,7 +427,7 @@
     },
 
     init() {
-      waitForKeyElements("code.whitespace-pre-wrap", () => {
+      waitForKeyElements('code.whitespace-pre-wrap', () => {
         this.ui.createInterface();
         logger('Initialized');
       });
@@ -445,7 +445,7 @@
   ) {
     var targetElements, targetsFound;
 
-    targetElements = typeof iframeSelector == "undefined" ? jQuery(selectorTxt) : jQuery(iframeSelector).contents()
+    targetElements = typeof iframeSelector == 'undefined' ? jQuery(selectorTxt) : jQuery(iframeSelector).contents()
       .find(selectorTxt);
 
     if (targetElements && targetElements.length > 0) {
@@ -467,7 +467,7 @@
     }
 
     var controlObject = waitForKeyElements.controlObj || {};
-    var controlKey = selectorTxt.replace(/[^\w]/g, "_");
+    var controlKey = selectorTxt.replace(/[^\w]/g, '_');
     var intervalId = controlObject[controlKey];
 
     if (targetsFound && bWaitOnce && intervalId) {
