@@ -1,15 +1,27 @@
-import globals from 'globals';
-import unicorn from 'eslint-plugin-unicorn';
+import globals from "globals";
+//import regexp from "eslint-plugin-regexp";
+import unicorn from "eslint-plugin-unicorn";
 
 export default [
   {
-    files: ["userscripts/**/*.user.js"],
-    ignores: ["node_modules/", "dist/", "libs/", "package-lock.json", "bun.lock"],
+    ignores: [
+      "node_modules/**",
+      "**/*.min.js",
+      "**/package-lock.json",
+      "**/bun.lock",
+      "**/eslint.config.js",
+      "**/build.js",
+    ],
+  },
+  {
+    files: ["**/*.js"],
     languageOptions: {
-      ecmaVersion: 2025,
-      sourceType: "module",
+      ecmaVersion: "latest",
+      sourceType: "script",
       globals: {
         ...globals.browser,
+        ...globals.greasemonkey,
+        ...globals.node,
         Logger: "readonly",
         GMC: "readonly",
         GM: "readonly",
@@ -23,17 +35,23 @@ export default [
       },
     },
     plugins: {
+      //regexp,
       unicorn,
     },
     rules: {
-      "no-unused-vars": ["warn", { vars: "all", args: "after-used", ignoreRestSiblings: true }],
-      "eqeqeq": ["warn", "smart"],
+      //...regexp.configs["flat/recommended"].rules,
+      "no-unused-vars": [
+        "warn",
+        { vars: "all", args: "after-used", ignoreRestSiblings: true },
+      ],
+      eqeqeq: ["warn", "smart"],
       "no-console": "warn",
+      "no-trailing-spaces": "warn",
       "unicorn/no-unused-properties": "warn",
       "unicorn/no-array-for-each": "warn",
       "unicorn/prefer-ternary": "warn",
       "unicorn/catch-error-name": "warn",
-      "unicorn/prevent-abbreviations": ["warn", { "checkFilenames": false }],
+      "unicorn/prevent-abbreviations": ["warn", { checkFilenames: false }],
       "unicorn/consistent-function-scoping": "warn",
       "unicorn/no-useless-promise-resolve-reject": "warn",
       "unicorn/prefer-spread": "warn",

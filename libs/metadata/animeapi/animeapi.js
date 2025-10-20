@@ -33,12 +33,12 @@ this.AnimeAPI = class {
         timeout: 15e3,
         onload: (response) => {
           if (response.status !== 200) {
-            console.log(`${response.status}: ${response.finalUrl}`);
+            // Debug: ${response.status}: ${response.finalUrl}
           }
           try {
             const data = JSON.parse(response.responseText);
             resolve(data);
-          } catch (error) {
+          } catch {
             reject(new Error("Failed to parse AnimeAPI response"));
           }
         },

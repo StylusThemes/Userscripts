@@ -23,120 +23,156 @@ this.Wikidata = class {
   constructor() {
     this._property = (source) => {
       switch (source) {
-        case "IMDb":
+        case "IMDb": {
           return "P345";
-        case "TMDb_movie":
+        }
+        case "TMDb_movie": {
           return "P4947";
-        case "TMDb_tv":
+        }
+        case "TMDb_tv": {
           return "P4983";
-        case "TVDb_movie":
+        }
+        case "TVDb_movie": {
           return "P12196";
-        case "TVDb_tv":
+        }
+        case "TVDb_tv": {
           return "P4835";
-        case "Trakt":
+        }
+        case "Trakt": {
           return "P8013";
-        case "Rotten Tomatoes":
+        }
+        case "Rotten Tomatoes": {
           return "P1258";
-        case "Metacritic":
+        }
+        case "Metacritic": {
           return "P1712";
-        case "Letterboxd":
+        }
+        case "Letterboxd": {
           return "P6127";
-        case "TVmaze":
+        }
+        case "TVmaze": {
           return "P8600";
-        case "MyAnimeList":
+        }
+        case "MyAnimeList": {
           return "P4086";
-        case "AniDB":
+        }
+        case "AniDB": {
           return "P5646";
-        case "AniList":
+        }
+        case "AniList": {
           return "P8729";
-        case "Kitsu":
+        }
+        case "Kitsu": {
           return "P11495";
-        case "AniSearch":
+        }
+        case "AniSearch": {
           return "P12477";
-        case "LiveChart":
+        }
+        case "LiveChart": {
           return "P12489";
-        default:
+        }
+        default: {
           throw new Error("An ID source is required");
+        }
       }
     };
 
     this._item = (type) => {
       switch (type) {
-        case "movie":
+        case "movie": {
           return "Q11424";
-        case "tv":
+        }
+        case "tv": {
           return "Q5398426";
-        default:
+        }
+        default: {
           throw new Error("An ID type is required");
+        }
       }
     };
 
     this._link = (site, id) => {
       switch (site) {
-        case "IMDb":
+        case "IMDb": {
           return {
             value: `https://www.imdb.com/title/${id}`
           };
-        case "TMDb_movie":
+        }
+        case "TMDb_movie": {
           return {
             value: `https://www.themoviedb.org/movie/${id}`
           };
-        case "TMDb_tv":
+        }
+        case "TMDb_tv": {
           return {
             value: `https://www.themoviedb.org/tv/${id}`
           };
-        case "TVDb_movie":
+        }
+        case "TVDb_movie": {
           return {
             value: `https://thetvdb.com/dereferrer/movie/${id}`
           };
-        case "TVDb_tv":
+        }
+        case "TVDb_tv": {
           return {
             value: `https://thetvdb.com/dereferrer/series/${id}`
           };
-        case "Trakt":
+        }
+        case "Trakt": {
           return {
             value: `https://trakt.tv/${id}`
           };
-        case "Rotten Tomatoes":
+        }
+        case "Rotten Tomatoes": {
           return {
             value: `https://www.rottentomatoes.com/${id}`
           };
-        case "Metacritic":
+        }
+        case "Metacritic": {
           return {
             value: `https://www.metacritic.com/${id}`
           };
-        case "Letterboxd":
+        }
+        case "Letterboxd": {
           return {
             value: `https://letterboxd.com/film/${id}`
           };
-        case "TVmaze":
+        }
+        case "TVmaze": {
           return {
             value: `https://tvmaze.com/shows/${id}`
           };
-        case "MyAnimeList":
+        }
+        case "MyAnimeList": {
           return {
             value: `https://myanimelist.net/anime/${id}`
           };
-        case "AniDB":
+        }
+        case "AniDB": {
           return {
             value: `https://anidb.net/anime/${id}`
           };
-        case "AniList":
+        }
+        case "AniList": {
           return {
             value: `https://anilist.co/anime/${id}`
           };
-        case "Kitsu":
+        }
+        case "Kitsu": {
           return {
             value: `https://kitsu.app/anime/${id}`
           };
-        case "AniSearch":
+        }
+        case "AniSearch": {
           return {
             value: `https://www.anisearch.com/anime/${id}`
           };
-        case "LiveChart":
+        }
+        case "LiveChart": {
           return {
             value: `https://www.livechart.me/anime/${id}`
           };
+        }
       }
     };
   }
@@ -199,7 +235,7 @@ this.Wikidata = class {
         timeout: 15e3,
         onload: (response) => {
           if (response.status !== 200) {
-            console.log(`${response.status}: ${response.finalUrl}`);
+            // Debug: ${response.status}: ${response.finalUrl}
           }
           try {
             const results = JSON.parse(response.responseText)
@@ -241,7 +277,7 @@ this.Wikidata = class {
             } else {
               resolve({ title: void 0, links: {}, item: void 0 });
             }
-          } catch (error) {
+          } catch {
             reject(new Error("Failed to parse Wikidata response"));
           }
         },

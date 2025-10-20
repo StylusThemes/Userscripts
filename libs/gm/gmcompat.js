@@ -24,7 +24,7 @@
    GM_xmlhttpRequest, GM_registerMenuCommand, GM_addStyle, GM_setClipboard,
    GM_addValueChangeListener, GM_removeValueChangeListener */
 
-const GMC = (function(global) {
+(function(global) {
   'use strict';
 
   const hasGM = typeof GM !== 'undefined' && GM !== null;
@@ -32,86 +32,86 @@ const GMC = (function(global) {
     typeof GM_getValue !== 'undefined' ||
     typeof GM_setValue !== 'undefined';
 
-  const isFn = v => typeof v === 'function';
+  const isFunction = value => typeof value === 'function';
 
   // --- Storage ---
-  async function getValue(key, def) {
-    if (hasGM && isFn(GM.getValue)) return GM.getValue(key, def);
-    if (isFn(GM_getValue)) {
+  async function getValue(key, defaultValue) {
+    if (hasGM && isFunction(GM.getValue)) return GM.getValue(key, defaultValue);
+    if (isFunction(GM_getValue)) {
       try {
-        const val = GM_getValue(key);
-        return val === undefined ? def : val;
-      } catch (e) {
-        return Promise.reject(e);
+        const value = GM_getValue(key);
+        return value === undefined ? defaultValue : value;
+      } catch (error) {
+        throw error;
       }
     }
-    return Promise.reject(new Error('GM.getValue not available'));
+    throw new Error('GM.getValue not available');
   }
 
-  function setValue(key, value) {
-    if (hasGM && isFn(GM.setValue)) return GM.setValue(key, value);
-    if (isFn(GM_setValue)) {
+  async function setValue(key, value) {
+    if (hasGM && isFunction(GM.setValue)) return GM.setValue(key, value);
+    if (isFunction(GM_setValue)) {
       try {
         GM_setValue(key, value);
-        return Promise.resolve();
-      } catch (e) {
-        return Promise.reject(e);
+      } catch (error) {
+        throw error;
       }
+    } else {
+      throw new Error('GM.setValue not available');
     }
-    return Promise.reject(new Error('GM.setValue not available'));
   }
 
-  function deleteValue(key) {
-    if (hasGM && isFn(GM.deleteValue)) return GM.deleteValue(key);
-    if (isFn(GM_deleteValue)) {
+  async function deleteValue(key) {
+    if (hasGM && isFunction(GM.deleteValue)) return GM.deleteValue(key);
+    if (isFunction(GM_deleteValue)) {
       try {
         GM_deleteValue(key);
-        return Promise.resolve();
-      } catch (e) {
-        return Promise.reject(e);
+      } catch (error) {
+        throw error;
       }
+    } else {
+      throw new Error('GM.deleteValue not available');
     }
-    return Promise.reject(new Error('GM.deleteValue not available'));
   }
 
-  function listValues() {
-    if (hasGM && isFn(GM.listValues)) return GM.listValues();
-    if (isFn(GM_listValues)) {
+  async function listValues() {
+    if (hasGM && isFunction(GM.listValues)) return GM.listValues();
+    if (isFunction(GM_listValues)) {
       try {
-        return Promise.resolve(GM_listValues());
-      } catch (e) {
-        return Promise.reject(e);
+        return GM_listValues();
+      } catch (error) {
+        throw error;
       }
     }
-    return Promise.reject(new Error('GM.listValues not available'));
+    throw new Error('GM.listValues not available');
   }
 
   // --- XHR ---
   function xmlHttpRequest(details = {}) {
     return new Promise((resolve, reject) => {
       const success = resp => resolve(resp);
-      const fail = err => reject(err);
+      const fail = error => reject(error);
 
-      if (hasGM && isFn(GM.xmlHttpRequest)) {
+      if (hasGM && isFunction(GM.xmlHttpRequest)) {
         const d = { ...details };
         if (!d.onload) d.onload = success;
         if (!d.onerror) d.onerror = fail;
         try {
           GM.xmlHttpRequest(d);
-        } catch (e) {
-          reject(e);
+        } catch (error) {
+          reject(error);
         }
         return;
       }
 
-      if (isFn(GM_xmlhttpRequest)) {
+      if (isFunction(GM_xmlhttpRequest)) {
         const d = { ...details };
         if (!d.onload) d.onload = success;
         if (!d.onerror) d.onerror = fail;
         try {
           GM_xmlhttpRequest(d);
-        } catch (e) {
-          reject(e);
+        } catch (error) {
+          reject(error);
         }
         return;
       }
@@ -121,79 +121,83 @@ const GMC = (function(global) {
   }
 
   // --- Clipboard ---
-  function setClipboard(data, type) {
-    if (hasGM && isFn(GM.setClipboard)) {
+  async function setClipboard(data, type) {
+    if (hasGM && isFunction(GM.setClipboard)) {
       try {
-        return Promise.resolve(GM.setClipboard(data, type));
-      } catch (e) {
-        return Promise.reject(e);
+        return GM.setClipboard(data, type);
+      } catch (error) {
+        throw error;
       }
     }
-    if (isFn(GM_setClipboard)) {
+    if (isFunction(GM_setClipboard)) {
       try {
         GM_setClipboard(data, type);
-        return Promise.resolve();
-      } catch (e) {
-        return Promise.reject(e);
+      } catch (error) {
+        throw error;
       }
+    } else {
+      throw new Error('GM.setClipboard not available');
     }
-    return Promise.reject(new Error('GM.setClipboard not available'));
   }
 
   // --- addStyle ---
   function addStyle(css) {
     if (!css) return;
-    if (hasGM && isFn(GM.addStyle)) {
+    if (hasGM && isFunction(GM.addStyle)) {
       try {
         return GM.addStyle(css);
-      } catch (e) { /* fallback */ }
+      } catch {
+        /* fallback */
+      }
     }
-    if (isFn(GM_addStyle)) {
+    if (isFunction(GM_addStyle)) {
       try {
         return GM_addStyle(css);
-      } catch (e) { /* fallback */ }
+      } catch {
+        /* fallback */
+      }
     }
-    return Promise.reject(new Error('GM.addStyle not available'));
+    throw new Error('GM.addStyle not available');
   }
 
   // --- Menu ---
-  function registerMenuCommand(caption, fn, accessKey) {
-    if (hasGM && isFn(GM.registerMenuCommand)) {
+  async function registerMenuCommand(caption, callback, accessKey) {
+    if (hasGM && isFunction(GM.registerMenuCommand)) {
       try {
-        return Promise.resolve(GM.registerMenuCommand(caption, fn, accessKey));
-      } catch (e) {
-        return Promise.reject(e);
+        return GM.registerMenuCommand(caption, callback, accessKey);
+      } catch (error) {
+        throw error;
       }
     }
-    if (isFn(GM_registerMenuCommand)) {
+    if (isFunction(GM_registerMenuCommand)) {
       try {
-        return Promise.resolve(GM_registerMenuCommand(caption, fn, accessKey));
-      } catch (e) {
-        return Promise.reject(e);
+        return GM_registerMenuCommand(caption, callback, accessKey);
+      } catch (error) {
+        throw error;
       }
     }
-    return Promise.reject(new Error('GM.registerMenuCommand not available'));
+    throw new Error('GM.registerMenuCommand not available');
   }
 
   // --- Value change listeners ---
-  function addValueChangeListener(name, fn) {
-    if (hasGM && isFn(GM.addValueChangeListener)) {
-      return GM.addValueChangeListener(name, fn);
+  function addValueChangeListener(name, callback) {
+    if (hasGM && isFunction(GM.addValueChangeListener)) {
+      return GM.addValueChangeListener(name, callback);
     }
-    if (isFn(GM_addValueChangeListener)) {
-      return GM_addValueChangeListener(name, fn);
+    if (isFunction(GM_addValueChangeListener)) {
+      return GM_addValueChangeListener(name, callback);
     }
-    return Promise.reject(new Error('GM.addValueChangeListener not available'));
+    throw new Error('GM.addValueChangeListener not available');
   }
 
   function removeValueChangeListener(id) {
-    if (hasGM && isFn(GM.removeValueChangeListener)) {
+    if (hasGM && isFunction(GM.removeValueChangeListener)) {
       return GM.removeValueChangeListener(id);
     }
-    if (isFn(GM_removeValueChangeListener)) {
+    if (isFunction(GM_removeValueChangeListener)) {
       return GM_removeValueChangeListener(id);
     }
-    return Promise.reject(new Error('GM.removeValueChangeListener not available'));
+    throw new Error('GM.removeValueChangeListener not available');
   }
 
   // --- Debug info ---
@@ -201,16 +205,16 @@ const GMC = (function(global) {
     hasGM,
     hasLegacy,
     available: {
-      getValue: hasGM ? isFn(GM.getValue) : isFn(GM_getValue),
-      setValue: hasGM ? isFn(GM.setValue) : isFn(GM_setValue),
-      deleteValue: hasGM ? isFn(GM.deleteValue) : isFn(GM_deleteValue),
-      listValues: hasGM ? isFn(GM.listValues) : isFn(GM_listValues),
-      xmlHttpRequest: hasGM ? isFn(GM.xmlHttpRequest) : isFn(GM_xmlhttpRequest),
-      registerMenuCommand: hasGM ? isFn(GM.registerMenuCommand) : isFn(GM_registerMenuCommand),
-      addStyle: hasGM ? isFn(GM.addStyle) : isFn(GM_addStyle),
-      setClipboard: hasGM ? isFn(GM.setClipboard) : isFn(GM_setClipboard),
-      addValueChangeListener: hasGM ? isFn(GM.addValueChangeListener) : isFn(GM_addValueChangeListener),
-      removeValueChangeListener: hasGM ? isFn(GM.removeValueChangeListener) : isFn(GM_removeValueChangeListener),
+      getValue: hasGM ? isFunction(GM.getValue) : isFunction(GM_getValue),
+      setValue: hasGM ? isFunction(GM.setValue) : isFunction(GM_setValue),
+      deleteValue: hasGM ? isFunction(GM.deleteValue) : isFunction(GM_deleteValue),
+      listValues: hasGM ? isFunction(GM.listValues) : isFunction(GM_listValues),
+      xmlHttpRequest: hasGM ? isFunction(GM.xmlHttpRequest) : isFunction(GM_xmlhttpRequest),
+      registerMenuCommand: hasGM ? isFunction(GM.registerMenuCommand) : isFunction(GM_registerMenuCommand),
+      addStyle: hasGM ? isFunction(GM.addStyle) : isFunction(GM_addStyle),
+      setClipboard: hasGM ? isFunction(GM.setClipboard) : isFunction(GM_setClipboard),
+      addValueChangeListener: hasGM ? isFunction(GM.addValueChangeListener) : isFunction(GM_addValueChangeListener),
+      removeValueChangeListener: hasGM ? isFunction(GM.removeValueChangeListener) : isFunction(GM_removeValueChangeListener),
     }
   };
 
@@ -241,7 +245,5 @@ const GMC = (function(global) {
   global.GM_registerMenuCommand = API.registerMenuCommand;
   global.GM_addValueChangeListener = API.addValueChangeListener;
   global.GM_removeValueChangeListener = API.removeValueChangeListener;
-
-  return API;
 
 })(typeof unsafeWindow !== "undefined" ? unsafeWindow : window);

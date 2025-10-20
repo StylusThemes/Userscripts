@@ -1,18 +1,22 @@
 {
-  "name": "userscripts",
-  "version": "1.0.0",
+  "author": {
+    "name": "Journey Over",
+    "url": "https://github.com/journeyover"
+  },
+  "homepage": "https://github.com/stylusthemes/userscripts",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "build": "bun ./scripts/build.js",
-    "lint": "eslint \"userscripts/**/*.user.js\" --ext .js"
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "dependencies": {
     "terser": "^5.44.0",
     "js-beautify": "^1.15.4"
   },
   "devDependencies": {
-    "eslint": "9.37.0",
-    "eslint-plugin-unicorn": "61.0.2",
-    "globals": "^16.4.0"
+    "eslint": "^9.37.0",
+    "eslint-plugin-unicorn": "^61.0.2"
   }
 }
