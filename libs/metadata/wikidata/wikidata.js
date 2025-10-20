@@ -23,152 +23,152 @@ this.Wikidata = class {
   constructor() {
     this._property = (source) => {
       switch (source) {
-        case "IMDb": {
-          return "P345";
+        case 'IMDb': {
+          return 'P345';
         }
-        case "TMDb_movie": {
-          return "P4947";
+        case 'TMDb_movie': {
+          return 'P4947';
         }
-        case "TMDb_tv": {
-          return "P4983";
+        case 'TMDb_tv': {
+          return 'P4983';
         }
-        case "TVDb_movie": {
-          return "P12196";
+        case 'TVDb_movie': {
+          return 'P12196';
         }
-        case "TVDb_tv": {
-          return "P4835";
+        case 'TVDb_tv': {
+          return 'P4835';
         }
-        case "Trakt": {
-          return "P8013";
+        case 'Trakt': {
+          return 'P8013';
         }
-        case "Rotten Tomatoes": {
-          return "P1258";
+        case 'Rotten Tomatoes': {
+          return 'P1258';
         }
-        case "Metacritic": {
-          return "P1712";
+        case 'Metacritic': {
+          return 'P1712';
         }
-        case "Letterboxd": {
-          return "P6127";
+        case 'Letterboxd': {
+          return 'P6127';
         }
-        case "TVmaze": {
-          return "P8600";
+        case 'TVmaze': {
+          return 'P8600';
         }
-        case "MyAnimeList": {
-          return "P4086";
+        case 'MyAnimeList': {
+          return 'P4086';
         }
-        case "AniDB": {
-          return "P5646";
+        case 'AniDB': {
+          return 'P5646';
         }
-        case "AniList": {
-          return "P8729";
+        case 'AniList': {
+          return 'P8729';
         }
-        case "Kitsu": {
-          return "P11495";
+        case 'Kitsu': {
+          return 'P11495';
         }
-        case "AniSearch": {
-          return "P12477";
+        case 'AniSearch': {
+          return 'P12477';
         }
-        case "LiveChart": {
-          return "P12489";
+        case 'LiveChart': {
+          return 'P12489';
         }
         default: {
-          throw new Error("An ID source is required");
+          throw new Error('An ID source is required');
         }
       }
     };
 
     this._item = (type) => {
       switch (type) {
-        case "movie": {
-          return "Q11424";
+        case 'movie': {
+          return 'Q11424';
         }
-        case "tv": {
-          return "Q5398426";
+        case 'tv': {
+          return 'Q5398426';
         }
         default: {
-          throw new Error("An ID type is required");
+          throw new Error('An ID type is required');
         }
       }
     };
 
     this._link = (site, id) => {
       switch (site) {
-        case "IMDb": {
+        case 'IMDb': {
           return {
             value: `https://www.imdb.com/title/${id}`
           };
         }
-        case "TMDb_movie": {
+        case 'TMDb_movie': {
           return {
             value: `https://www.themoviedb.org/movie/${id}`
           };
         }
-        case "TMDb_tv": {
+        case 'TMDb_tv': {
           return {
             value: `https://www.themoviedb.org/tv/${id}`
           };
         }
-        case "TVDb_movie": {
+        case 'TVDb_movie': {
           return {
             value: `https://thetvdb.com/dereferrer/movie/${id}`
           };
         }
-        case "TVDb_tv": {
+        case 'TVDb_tv': {
           return {
             value: `https://thetvdb.com/dereferrer/series/${id}`
           };
         }
-        case "Trakt": {
+        case 'Trakt': {
           return {
             value: `https://trakt.tv/${id}`
           };
         }
-        case "Rotten Tomatoes": {
+        case 'Rotten Tomatoes': {
           return {
             value: `https://www.rottentomatoes.com/${id}`
           };
         }
-        case "Metacritic": {
+        case 'Metacritic': {
           return {
             value: `https://www.metacritic.com/${id}`
           };
         }
-        case "Letterboxd": {
+        case 'Letterboxd': {
           return {
             value: `https://letterboxd.com/film/${id}`
           };
         }
-        case "TVmaze": {
+        case 'TVmaze': {
           return {
             value: `https://tvmaze.com/shows/${id}`
           };
         }
-        case "MyAnimeList": {
+        case 'MyAnimeList': {
           return {
             value: `https://myanimelist.net/anime/${id}`
           };
         }
-        case "AniDB": {
+        case 'AniDB': {
           return {
             value: `https://anidb.net/anime/${id}`
           };
         }
-        case "AniList": {
+        case 'AniList': {
           return {
             value: `https://anilist.co/anime/${id}`
           };
         }
-        case "Kitsu": {
+        case 'Kitsu': {
           return {
             value: `https://kitsu.app/anime/${id}`
           };
         }
-        case "AniSearch": {
+        case 'AniSearch': {
           return {
             value: `https://www.anisearch.com/anime/${id}`
           };
         }
-        case "LiveChart": {
+        case 'LiveChart': {
           return {
             value: `https://www.livechart.me/anime/${id}`
           };
@@ -186,9 +186,9 @@ this.Wikidata = class {
    *                           If no data is found, resolves to { title: undefined, links: {}, item: undefined }.
    */
   links(id, idSource, itemType) {
-    if (!id) throw new Error("An ID is required");
-    if (!idSource) throw new Error("An ID source is required");
-    if (!itemType || (itemType !== "movie" && itemType !== "tv")) throw new Error("Item type must be 'movie' or 'tv'");
+    if (!id) throw new Error('An ID is required');
+    if (!idSource) throw new Error('An ID source is required');
+    if (!itemType || (itemType !== 'movie' && itemType !== 'tv')) throw new Error('Item type must be \'movie\' or \'tv\'');
     const property = this._property(idSource);
     const item = this._item(itemType);
 
@@ -229,9 +229,9 @@ this.Wikidata = class {
 
     return new Promise((resolve, reject) => {
       GM.xmlHttpRequest({
-        method: "GET",
+        method: 'GET',
         url: `https://query.wikidata.org/sparql?query=${encodeURIComponent(query)}`,
-        headers: { Accept: "application/sparql-results+json" },
+        headers: { Accept: 'application/sparql-results+json' },
         timeout: 15e3,
         onload: (response) => {
           if (response.status !== 200) {
@@ -249,26 +249,26 @@ this.Wikidata = class {
               const data = {
                 title: results.itemLabel ? results.itemLabel.value : void 0,
                 links: {
-                  IMDB: results.IMDb ? this._link("IMDb", results.IMDb.value) : void 0,
+                  IMDB: results.IMDb ? this._link('IMDb', results.IMDb.value) : void 0,
                   TMDB: results.TMDb_movie || results.TMDb_tv ?
                     results.TMDb_movie ?
-                    this._link("TMDb_movie", results.TMDb_movie.value) :
-                    this._link("TMDb_tv", results.TMDb_tv.value) : void 0,
+                    this._link('TMDb_movie', results.TMDb_movie.value) :
+                    this._link('TMDb_tv', results.TMDb_tv.value) : void 0,
                   TVDB: results.TVDb_movie || results.TVDb_tv ?
                     results.TVDb_movie ?
-                    this._link("TVDb_movie", results.TVDb_movie.value) :
-                    this._link("TVDb_tv", results.TVDb_tv.value) : void 0,
-                  Trakt: results.Trakt ? this._link("Trakt", results.Trakt.value) : void 0,
-                  "Rotten Tomatoes": results.RottenTomatoes ? this._link("Rotten Tomatoes", results.RottenTomatoes.value) : void 0,
-                  Metacritic: results.Metacritic ? this._link("Metacritic", results.Metacritic.value) : void 0,
-                  Letterboxd: results.Letterboxd ? this._link("Letterboxd", results.Letterboxd.value) : void 0,
-                  TVmaze: results.TVmaze ? this._link("TVmaze", results.TVmaze.value) : void 0,
-                  MyAnimeList: results.MyAnimeList ? this._link("MyAnimeList", results.MyAnimeList.value) : void 0,
-                  AniDB: results.AniDB ? this._link("AniDB", results.AniDB.value) : void 0,
-                  AniList: results.AniList ? this._link("AniList", results.AniList.value) : void 0,
-                  Kitsu: results.Kitsu ? this._link("Kitsu", results.Kitsu.value) : void 0,
-                  AniSearch: results.AniSearch ? this._link("AniSearch", results.AniSearch.value) : void 0,
-                  LiveChart: results.LiveChart ? this._link("LiveChart", results.LiveChart.value) : void 0,
+                    this._link('TVDb_movie', results.TVDb_movie.value) :
+                    this._link('TVDb_tv', results.TVDb_tv.value) : void 0,
+                  Trakt: results.Trakt ? this._link('Trakt', results.Trakt.value) : void 0,
+                  'Rotten Tomatoes': results.RottenTomatoes ? this._link('Rotten Tomatoes', results.RottenTomatoes.value) : void 0,
+                  Metacritic: results.Metacritic ? this._link('Metacritic', results.Metacritic.value) : void 0,
+                  Letterboxd: results.Letterboxd ? this._link('Letterboxd', results.Letterboxd.value) : void 0,
+                  TVmaze: results.TVmaze ? this._link('TVmaze', results.TVmaze.value) : void 0,
+                  MyAnimeList: results.MyAnimeList ? this._link('MyAnimeList', results.MyAnimeList.value) : void 0,
+                  AniDB: results.AniDB ? this._link('AniDB', results.AniDB.value) : void 0,
+                  AniList: results.AniList ? this._link('AniList', results.AniList.value) : void 0,
+                  Kitsu: results.Kitsu ? this._link('Kitsu', results.Kitsu.value) : void 0,
+                  AniSearch: results.AniSearch ? this._link('AniSearch', results.AniSearch.value) : void 0,
+                  LiveChart: results.LiveChart ? this._link('LiveChart', results.LiveChart.value) : void 0,
                 },
                 item: results.item ? results.item.value : void 0,
               };
@@ -278,14 +278,14 @@ this.Wikidata = class {
               resolve({ title: void 0, links: {}, item: void 0 });
             }
           } catch {
-            reject(new Error("Failed to parse Wikidata response"));
+            reject(new Error('Failed to parse Wikidata response'));
           }
         },
         onerror: () => {
-          reject(new Error("An error occurs while processing the request"));
+          reject(new Error('An error occurs while processing the request'));
         },
         ontimeout: () => {
-          reject(new Error("Request times out"));
+          reject(new Error('Request times out'));
         },
       });
     });

@@ -23,15 +23,15 @@ this.AniList = class {
    * @returns {Promise<Object>} A promise that resolves to the response data.
    */
   query(query, variables = {}) {
-    if (!query) throw new Error("A GraphQL query is required");
+    if (!query) throw new Error('A GraphQL query is required');
 
     return new Promise((resolve, reject) => {
       GM.xmlHttpRequest({
-        method: "POST",
-        url: "https://graphql.anilist.co",
+        method: 'POST',
+        url: 'https://graphql.anilist.co',
         headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json",
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
         data: JSON.stringify({
           query,
@@ -47,17 +47,17 @@ this.AniList = class {
               const data = JSON.parse(response.responseText);
               resolve(data);
             } catch {
-              reject(new Error("Failed to parse AniList response"));
+              reject(new Error('Failed to parse AniList response'));
             }
           } else {
             reject(new Error(`AniList API error: ${response.status}`));
           }
         },
         onerror: () => {
-          reject(new Error("An error occurs while processing the request"));
+          reject(new Error('An error occurs while processing the request'));
         },
         ontimeout: () => {
-          reject(new Error("Request times out"));
+          reject(new Error('Request times out'));
         },
       });
     });

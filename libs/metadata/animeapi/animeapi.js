@@ -23,12 +23,12 @@ this.AnimeAPI = class {
    * @returns {Promise<Object|null>} A promise that resolves to the data object or null if not found.
    */
   fetch(source, id) {
-    if (!source) throw new Error("A source is required");
-    if (!id) throw new Error("An ID is required");
+    if (!source) throw new Error('A source is required');
+    if (!id) throw new Error('An ID is required');
 
     return new Promise((resolve, reject) => {
       GM.xmlHttpRequest({
-        method: "GET",
+        method: 'GET',
         url: `https://animeapi.my.id/${source}/${id}`,
         timeout: 15e3,
         onload: (response) => {
@@ -39,14 +39,14 @@ this.AnimeAPI = class {
             const data = JSON.parse(response.responseText);
             resolve(data);
           } catch {
-            reject(new Error("Failed to parse AnimeAPI response"));
+            reject(new Error('Failed to parse AnimeAPI response'));
           }
         },
         onerror: () => {
-          reject(new Error("An error occurs while processing the request"));
+          reject(new Error('An error occurs while processing the request'));
         },
         ontimeout: () => {
-          reject(new Error("Request times out"));
+          reject(new Error('Request times out'));
         },
       });
     });

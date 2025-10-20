@@ -23,12 +23,12 @@ this.ArmHaglund = class {
    * @returns {Promise<Object|null>} A promise that resolves to the first result object or null if not found.
    */
   fetchIds(source, id) {
-    if (!source) throw new Error("A source is required");
-    if (!id) throw new Error("An ID is required");
+    if (!source) throw new Error('A source is required');
+    if (!id) throw new Error('An ID is required');
 
     return new Promise((resolve, reject) => {
       GM.xmlHttpRequest({
-        method: "GET",
+        method: 'GET',
         url: `https://arm.haglund.dev/api/v2/${source}?id=${id}`,
         timeout: 15e3,
         onload: (response) => {
@@ -43,14 +43,14 @@ this.ArmHaglund = class {
               resolve(null);
             }
           } catch {
-            reject(new Error("Failed to parse Arm Haglund response"));
+            reject(new Error('Failed to parse Arm Haglund response'));
           }
         },
         onerror: () => {
-          reject(new Error("An error occurs while processing the request"));
+          reject(new Error('An error occurs while processing the request'));
         },
         ontimeout: () => {
-          reject(new Error("Request times out"));
+          reject(new Error('Request times out'));
         },
       });
     });
