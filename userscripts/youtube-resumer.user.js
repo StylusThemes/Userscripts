@@ -6,8 +6,8 @@
 // @license       MIT
 // @match         *://*.youtube.com/*
 // @match         *://*.youtube-nocookie.com/*
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@c185c2777d00a6826a8bf3c43bbcdcfeba5a9566/libs/gm/gmcompat.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@c185c2777d00a6826a8bf3c43bbcdcfeba5a9566/libs/utils/utils.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@a5e43775690efdc12335b59f8089957e6d9c77f8/libs/gm/gmcompat.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@a5e43775690efdc12335b59f8089957e6d9c77f8/libs/utils/utils.min.js
 // @grant         GM.setValue
 // @grant         GM.getValue
 // @grant         GM.deleteValue
