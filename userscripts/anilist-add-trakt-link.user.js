@@ -1,15 +1,15 @@
 // ==UserScript==
 // @name          AniList - Add Trakt link
-// @version       1.0.0
+// @version       1.1.0
 // @description   Add trakt link to AniList anime pages
 // @author        Journey Over
 // @license       MIT
 // @match         *://anilist.co/*
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@c185c2777d00a6826a8bf3c43bbcdcfeba5a9566/libs/gm/gmcompat.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@c185c2777d00a6826a8bf3c43bbcdcfeba5a9566/libs/utils/utils.min.js
-// @grant         GM.xmlHttpRequest
-// @grant         GM.setValue
-// @grant         GM.getValue
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@9db06a14c296ae584e0723cde883729d819e0625/libs/utils/utils.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@644b86d55bf5816a4fa2a165bdb011ef7c22dfe1/libs/metadata/animeapi/animeapi.min.js
+// @grant         GM_xmlhttpRequest
+// @grant         GM_setValue
+// @grant         GM_getValue
 // @run-at        document-end
 // @inject-into   content
 // @icon          https://www.google.com/s2/favicons?sz=64&domain=anilist.co
@@ -22,17 +22,18 @@
   'use strict';
 
   const CONFIG = {
-    CACHE_DURATION: 24 * 60 * 60 * 1000, // 24 hours
+    CACHE_DURATION: 24 * 60 * 60 * 1000,
     TRAKT_COLOR: '#ED1C24E0',
     ICON_URL: 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/trakt.svg',
     ICON_SIZE: '16px'
   };
 
+  const animeApi = new AnimeAPI();
   const logger = Logger('AniList - Add Trakt link', { debug: false });
 
   class AniListTraktLinker {
     constructor() {
-      this.lastProcessedId = null;
+      this.lastProcessedAnimeId = null;
       this.init();
     }
 
@@ -42,22 +43,24 @@
     }
 
     setupSPAWatcher() {
-      const observer = new MutationObserver(mutations => {
-        mutations.forEach(mutation => {
-          mutation.addedNodes.forEach(node => {
+      const mutationObserver = new MutationObserver(mutations => {
+        for (const mutation of mutations) {
+          for (const node of mutation.addedNodes) {
             if (this.isExternalLinksContainer(node)) {
               this.handlePageChange();
             }
-          });
-        });
+          }
+        }
       });
 
-      observer.observe(document.body, {
+      mutationObserver.observe(document.body, {
         childList: true,
         subtree: true
       });
     }
 
+    // Check both direct matches and child elements because SPA might insert wrapper elements
+    // around the external links container during page transitions
     isExternalLinksContainer(node) {
       return node.nodeType === Node.ELEMENT_NODE &&
         (node.matches('.external-links-wrap') ||
@@ -72,30 +75,30 @@
 
     handlePageChange() {
       const anilistId = this.getAniListId();
-      if (!anilistId || anilistId === this.lastProcessedId) {
+      if (!anilistId || anilistId === this.lastProcessedAnimeId) {
         return;
       }
 
-      this.lastProcessedId = anilistId;
+      this.lastProcessedAnimeId = anilistId;
       this.processPage(anilistId);
     }
 
     async processPage(anilistId) {
       try {
-        const externalLinksWrap = await this.waitForElement('.external-links-wrap');
-        if (!externalLinksWrap) {
+        const externalLinksContainer = await this.waitForElement('.external-links-wrap');
+        if (!externalLinksContainer) {
           logger.error('External links container not found');
           return;
         }
 
-        if (this.hasTraktLink(externalLinksWrap)) {
+        if (this.hasTraktLink(externalLinksContainer)) {
           logger.debug('Trakt link already exists');
           return;
         }
 
         const traktData = await this.getTraktData(anilistId);
         if (traktData) {
-          this.addTraktLink(traktData, externalLinksWrap);
+          this.addTraktLink(traktData, externalLinksContainer);
         }
       } catch (error) {
         logger.error(`Error processing page: ${error.message}`);
@@ -103,18 +106,15 @@
     }
 
     async getTraktData(anilistId) {
-      // Check cache
-      const cached = await GMC.getValue(anilistId);
-      if (cached && this.isCacheValid(cached)) {
+      const cachedEntry = GM_getValue(anilistId);
+      if (cachedEntry && this.isCacheValid(cachedEntry)) {
         logger.debug(`Using cached data for AniList ID ${anilistId}`);
-        return cached.data;
+        return cachedEntry.data;
       }
 
-      // Fetch Trakt data directly using AniList ID
       const traktData = await this.fetchTraktData(anilistId);
       if (traktData) {
-        // Cache the data
-        await GMC.setValue(anilistId, {
+        GM_setValue(anilistId, {
           data: traktData,
           timestamp: Date.now()
         });
@@ -125,79 +125,67 @@
     }
 
     async fetchTraktData(anilistId) {
-      return new Promise((resolve, reject) => {
-        GMC.xmlHttpRequest({
-          method: 'GET',
-          url: `https://animeapi.my.id/anilist/${anilistId}`,
-          onload: response => {
-            if (response.status === 200) {
-              try {
-                const data = JSON.parse(response.responseText);
-                if (data.trakt && data.trakt_type) {
-                  logger.debug(`Fetched Trakt data for AniList ID ${anilistId}`);
-                  resolve(data);
-                } else {
-                  logger.warn(`No Trakt data in response for AniList ID ${anilistId}`);
-                  resolve(null);
-                }
-              } catch (error) {
-                logger.error(`Error parsing Trakt API response: ${error.message}`);
-                reject(error);
-              }
-            } else if (response.status === 404) {
-              logger.warn(`No mapping data found for AniList ID ${anilistId} (404)`);
-              resolve(null);
-            } else {
-              logger.error(`Trakt API error: ${response.status}`);
-              reject(new Error(`HTTP ${response.status}`));
-            }
-          },
-          onerror: error => {
-            logger.error(`Trakt API request failed: ${error.message}`);
-            reject(error);
-          }
-        });
-      });
+      try {
+        const data = await animeApi.fetch('anilist', anilistId);
+        if (data?.trakt && data?.trakt_type) {
+          logger.debug(`Fetched Trakt data for AniList ID ${anilistId}`);
+          return data;
+        }
+        logger.warn(`No Trakt data in response for AniList ID ${anilistId}`);
+        return null;
+      } catch (error) {
+        // Handle 404s differently - they mean no mapping exists, not an actual error
+        if (error.message.includes('404')) {
+          logger.warn(`No mapping data found for AniList ID ${anilistId} (404)`);
+          return null; // No data available for this anime
+        }
+        logger.error(`Failed to fetch Trakt data: ${error.message}`);
+        throw error; // Network or server errors should be thrown for retry
+      }
     }
 
     addTraktLink(data, container) {
       const traktUrl = `https://trakt.tv/${data.trakt_type}/${data.trakt}`;
-      const link = this.createTraktLinkElement(traktUrl);
-      container.appendChild(link);
+      const linkElement = this.createTraktLinkElement(traktUrl);
+      container.appendChild(linkElement);
       logger(`Added Trakt link: ${traktUrl}`);
     }
 
     createTraktLinkElement(url) {
-      const link = document.createElement('a');
-      link.setAttribute('data-v-c1b7ee7c', '');
-      link.href = url;
-      link.target = '_blank';
-      link.className = 'external-link';
-      link.style.cssText = `--link-color: ${CONFIG.TRAKT_COLOR};`;
+      const linkElement = document.createElement('a');
+      linkElement.setAttribute('data-v-c1b7ee7c', '');
+      linkElement.href = url;
+      linkElement.target = '_blank';
+      linkElement.className = 'external-link';
+      // Use CSS custom property to match AniList's theming system
+      linkElement.style.cssText = `--link-color: ${CONFIG.TRAKT_COLOR};`;
 
-      const iconWrap = document.createElement('div');
-      iconWrap.setAttribute('data-v-c1b7ee7c', '');
-      iconWrap.className = 'icon-wrap';
-      iconWrap.style.cssText = 'background: rgba(0, 0, 0, 0);';
+      const iconWrapper = document.createElement('div');
+      iconWrapper.setAttribute('data-v-c1b7ee7c', '');
+      iconWrapper.className = 'icon-wrap';
+      // Transparent background to inherit container styles while avoiding visual conflicts
+      iconWrapper.style.cssText = 'background: rgba(0, 0, 0, 0);';
 
-      const img = document.createElement('img');
-      img.setAttribute('data-v-c1b7ee7c', '');
-      img.src = CONFIG.ICON_URL;
-      img.className = 'icon';
-      img.style.cssText = `width: ${CONFIG.ICON_SIZE}; height: ${CONFIG.ICON_SIZE};`;
+      const iconImage = document.createElement('img');
+      iconImage.setAttribute('data-v-c1b7ee7c', '');
+      iconImage.src = CONFIG.ICON_URL;
+      iconImage.className = 'icon';
+      iconImage.style.cssText = `width: ${CONFIG.ICON_SIZE}; height: ${CONFIG.ICON_SIZE};`;
 
       const nameSpan = document.createElement('span');
       nameSpan.setAttribute('data-v-c1b7ee7c', '');
       nameSpan.className = 'name';
       nameSpan.textContent = 'Trakt';
 
-      iconWrap.appendChild(img);
-      link.appendChild(iconWrap);
-      link.appendChild(nameSpan);
+      iconWrapper.appendChild(iconImage);
+      linkElement.appendChild(iconWrapper);
+      linkElement.appendChild(nameSpan);
 
-      return link;
+      return linkElement;
     }
 
+    // Wait for element to appear in DOM with MutationObserver fallback
+    // for dynamically loaded content in single-page applications
     waitForElement(selector) {
       return new Promise(resolve => {
         const element = document.querySelector(selector);
@@ -221,9 +209,11 @@
       });
     }
 
+    // Extract AniList ID from URL path: /anime/{id}/{slug} - assumes standard AniList URL structure
     getAniListId() {
       const pathParts = window.location.pathname.split('/');
-      return pathParts[2] && !isNaN(pathParts[2]) ? pathParts[2] : null;
+      const animeId = pathParts[2];
+      return animeId && !isNaN(animeId) ? animeId : null;
     }
 
     isAnimePage() {
@@ -231,14 +221,14 @@
     }
 
     hasTraktLink(container) {
-      return container.querySelector('a[href*="trakt.tv"]') !== null;
+      return !!container.querySelector('a[href*="trakt.tv"]');
     }
 
-    isCacheValid(cached) {
-      return cached.timestamp && (Date.now() - cached.timestamp < CONFIG.CACHE_DURATION);
+    // Validates cache has timestamp and hasn't expired (24 hours)
+    isCacheValid(cachedEntry) {
+      return cachedEntry.timestamp && (Date.now() - cachedEntry.timestamp < CONFIG.CACHE_DURATION);
     }
   }
 
-  // Initialize the linker
   new AniListTraktLinker();
 })();

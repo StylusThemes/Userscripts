@@ -1,16 +1,15 @@
 // ==UserScript==
 // @name          YouTube - Tweaks
-// @version       1.0.0
+// @version       1.1.0
 // @description   Random tweaks and fixes for YouTube!
 // @author        Journey Over
 // @license       MIT
 // @match         *://*.youtube.com/*
 // @match         *://*.youtube-nocookie.com/*
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@c185c2777d00a6826a8bf3c43bbcdcfeba5a9566/libs/gm/gmcompat.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@c185c2777d00a6826a8bf3c43bbcdcfeba5a9566/libs/utils/utils.min.js
-// @grant         GM.getValue
-// @grant         GM.setValue
-// @grant         GM.registerMenuCommand
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@9db06a14c296ae584e0723cde883729d819e0625/libs/utils/utils.min.js
+// @grant         GM_getValue
+// @grant         GM_setValue
+// @grant         GM_registerMenuCommand
 // @icon          https://www.google.com/s2/favicons?sz=64&domain=youtube.com
 // @homepageURL   https://github.com/StylusThemes/Userscripts
 // @downloadURL   https://github.com/StylusThemes/Userscripts/raw/main/userscripts/youtube-tweaks.user.js
@@ -22,28 +21,27 @@
 
   const logger = Logger('YT - Tweaks', { debug: false });
 
-  // Feature registry
   const features = {
     removeBigMode: {
       id: 'removeBigMode',
       name: 'Remove YouTube Big Mode update',
       default: true,
       enabled: false,
-      observer: null,
-      deleteBigMode() {
-        const els = document.querySelectorAll('.ytp-big-mode');
-        els.forEach(el => el.classList.remove('ytp-big-mode'));
+      mutationObserver: null,
+      removeBigModeClasses() {
+        const bigModeElements = document.querySelectorAll('.ytp-big-mode');
+        for (const bigModeElement of bigModeElements) bigModeElement.classList.remove('ytp-big-mode');
       },
       start() {
-        if (this.observer) return;
-        this.deleteBigMode();
-        this.observer = new MutationObserver(() => this.deleteBigMode());
-        this.observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+        if (this.mutationObserver) return;
+        this.removeBigModeClasses();
+        this.mutationObserver = new MutationObserver(() => this.removeBigModeClasses());
+        this.mutationObserver.observe(document.body, { childList: true, subtree: true, attributes: true });
       },
       stop() {
-        if (this.observer) {
-          this.observer.disconnect();
-          this.observer = null;
+        if (this.mutationObserver) {
+          this.mutationObserver.disconnect();
+          this.mutationObserver = null;
         }
       }
     },
@@ -53,126 +51,126 @@
       name: 'Playlist: Play Single Button',
       default: true,
       enabled: false,
-      handlers: {},
-      createButtons() {
+      eventHandlers: {},
+      createPlaySingleButtons() {
         if (location.href.indexOf('/playlist?') <= 0) return;
-        const videoEntries = document.querySelectorAll('ytd-playlist-video-renderer');
-        videoEntries.forEach(videoEntry => {
-          const thumb = videoEntry.querySelector('a#thumbnail');
-          if (!thumb) return;
-          const href = thumb.getAttribute('href') || '';
-          const videoEntryURLSplit = href.split('&list=');
-          if (videoEntryURLSplit.length <= 1) return;
-          const videoWatchURL = videoEntryURLSplit[0];
+        const playlistVideoRenderers = document.querySelectorAll('ytd-playlist-video-renderer');
+        for (const videoRenderer of playlistVideoRenderers) {
+          const thumbnailAnchor = videoRenderer.querySelector('a#thumbnail');
+          if (!thumbnailAnchor) continue;
+          const thumbnailHref = thumbnailAnchor.getAttribute('href') || '';
+          const urlParts = thumbnailHref.split('&list=');
+          if (urlParts.length <= 1) continue;
+          const singlePlayUrl = urlParts[0];
 
-          let button = videoEntry.querySelector('button-view-model#button-play-single');
-          if (button) { const a = button.querySelector('a'); if (a) a.setAttribute('href', videoWatchURL); return; }
+          let playSingleButton = videoRenderer.querySelector('button-view-model#button-play-single');
+          if (playSingleButton) { const buttonLink = playSingleButton.querySelector('a'); if (buttonLink) buttonLink.setAttribute('href', singlePlayUrl); continue; }
 
-          button = document.createElement('button-view-model');
-          button.className = 'yt-spec-button-view-model';
-          button.id = 'button-play-single';
-          const anchor = document.createElement('a');
-          anchor.className = 'yt-spec-button-shape-next yt-spec-button-shape-next--filled yt-spec-button-shape-next--overlay yt-spec-button-shape-next--size-m yt-spec-button-shape-next--icon-leading yt-spec-button-shape-next--enable-backdrop-filter-experiment';
-          anchor.setAttribute('href', videoWatchURL);
-          anchor.setAttribute('aria-label', 'Play Single');
-          anchor.style.paddingRight = '0';
-          const iconWrapper = document.createElement('div');
-          iconWrapper.className = 'yt-spec-button-shape-next__icon';
-          iconWrapper.setAttribute('aria-hidden', 'true');
-          const icon = document.createElement('img');
-          icon.setAttribute('src', 'https://static.thenounproject.com/png/open-link-icon-1395731-512.png');
-          icon.style.width = '24px';
-          icon.style.height = '24px';
-          iconWrapper.appendChild(icon);
-          anchor.appendChild(iconWrapper);
-          button.appendChild(anchor);
-          const menu = videoEntry.querySelector('div#menu');
-          if (menu) videoEntry.insertBefore(button, menu);
-        });
+          playSingleButton = document.createElement('button-view-model');
+          playSingleButton.className = 'yt-spec-button-view-model';
+          playSingleButton.id = 'button-play-single';
+          const buttonLink = document.createElement('a');
+          buttonLink.className = 'yt-spec-button-shape-next yt-spec-button-shape-next--filled yt-spec-button-shape-next--overlay yt-spec-button-shape-next--size-m yt-spec-button-shape-next--icon-leading yt-spec-button-shape-next--enable-backdrop-filter-experiment';
+          buttonLink.setAttribute('href', singlePlayUrl);
+          buttonLink.setAttribute('aria-label', 'Play Single');
+          buttonLink.style.paddingRight = '0';
+          const iconDiv = document.createElement('div');
+          iconDiv.className = 'yt-spec-button-shape-next__icon';
+          iconDiv.setAttribute('aria-hidden', 'true');
+          const iconImage = document.createElement('img');
+          iconImage.setAttribute('src', 'https://static.thenounproject.com/png/open-link-icon-1395731-512.png');
+          iconImage.style.width = '24px';
+          iconImage.style.height = '24px';
+          iconDiv.appendChild(iconImage);
+          buttonLink.appendChild(iconDiv);
+          playSingleButton.appendChild(buttonLink);
+          const menuDiv = videoRenderer.querySelector('div#menu');
+          if (menuDiv) menuDiv.before(playSingleButton);
+        }
       },
       start() {
-        if (this.handlers._started) return;
-        this.createButtons();
-        this.handlers.nav = () => this.createButtons();
-        this.handlers.action = (ev) => { const d = ev && ev.detail; if (d && d.actionName && (d.actionName.indexOf('yt-append-continuation') >= 0 || d.actionName === 'yt-update-playlist-action')) this.createButtons(); };
-        document.addEventListener('yt-navigate-finish', this.handlers.nav);
-        document.addEventListener('yt-action', this.handlers.action);
-        this.handlers._started = true;
+        if (this.eventHandlers._started) return;
+        this.createPlaySingleButtons();
+        this.eventHandlers.handleNavigateFinish = () => this.createPlaySingleButtons();
+        this.eventHandlers.handleAction = (event_) => { const detail = event_ && event_.detail; if (detail && detail.actionName && (detail.actionName.indexOf('yt-append-continuation') >= 0 || detail.actionName === 'yt-update-playlist-action')) this.createPlaySingleButtons(); };
+        document.addEventListener('yt-navigate-finish', this.eventHandlers.handleNavigateFinish);
+        document.addEventListener('yt-action', this.eventHandlers.handleAction);
+        this.eventHandlers._started = true;
       },
       stop() {
-        if (!this.handlers._started) return;
-        document.removeEventListener('yt-navigate-finish', this.handlers.nav);
-        document.removeEventListener('yt-action', this.handlers.action);
-        // remove inserted buttons
-        document.querySelectorAll('button-view-model#button-play-single').forEach(b => b.remove());
-        this.handlers = {};
+        if (!this.eventHandlers._started) return;
+        document.removeEventListener('yt-navigate-finish', this.eventHandlers.handleNavigateFinish);
+        document.removeEventListener('yt-action', this.eventHandlers.handleAction);
+        for (const playSingleButton of document.querySelectorAll('button-view-model#button-play-single')) playSingleButton.remove();
+        this.eventHandlers = {};
       }
     },
 
+    // Fix for YouTube's mono audio bug where one channel is silent
     monoAudioFix: {
       id: 'monoAudioFix',
       name: 'YouTube Mono/One-Ear Audio Fix',
       default: true,
       enabled: false,
-      ctx: null,
-      fixed: new WeakSet(),
-      observer: null,
-      rms(buf) { return Math.sqrt(buf.reduce((s, v) => s + ((v - 128) / 128) ** 2, 0) / buf.length); },
-      setup(video) {
-        if (!video || this.fixed.has(video)) return;
-        this.ctx ||= new(window.AudioContext || window.webkitAudioContext)();
-        if (this.ctx.state === 'suspended') try { this.ctx.resume(); } catch (err) {}
+      audioContextInstance: null,
+      processedVideoSet: new WeakSet(),
+      mutationObserver: null,
+      calculateRootMeanSquare(buffer) { return Math.sqrt(buffer.reduce((sum, value) => sum + ((value - 128) / 128) ** 2, 0) / buffer.length); },
+      applyAudioFix(video) {
+        if (!video || this.processedVideoSet.has(video)) return;
+        this.audioContextInstance ||= new(window.AudioContext || window.webkitAudioContext)();
+        if (this.audioContextInstance.state === 'suspended') try { this.audioContextInstance.resume(); } catch {}
         try {
-          const src = this.ctx.createMediaElementSource(video);
-          const split = this.ctx.createChannelSplitter(2);
-          const merge = this.ctx.createChannelMerger(2);
-          const gain = this.ctx.createGain();
-          const aL = this.ctx.createAnalyser(),
-            aR = this.ctx.createAnalyser();
-                    [aL, aR].forEach(a => a.fftSize = 32);
-          gain.gain.value = 1;
-          src.connect(split);
-          merge.connect(this.ctx.destination);
-          split.connect(aL, 0);
-          split.connect(aR, 1);
-          this.fixed.add(video);
+          const audioSource = this.audioContextInstance.createMediaElementSource(video);
+          const splitter = this.audioContextInstance.createChannelSplitter(2);
+          const merger = this.audioContextInstance.createChannelMerger(2);
+          const gainNode = this.audioContextInstance.createGain();
+          const analyserLeft = this.audioContextInstance.createAnalyser(),
+            analyserRight = this.audioContextInstance.createAnalyser();
+          for (const analyser of [analyserLeft, analyserRight]) analyser.fftSize = 32;
+          gainNode.gain.value = 1;
+          audioSource.connect(splitter);
+          merger.connect(this.audioContextInstance.destination);
+          splitter.connect(analyserLeft, 0);
+          splitter.connect(analyserRight, 1);
+          this.processedVideoSet.add(video);
 
-          const check = () => {
-            const bL = new Uint8Array(aL.fftSize),
-              bR = new Uint8Array(aR.fftSize);
-            aL.getByteTimeDomainData(bL);
-            aR.getByteTimeDomainData(bR);
-            const silentL = this.rms(bL) < 0.02,
-              silentR = this.rms(bR) < 0.02;
-            try { split.disconnect(); } catch (err) {}
-            try { gain.disconnect(); } catch (err) {}
-            if (silentL || silentR) {
-              split.connect(gain, 0);
-              split.connect(gain, 1);
-              gain.connect(merge, 0, 0);
-              gain.connect(merge, 0, 1);
+          // Detect silent channels and duplicate audio to both channels when mono detected
+          const monitorAudioChannels = () => {
+            const leftChannelData = new Uint8Array(analyserLeft.fftSize),
+              rightChannelData = new Uint8Array(analyserRight.fftSize);
+            analyserLeft.getByteTimeDomainData(leftChannelData);
+            analyserRight.getByteTimeDomainData(rightChannelData);
+            const isLeftChannelSilent = this.calculateRootMeanSquare(leftChannelData) < 0.02,
+              isRightChannelSilent = this.calculateRootMeanSquare(rightChannelData) < 0.02;
+            try { splitter.disconnect(); } catch {}
+            try { gainNode.disconnect(); } catch {}
+            if (isLeftChannelSilent || isRightChannelSilent) {
+              splitter.connect(gainNode, 0);
+              splitter.connect(gainNode, 1);
+              gainNode.connect(merger, 0, 0);
+              gainNode.connect(merger, 0, 1);
             } else {
-              split.connect(merge, 0, 0);
-              split.connect(merge, 1, 1);
+              splitter.connect(merger, 0, 0);
+              splitter.connect(merger, 1, 1);
             }
-            if (!video.paused && !video.ended) setTimeout(check, 1500);
+            if (!video.paused && !video.ended) setTimeout(monitorAudioChannels, 1500);
           };
-          check();
-        } catch (err) {
-          // some browsers restrict createMediaElementSource if page not allowed
-          // swallow error
+          monitorAudioChannels();
+        } catch {
+          // Some browsers restrict createMediaElementSource if page not allowed
         }
       },
       start() {
-        if (this.observer) return;
-        this.observer = new MutationObserver(() => document.querySelectorAll('video').forEach(v => this.setup(v)));
-        this.observer.observe(document.body, { childList: true, subtree: true });
-        document.querySelectorAll('video').forEach(v => this.setup(v));
+        if (this.mutationObserver) return;
+        this.mutationObserver = new MutationObserver(() => { for (const video of document.querySelectorAll('video')) this.applyAudioFix(video) });
+        this.mutationObserver.observe(document.body, { childList: true, subtree: true });
+        for (const video of document.querySelectorAll('video')) this.applyAudioFix(video);
       },
       stop() {
-        if (this.observer) {
-          this.observer.disconnect();
-          this.observer = null;
+        if (this.mutationObserver) {
+          this.mutationObserver.disconnect();
+          this.mutationObserver = null;
         }
       }
     },
@@ -182,12 +180,12 @@
       name: 'Dim Watched Videos',
       default: true,
       enabled: false,
-      CLASS: 'yt-dimmed',
-      DIM_OPACITY: 0.1,
-      DIM_OPACITY_HOVER: 1,
-      pending: false,
-      observer: null,
-      initStyle() {
+      DIMMED_CLASS_NAME: 'yt-dimmed',
+      DIMMED_OPACITY: 0.1,
+      DIMMED_OPACITY_HOVER: 1,
+      isUpdatePending: false,
+      mutationObserver: null,
+      initializeStyles() {
         if (document.getElementById('gm-dimwatched-style')) return;
         const style = document.createElement('style');
         style.id = 'gm-dimwatched-style';
@@ -200,156 +198,153 @@
                     yt-lockup-view-model {
                         transition: opacity 0.3s ease;
                     }
-                    .${this.CLASS} { opacity: ${this.DIM_OPACITY} !important; }
-                    .${this.CLASS}:hover { opacity: ${this.DIM_OPACITY_HOVER} !important; }
+                    .${this.DIMMED_CLASS_NAME} { opacity: ${this.DIMMED_OPACITY} !important; }
+                    .${this.DIMMED_CLASS_NAME}:hover { opacity: ${this.DIMMED_OPACITY_HOVER} !important; }
                 `;
         document.head.appendChild(style);
       },
-      isWatched(el) {
-        return el.querySelector('ytd-thumbnail-overlay-resume-playback-renderer #progress') || el.querySelector('.ytThumbnailOverlayProgressBarHostWatchedProgressBarSegment');
+      isVideoWatched(element) {
+        return element.querySelector('ytd-thumbnail-overlay-resume-playback-renderer #progress') || element.querySelector('.ytThumbnailOverlayProgressBarHostWatchedProgressBarSegment');
       },
-      update() {
-        const seen = new WeakSet();
-        const selectors = { grid: ['ytd-rich-item-renderer'], channel: ['ytd-grid-video-renderer'], playlist: ['ytd-playlist-video-renderer'], sidebar: ['yt-lockup-view-model'], search: ['ytd-video-renderer'] };
-        for (const [section, selList] of Object.entries(selectors)) {
-          selList.forEach(selector => {
-            document.querySelectorAll(selector).forEach(el => {
-              if (seen.has(el)) return;
+      updateDimmedVideos() {
+        const processedVideoElements = new WeakSet();
+        const videoRendererSelectors = { grid: ['ytd-rich-item-renderer'], channel: ['ytd-grid-video-renderer'], playlist: ['ytd-playlist-video-renderer'], sidebar: ['yt-lockup-view-model'], search: ['ytd-video-renderer'] };
+        for (const [selectorCategory, selectorsForCategory] of Object.entries(videoRendererSelectors)) {
+          for (const selector of selectorsForCategory) {
+            for (const videoElement of document.querySelectorAll(selector)) {
+              if (processedVideoElements.has(videoElement)) continue;
 
-              // Avoid double-dimming:
-              if (section === 'grid' && el.tagName === 'YTD-RICH-GRID-MEDIA' && el.closest('ytd-rich-item-renderer')?.classList.contains(this.CLASS)) {
-                return;
+              // Avoid double-dimming nested elements
+              if (selectorCategory === 'grid' && videoElement.tagName === 'YTD-RICH-GRID-MEDIA' && videoElement.closest('ytd-rich-item-renderer')?.classList.contains(this.DIMMED_CLASS_NAME)) {
+                continue;
               }
 
-              if (section === 'sidebar' && el.tagName === 'YT-LOCKUP-VIEW-MODEL' && el.closest('ytd-rich-item-renderer')?.classList.contains(this.CLASS)) {
-                return;
+              if (selectorCategory === 'sidebar' && videoElement.tagName === 'YT-LOCKUP-VIEW-MODEL' && videoElement.closest('ytd-rich-item-renderer')?.classList.contains(this.DIMMED_CLASS_NAME)) {
+                continue;
               }
 
-              seen.add(el);
-              const watched = this.isWatched(el);
-              el.classList.toggle(this.CLASS, !!watched);
-            });
-          });
+              processedVideoElements.add(videoElement);
+              const watchedIndicator = this.isVideoWatched(videoElement);
+              videoElement.classList.toggle(this.DIMMED_CLASS_NAME, !!watchedIndicator);
+            }
+          }
         }
       },
-      debouncedUpdate() {
-        if (this.pending) return;
-        this.pending = true;
+      debouncedUpdateDimmed() {
+        if (this.isUpdatePending) return;
+        this.isUpdatePending = true;
         requestAnimationFrame(() => {
-          this.update();
-          this.pending = false;
+          this.updateDimmedVideos();
+          this.isUpdatePending = false;
         });
       },
       start() {
-        this.initStyle();
-        if (this.observer) return;
-        this.observer = new MutationObserver(() => this.debouncedUpdate());
-        this.observer.observe(document.body, { childList: true, subtree: true });
-        this.update();
+        this.initializeStyles();
+        if (this.mutationObserver) return;
+        this.mutationObserver = new MutationObserver(() => this.debouncedUpdateDimmed());
+        this.mutationObserver.observe(document.body, { childList: true, subtree: true });
+        this.updateDimmedVideos();
       },
       stop() {
-        if (this.observer) {
-          this.observer.disconnect();
-          this.observer = null;
+        if (this.mutationObserver) {
+          this.mutationObserver.disconnect();
+          this.mutationObserver = null;
         }
-        document.querySelectorAll('.' + this.CLASS).forEach(el => el.classList.remove(this.CLASS));
+        for (const videoElement of document.querySelectorAll('.' + this.DIMMED_CLASS_NAME)) videoElement.classList.remove(this.DIMMED_CLASS_NAME);
       }
     }
   };
 
-  // Load persisted enabled state for each feature
-  for (const key of Object.keys(features)) {
-    const f = features[key];
-    f.enabled = await GMC.getValue(`feature_${f.id}`, f.default);
-    if (f.enabled) { try { f.start(); } catch (err) { logger.error('Error starting', f.id, err); } }
+  for (const featureName of Object.keys(features)) {
+    const featureConfig = features[featureName];
+    featureConfig.enabled = GM_getValue(`feature_${featureConfig.id}`, featureConfig.default);
+    if (featureConfig.enabled) { try { featureConfig.start(); } catch (error) { logger.error('Error starting', featureConfig.id, error); } }
   }
 
-  // Settings UI
-  let modal = null;
+  let settingsModalElement = null;
 
-  function createModal() {
-    if (modal) return modal;
-    const wrap = document.createElement('div');
-    wrap.id = 'combined-userscript-settings';
-    Object.assign(wrap.style, { position: 'fixed', zIndex: 999999, left: '50%', top: '50%', transform: 'translate(-50%,-50%)', background: '#111', color: '#fff', padding: '14px', borderRadius: '8px', minWidth: '320px', boxShadow: '0 6px 30px rgba(0,0,0,0.6)' });
-    const title = document.createElement('div');
-    title.textContent = 'YouTube - Tweaks Settings';
-    title.style.fontWeight = '600';
-    title.style.marginBottom = '8px';
-    wrap.appendChild(title);
-    const list = document.createElement('div');
-    for (const key of Object.keys(features)) {
-      const f = features[key];
-      const row = document.createElement('label');
-      row.style.display = 'flex';
-      row.style.alignItems = 'center';
-      row.style.gap = '8px';
-      row.style.margin = '6px 0';
-      const cb = document.createElement('input');
-      cb.type = 'checkbox';
-      cb.checked = !!f.enabled;
-      cb.dataset.feature = f.id;
-      // Apply change immediately when checkbox toggled
-      cb.addEventListener('change', async () => {
-        const want = !!cb.checked;
-        if (want === f.enabled) return;
-        f.enabled = want;
-        try { await GMC.setValue(`feature_${f.id}`, f.enabled); } catch (err) { logger.error('Failed to save feature state', f.id, err); }
+  function createSettingsModal() {
+    if (settingsModalElement) return settingsModalElement;
+    const settingsModal = document.createElement('div');
+    settingsModal.id = 'combined-userscript-settings';
+    Object.assign(settingsModal.style, { position: 'fixed', zIndex: 999999, left: '50%', top: '50%', transform: 'translate(-50%,-50%)', background: '#111', color: '#fff', padding: '14px', borderRadius: '8px', minWidth: '320px', boxShadow: '0 6px 30px rgba(0,0,0,0.6)' });
+    const modalTitle = document.createElement('div');
+    modalTitle.textContent = 'YouTube - Tweaks Settings';
+    modalTitle.style.fontWeight = '600';
+    modalTitle.style.marginBottom = '8px';
+    settingsModal.appendChild(modalTitle);
+    const featuresContainer = document.createElement('div');
+    for (const featureName of Object.keys(features)) {
+      const featureConfig = features[featureName];
+      const featureSettingRow = document.createElement('label');
+      featureSettingRow.style.display = 'flex';
+      featureSettingRow.style.alignItems = 'center';
+      featureSettingRow.style.gap = '8px';
+      featureSettingRow.style.margin = '6px 0';
+      const enableCheckbox = document.createElement('input');
+      enableCheckbox.type = 'checkbox';
+      enableCheckbox.checked = !!featureConfig.enabled;
+      enableCheckbox.dataset.feature = featureConfig.id;
+      enableCheckbox.addEventListener('change', async () => {
+        const newEnabledState = !!enableCheckbox.checked;
+        if (newEnabledState === featureConfig.enabled) return;
+        featureConfig.enabled = newEnabledState;
+        try { GM_setValue(`feature_${featureConfig.id}`, featureConfig.enabled); } catch (error) { logger.error('Failed to save feature state', featureConfig.id, error); }
         try {
-          if (f.enabled) f.start();
-          else f.stop();
-        } catch (err) { logger.error('Error toggling feature', f.id, err); }
+          if (featureConfig.enabled) featureConfig.start();
+          else featureConfig.stop();
+        } catch (error) { logger.error('Error toggling feature', featureConfig.id, error); }
       });
-      const span = document.createElement('span');
-      span.textContent = f.name;
-      row.appendChild(cb);
-      row.appendChild(span);
-      list.appendChild(row);
+      const featureNameLabel = document.createElement('span');
+      featureNameLabel.textContent = featureConfig.name;
+      featureSettingRow.appendChild(enableCheckbox);
+      featureSettingRow.appendChild(featureNameLabel);
+      featuresContainer.appendChild(featureSettingRow);
     }
-    wrap.appendChild(list);
-    const buttons = document.createElement('div');
-    buttons.style.display = 'flex';
-    buttons.style.justifyContent = 'flex-end';
-    buttons.style.marginTop = '10px';
-    const save = document.createElement('button');
-    save.textContent = 'Save';
-    save.style.marginRight = '8px';
-    const close = document.createElement('button');
-    close.textContent = 'Close';
-    save.addEventListener('click', async () => {
-      wrap.querySelectorAll('input[type="checkbox"]').forEach(async (input) => {
-        const id = input.dataset.feature;
-        const f = Object.values(features).find(x => x.id === id);
-        if (!f) return;
-        const want = !!input.checked;
-        if (want === f.enabled) return;
-        f.enabled = want;
-        await GMC.setValue(`feature_${f.id}`, f.enabled);
+    settingsModal.appendChild(featuresContainer);
+    const modalButtons = document.createElement('div');
+    modalButtons.style.display = 'flex';
+    modalButtons.style.justifyContent = 'flex-end';
+    modalButtons.style.marginTop = '10px';
+    const saveSettingsButton = document.createElement('button');
+    saveSettingsButton.textContent = 'Save';
+    saveSettingsButton.style.marginRight = '8px';
+    const closeModalButton = document.createElement('button');
+    closeModalButton.textContent = 'Close';
+    saveSettingsButton.addEventListener('click', async () => {
+      for (const checkboxElement of settingsModal.querySelectorAll('input[type="checkbox"]')) {
+        const featureId = checkboxElement.dataset.feature;
+        const featureConfig = Object.values(features).find(featureItem => featureItem.id === featureId);
+        if (!featureConfig) continue;
+        const newEnabledState = !!checkboxElement.checked;
+        if (newEnabledState === featureConfig.enabled) continue;
+        featureConfig.enabled = newEnabledState;
+        GM_setValue(`feature_${featureConfig.id}`, featureConfig.enabled);
         try {
-          if (f.enabled) f.start();
-          else f.stop();
-        } catch (err) { logger.error('Error toggling feature', f.id, err); }
-      });
-      // close after save
-      removeModal();
+          if (featureConfig.enabled) featureConfig.start();
+          else featureConfig.stop();
+        } catch (error) {
+          logger.error(`Failed to ${featureConfig.enabled ? 'start' : 'stop'} feature ${featureId}:`, error);
+        }
+      }
+      removeSettingsModal();
     });
-    close.addEventListener('click', removeModal);
-    buttons.appendChild(save);
-    buttons.appendChild(close);
-    wrap.appendChild(buttons);
-    modal = wrap;
-    return modal;
+    closeModalButton.addEventListener('click', removeSettingsModal);
+    modalButtons.appendChild(saveSettingsButton);
+    modalButtons.appendChild(closeModalButton);
+    settingsModal.appendChild(modalButtons);
+    settingsModalElement = settingsModal;
+    return settingsModalElement;
   }
 
-  function removeModal() {
-    if (!modal) return;
-    modal.remove();
-    modal = null;
+  function removeSettingsModal() {
+    if (!settingsModalElement) return;
+    settingsModalElement.remove();
+    settingsModalElement = null;
   }
 
-  // Register GM menu command to open settings
   try {
-    GMC.registerMenuCommand('Open YouTube Tweaks Settings', () => { const m = createModal(); if (!document.body.contains(m)) document.body.appendChild(m); });
-  } catch (err) { logger.error('Failed to register menu command', err); }
+    GM_registerMenuCommand('Open YouTube Tweaks Settings', () => { const modalElement = createSettingsModal(); if (!document.body.contains(modalElement)) document.body.appendChild(modalElement); });
+  } catch (error) { logger.error('Failed to register menu command', error); }
 
 })();

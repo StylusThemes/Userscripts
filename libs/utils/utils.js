@@ -5,7 +5,7 @@
 // @name         @journeyover/utils
 // @description  Utility helpers for my userscripts
 // @license      MIT
-// @version      1.0.2
+// @version      1.0.3
 // @homepageURL  https://github.com/StylusThemes/Userscripts
 // ==/UserScript==
 
@@ -36,12 +36,12 @@
  * const save = debounce(() => api.save(data), 250);
  * input.addEventListener('input', save);
  */
-function debounce(fn, wait) {
+function debounce(callback, wait) {
   let timeoutId = null;
-  return function(...args) {
+  return function(...arguments_) {
     if (timeoutId) clearTimeout(timeoutId);
     const context = this;
-    timeoutId = setTimeout(() => fn.apply(context, args), wait);
+    timeoutId = setTimeout(() => callback.apply(context, arguments_), wait);
   };
 }
 
@@ -80,7 +80,7 @@ function debounce(fn, wait) {
  * log.error('Failed to resume playback', new Error('Timeout'));
  * log.debug('Progress data', { time: 123 });
  */
-function Logger(prefix, opts = {}) {
+function Logger(prefix, options = {}) {
   const baseStyle = 'font-weight: bold; padding:2px 6px; border-radius: 4px;';
   const formattedPrefix = `[${prefix}]`;
 
@@ -99,6 +99,7 @@ function Logger(prefix, opts = {}) {
   };
 
   function format(type, message, ...rest) {
+    // eslint-disable-next-line no-console
     console[type](
       `%c${icons[type]} ${formattedPrefix}%c ${message}`,
       styles[type],
@@ -120,13 +121,13 @@ function Logger(prefix, opts = {}) {
   };
 
   log.debug = function(message, ...rest) {
-    if (opts.debug) {
+    if (options.debug) {
       format('debug', message, ...rest);
     }
   };
 
   // expose debug flag
-  log.debugEnabled = !!opts.debug;
+  log.debugEnabled = !!options.debug;
 
   return log;
 }
@@ -142,10 +143,10 @@ function qsa(sel, root = document) {
   return [...root.querySelectorAll(sel)];
 }
 
-function isVisible(el) {
-  if (!el) return false;
-  const style = getComputedStyle(el);
-  return el.offsetParent !== null && style.visibility !== 'hidden' && style.display !== 'none' && style.opacity !== '0';
+function isVisible(element) {
+  if (!element) return false;
+  const style = getComputedStyle(element);
+  return element.offsetParent !== null && style.visibility !== 'hidden' && style.display !== 'none' && style.opacity !== '0';
 }
 
 /**
@@ -174,11 +175,11 @@ function findTargetInput(container = null) {
 /**
  * Gets the native value property setter for React input compatibility
  * React overrides the default input.value setter, so we need the original
- * @param {HTMLInputElement|HTMLTextAreaElement} el - Input element
+ * @param {HTMLInputElement|HTMLTextAreaElement} element - Input element
  * @returns {Function} Native setter function or null if not found
  */
-function getNativeValueSetter(el) {
-  const proto = el instanceof HTMLInputElement ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype;
+function getNativeValueSetter(element) {
+  const proto = element instanceof HTMLInputElement ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype;
   const desc = Object.getOwnPropertyDescriptor(proto, 'value');
   return desc && desc.set;
 }
@@ -186,44 +187,48 @@ function getNativeValueSetter(el) {
 /**
  * Sets input value in a React-compatible way that triggers re-renders
  * Uses native setter and dispatches events to ensure React sees the change
- * @param {HTMLInputElement|HTMLTextAreaElement} el - Target input element
+ * @param {HTMLInputElement|HTMLTextAreaElement} element - Target input element
  * @param {string} value - Value to set
  */
-function setInputValueReactive(el, value) {
-  const nativeSetter = getNativeValueSetter(el);
+function setInputValueReactive(element, value) {
+  const nativeSetter = getNativeValueSetter(element);
   if (nativeSetter) {
-    nativeSetter.call(el, value);
+    nativeSetter.call(element, value);
   } else {
-    el.value = value;
+    element.value = value;
   }
 
   // Set focus and cursor position for better UX
   try {
-    el.focus();
-    if (typeof el.setSelectionRange === 'function') el.setSelectionRange(value.length, value.length);
-  } catch (err) { /* Ignore focus errors */ }
+    element.focus();
+    if (typeof element.setSelectionRange === 'function') element.setSelectionRange(value.length, value.length);
+  } catch {
+    /* Ignore focus errors */
+  }
 
   // Trigger events that React listens for
-  el.dispatchEvent(new Event('input', { bubbles: true }));
-  el.dispatchEvent(new Event('change', { bubbles: true }));
+  element.dispatchEvent(new Event('input', { bubbles: true }));
+  element.dispatchEvent(new Event('change', { bubbles: true }));
 
   // Handle React's internal value tracking if present
   try {
-    if (el._valueTracker?.setValue) {
-      el._valueTracker.setValue(value);
+    if (element._valueTracker?.setValue) {
+      element._valueTracker.setValue(value);
     }
-  } catch (err) { /* Ignore React internals errors */ }
+  } catch {
+    /* Ignore React internals errors */
+  }
 }
 
 /**
  * Execute a function when the DOM is ready
- * @param {Function} fn - Function to execute when DOM is ready
+ * @param {Function} callback - Function to execute when DOM is ready
  */
-function ready(fn) {
+function ready(callback) {
   if (document.readyState !== 'loading') {
-    fn();
+    callback();
   } else {
-    document.addEventListener('DOMContentLoaded', fn);
+    document.addEventListener('DOMContentLoaded', callback);
   }
 }
 

@@ -1,16 +1,15 @@
 // ==UserScript==
 // @name          Magnet Link to Real-Debrid
-// @version       2.6.1
+// @version       2.7.0
 // @description   Automatically send magnet links to Real-Debrid
 // @author        Journey Over
 // @license       MIT
 // @match         *://*/*
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@c185c2777d00a6826a8bf3c43bbcdcfeba5a9566/libs/gm/gmcompat.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@c185c2777d00a6826a8bf3c43bbcdcfeba5a9566/libs/utils/utils.min.js
-// @grant         GM.xmlHttpRequest
-// @grant         GM.getValue
-// @grant         GM.setValue
-// @grant         GM.registerMenuCommand
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@9db06a14c296ae584e0723cde883729d819e0625/libs/utils/utils.min.js
+// @grant         GM_xmlhttpRequest
+// @grant         GM_getValue
+// @grant         GM_setValue
+// @grant         GM_registerMenuCommand
 // @connect       api.real-debrid.com
 // @icon          https://www.google.com/s2/favicons?sz=64&domain=real-debrid.com
 // @homepageURL   https://github.com/StylusThemes/Userscripts
@@ -23,25 +22,22 @@
 
   let logger;
 
-  // Constants & Utilities
   const STORAGE_KEY = 'realDebridConfig';
   const API_BASE = 'https://api.real-debrid.com/rest/1.0';
   const ICON_SRC = 'https://fcdn.real-debrid.com/0830/favicons/favicon.ico';
   const INSERTED_ICON_ATTR = 'data-rd-inserted';
 
-  // API Rate Limiting
+  // Rate limiting to respect Real-Debrid's 250 requests/minute limit with headroom
   const RATE_LIMIT_MAX = 250;
   const RATE_LIMIT_HEADROOM = 5;
   const RATE_LIMIT_WINDOW_MS = 60 * 1000;
   const RATE_LIMIT_MAX_RETRIES = 8;
   const RATE_LIMIT_RETRY_BASE_DELAY = 40;
 
-  // API Request Settings
   const API_MAX_RETRY_ATTEMPTS = 5;
   const API_BASE_BACKOFF_DELAY = 500;
   const API_JITTER_MAX = 200;
 
-  // UI Settings
   const MUTATION_DEBOUNCE_MS = 150;
   const TOAST_DURATION_MS = 5000;
   const TORRENTS_PAGE_LIMIT = 2500;
@@ -54,7 +50,6 @@
     debugEnabled: false
   };
 
-  // Custom error for configuration problems
   class ConfigurationError extends Error {
     constructor(message) {
       super(message);
@@ -62,7 +57,6 @@
     }
   }
 
-  // Custom error for Real-Debrid API issues
   class RealDebridError extends Error {
     constructor(message, statusCode = null, errorCode = null) {
       super(message);
@@ -72,53 +66,50 @@
     }
   }
 
-  // Handles loading and saving user configuration
-  class ConfigManager {
-    static _safeParse(value) {
+  const ConfigManager = {
+    _safeParse(value) {
       if (!value) return null;
       try {
         return typeof value === 'string' ? JSON.parse(value) : value;
-      } catch (err) {
-        logger.error('[Config] Failed to parse stored configuration, resetting to defaults.', err);
+      } catch (error) {
+        logger.error('[Config] Failed to parse stored configuration, resetting to defaults.', error);
         return null;
       }
-    }
+    },
 
-    static async getConfig() {
-      const stored = await GMC.getValue(STORAGE_KEY);
+    async getConfig() {
+      const stored = GM_getValue(STORAGE_KEY);
       const parsed = this._safeParse(stored) || {};
       return {
         ...DEFAULTS,
         ...parsed
       };
-    }
+    },
 
-    static async saveConfig(cfg) {
-      if (!cfg || !cfg.apiKey) throw new ConfigurationError('API Key is required');
-      await GMC.setValue(STORAGE_KEY, JSON.stringify(cfg));
-    }
+    async saveConfig(config) {
+      if (!config || !config.apiKey) throw new ConfigurationError('API Key is required');
+      GM_setValue(STORAGE_KEY, JSON.stringify(config));
+    },
 
-    static validateConfig(cfg) {
+    validateConfig(config) {
       const errors = [];
-      if (!cfg || !cfg.apiKey) errors.push('API Key is missing');
-      if (!Array.isArray(cfg.allowedExtensions)) errors.push('allowedExtensions must be an array');
-      if (!Array.isArray(cfg.filterKeywords)) errors.push('filterKeywords must be an array');
-      if (typeof cfg.manualFileSelection !== 'boolean') errors.push('manualFileSelection must be a boolean');
-      if (typeof cfg.debugEnabled !== 'boolean') errors.push('debugEnabled must be a boolean');
+      if (!config || !config.apiKey) errors.push('API Key is missing');
+      if (!Array.isArray(config.allowedExtensions)) errors.push('allowedExtensions must be an array');
+      if (!Array.isArray(config.filterKeywords)) errors.push('filterKeywords must be an array');
+      if (typeof config.manualFileSelection !== 'boolean') errors.push('manualFileSelection must be a boolean');
+      if (typeof config.debugEnabled !== 'boolean') errors.push('debugEnabled must be a boolean');
       return errors;
-    }
-  }
+    },
+  };
 
-  // Manages interactions with the Real-Debrid API
   class RealDebridService {
     #apiKey;
 
-    // Cross-tab reservation settings
     static RATE_STORE_KEY = 'realDebrid_rate_counter';
 
-    static _sleep(ms) { return new Promise(res => setTimeout(res, ms)); }
+    static _sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
-    // Implements rate limiting by reserving slots in a sliding window using GM storage
+    // Cross-tab rate limiting using GM storage to coordinate between multiple script instances
     static async _reserveRequestSlot() {
       const key = RealDebridService.RATE_STORE_KEY;
       const limit = RATE_LIMIT_MAX - RATE_LIMIT_HEADROOM;
@@ -127,41 +118,43 @@
       let attempt = 0;
       while (attempt < maxRetries) {
         const now = Date.now();
-        let obj = null;
+        let rateLimitData = null;
         try {
-          const raw = await GMC.getValue(key);
-          obj = raw ? JSON.parse(raw) : null;
-        } catch (e) {
-          obj = null;
+          const raw = GM_getValue(key);
+          rateLimitData = raw ? JSON.parse(raw) : null;
+        } catch {
+          rateLimitData = null;
         }
 
-        if (!obj || typeof obj !== 'object' || !obj.windowStart || (now - obj.windowStart) >= windowMs) {
+        // Reset window if expired or invalid
+        if (!rateLimitData || typeof rateLimitData !== 'object' || !rateLimitData.windowStart || (now - rateLimitData.windowStart) >= windowMs) {
           const fresh = { windowStart: now, count: 1 };
           try {
-            await GMC.setValue(key, JSON.stringify(fresh));
+            GM_setValue(key, JSON.stringify(fresh));
             return;
-          } catch (e) {
+          } catch {
             attempt += 1;
             await RealDebridService._sleep(RATE_LIMIT_RETRY_BASE_DELAY * attempt);
             continue;
           }
         }
 
-        if ((obj.count || 0) < limit) {
-          obj.count = (obj.count || 0) + 1;
+        if ((rateLimitData.count || 0) < limit) {
+          rateLimitData.count = (rateLimitData.count || 0) + 1;
           try {
-            await GMC.setValue(key, JSON.stringify(obj));
+            GM_setValue(key, JSON.stringify(rateLimitData));
             return;
-          } catch (e) {
+          } catch {
             attempt += 1;
             await RealDebridService._sleep(RATE_LIMIT_RETRY_BASE_DELAY * attempt);
             continue;
           }
         }
 
-        const earliest = obj.windowStart;
+        // Wait for current window to expire before retrying
+        const earliest = rateLimitData.windowStart;
         const waitFor = Math.max(50, windowMs - (now - earliest) + 50);
-        logger.warn(`[Real-Debrid API] Rate limit window full (${obj.count}/${RATE_LIMIT_MAX}), waiting ${Math.round(waitFor)}ms`);
+        logger.warn(`[Real-Debrid API] Rate limit window full (${rateLimitData.count}/${RATE_LIMIT_MAX}), waiting ${Math.round(waitFor)}ms`);
         await RealDebridService._sleep(waitFor);
         attempt += 1;
       }
@@ -173,13 +166,12 @@
       this.#apiKey = apiKey;
     }
 
-    // Handles API requests with retry logic for rate limits and errors
     #request(method, endpoint, data = null) {
       const attemptRequest = async (attempt) => {
         try {
           await RealDebridService._reserveRequestSlot();
-        } catch (err) {
-          logger.error('Request slot reservation failed, proceeding (will rely on backoff)', err);
+        } catch (error) {
+          logger.error('Request slot reservation failed, proceeding (will rely on backoff)', error);
         }
 
         return new Promise((resolve, reject) => {
@@ -187,7 +179,7 @@
           const payload = data ? new URLSearchParams(data).toString() : null;
           logger.debug(`[Real-Debrid API] ${method} ${endpoint} (attempt ${attempt + 1})`);
 
-          GMC.xmlHttpRequest({
+          GM_xmlhttpRequest({
             method,
             url,
             headers: {
@@ -196,19 +188,19 @@
               'Content-Type': 'application/x-www-form-urlencoded'
             },
             data: payload,
-            onload: (resp) => {
-              logger.debug(`[Real-Debrid API] Response: ${resp.status}`);
+            onload: (response) => {
+              logger.debug(`[Real-Debrid API] Response: ${response.status}`);
 
-              if (!resp || typeof resp.status === 'undefined') {
+              if (!response || typeof response.status === 'undefined') {
                 return reject(new RealDebridError('Invalid API response'));
               }
-              if (resp.status < 200 || resp.status >= 300) {
-                if (resp.status === 429 && attempt < API_MAX_RETRY_ATTEMPTS) {
+              if (response.status < 200 || response.status >= 300) {
+                if (response.status === 429 && attempt < API_MAX_RETRY_ATTEMPTS) {
                   const retryAfter = (() => {
                     try {
-                      const parsed = JSON.parse(resp.responseText || '{}');
+                      const parsed = JSON.parse(response.responseText || '{}');
                       return parsed.retry_after || null;
-                    } catch (e) {
+                    } catch {
                       return null;
                     }
                   })();
@@ -219,28 +211,28 @@
                     attemptRequest(attempt + 1).then(resolve).catch(reject);
                   }, backoff);
                 }
-                let errorMsg = `HTTP ${resp.status}`;
+                let errorMessage = `HTTP ${response.status}`;
                 let errorCode = null;
                 try {
-                  const parsed = JSON.parse(resp.responseText?.trim() || '{}');
-                  errorMsg = parsed.error || resp.responseText || errorMsg;
+                  const parsed = JSON.parse(response.responseText?.trim() || '{}');
+                  errorMessage = parsed.error || response.responseText || errorMessage;
                   errorCode = parsed.error_code || null;
-                } catch (e) {
-                  errorMsg = resp.responseText || errorMsg;
+                } catch {
+                  errorMessage = response.responseText || errorMessage;
                 }
-                return reject(new RealDebridError(`API Error: ${errorMsg}`, resp.status, errorCode));
+                return reject(new RealDebridError(`API Error: ${errorMessage}`, response.status, errorCode));
               }
-              if (resp.status === 204 || !resp.responseText) return resolve({});
+              if (response.status === 204 || !response.responseText) return resolve({});
               try {
-                const parsed = JSON.parse(resp.responseText.trim());
+                const parsed = JSON.parse(response.responseText.trim());
                 return resolve(parsed);
-              } catch (err) {
-                logger.error('[Real-Debrid API] Failed to parse JSON response', err);
-                return reject(new RealDebridError(`Failed to parse API response: ${err.message}`, resp.status));
+              } catch (error) {
+                logger.error('[Real-Debrid API] Failed to parse JSON response', error);
+                return reject(new RealDebridError(`Failed to parse API response: ${error.message}`, response.status));
               }
             },
-            onerror: (err) => {
-              logger.error('[Real-Debrid API] Network request failed', err);
+            onerror: (error) => {
+              logger.error('[Real-Debrid API] Network request failed', error);
               return reject(new RealDebridError('Network request failed'));
             },
             ontimeout: () => {
@@ -279,52 +271,51 @@
       return this.#request('DELETE', `/torrents/delete/${torrentId}`);
     }
 
-    // Fetches all existing torrents by paginating through API results
+    // Paginate through all torrents to check for existing duplicates
     async getExistingTorrents() {
-      const all = [];
+      const torrents = [];
       const limit = TORRENTS_PAGE_LIMIT;
-      let pageNum = 1;
+      let pageNumber = 1;
       while (true) {
         try {
-          logger.debug(`[Real-Debrid API] Fetching torrents page ${pageNum} (limit=${limit})`);
-          const page = await this.#request('GET', `/torrents?page=${pageNum}&limit=${limit}`);
+          logger.debug(`[Real-Debrid API] Fetching torrents page ${pageNumber} (limit=${limit})`);
+          const page = await this.#request('GET', `/torrents?page=${pageNumber}&limit=${limit}`);
           if (!Array.isArray(page) || page.length === 0) {
-            logger.warn(`[Real-Debrid API] No torrents returned for page ${pageNum}`);
+            logger.warn(`[Real-Debrid API] No torrents returned for page ${pageNumber}`);
             break;
           }
-          all.push(...page);
+          torrents.push(...page);
           if (page.length < limit) {
-            logger.debug(`[Real-Debrid API] Last page reached (${pageNum}) with ${page.length} items`);
+            logger.debug(`[Real-Debrid API] Last page reached (${pageNumber}) with ${page.length} items`);
             break;
           }
-          pageNum += 1;
-        } catch (err) {
-          if (err instanceof RealDebridError && err.statusCode === 429) throw err;
-          logger.error('[Real-Debrid API] Failed to fetch existing torrents page', err);
+          pageNumber += 1;
+        } catch (error) {
+          if (error instanceof RealDebridError && error.statusCode === 429) throw error;
+          logger.error('[Real-Debrid API] Failed to fetch existing torrents page', error);
           break;
         }
       }
-      logger.debug(`[Real-Debrid API] Fetched total ${all.length} existing torrents`);
-      return all;
+      logger.debug(`[Real-Debrid API] Fetched total ${torrents.length} existing torrents`);
+      return torrents;
     }
   }
 
-  // Represents the file structure of a torrent for selection
   class FileTree {
     constructor(files) {
       this.root = { name: 'Torrent Contents', children: [], type: 'folder', path: '', expanded: false };
       this.buildTree(files);
     }
 
-    // Builds a hierarchical tree from flat file list with paths
+    // Convert flat file list with paths into hierarchical tree structure
     buildTree(files) {
-      files.forEach(file => {
+      for (const file of files) {
         const pathParts = file.path.split('/').filter(part => part.trim() !== '');
         let current = this.root;
 
-        for (let i = 0; i < pathParts.length; i++) {
-          const part = pathParts[i];
-          const isFile = i === pathParts.length - 1;
+        for (let index = 0; index < pathParts.length; index++) {
+          const part = pathParts[index];
+          const isFile = index === pathParts.length - 1;
 
           if (isFile) {
             current.children.push({
@@ -342,23 +333,23 @@
                 children: [],
                 checked: false,
                 expanded: false,
-                path: pathParts.slice(0, i + 1).join('/')
+                path: pathParts.slice(0, index + 1).join('/')
               };
               current.children.push(folder);
             }
             current = folder;
           }
         }
-      });
+      }
     }
 
     countFiles(node = this.root) {
       if (node.type === 'file') return 1;
       let count = 0;
       if (node.children) {
-        node.children.forEach(child => {
+        for (const child of node.children) {
           count += this.countFiles(child);
-        });
+        }
       }
       return count;
     }
@@ -370,7 +361,9 @@
           files.push(node);
         }
         if (node.children) {
-          node.children.forEach(traverse);
+          for (const child of node.children) {
+            traverse(child);
+          }
         }
       };
       traverse(this.root);
@@ -382,187 +375,187 @@
     }
   }
 
-  // Processes magnet links, checks for duplicates, filters files
   class MagnetLinkProcessor {
     #config;
-    #api;
-    #existing = [];
+    #realDebridApi;
+    #existingTorrents = [];
 
-    constructor(config, api) {
+    constructor(config, realDebridApi) {
       this.#config = config;
-      this.#api = api;
+      this.#realDebridApi = realDebridApi;
     }
 
     async initialize() {
       try {
-        this.#existing = await this.#api.getExistingTorrents();
-        logger.debug(`[Magnet Processor] Loaded ${this.#existing.length} existing torrents`);
-      } catch (err) {
-        logger.error('[Magnet Processor] Failed to load existing torrents', err);
-        this.#existing = [];
+        this.#existingTorrents = await this.#realDebridApi.getExistingTorrents();
+        logger.debug(`[Magnet Processor] Loaded ${this.#existingTorrents.length} existing torrents`);
+      } catch (error) {
+        logger.error('[Magnet Processor] Failed to load existing torrents', error);
+        this.#existingTorrents = [];
       }
     }
 
-    // Extracts the torrent hash from a magnet link's xt parameter
+    // Extract torrent hash from magnet link's xt parameter (btih = BitTorrent Info Hash)
     static parseMagnetHash(magnetLink) {
       if (!magnetLink || typeof magnetLink !== 'string') return null;
       try {
-        const qIndex = magnetLink.indexOf('?');
-        if (qIndex === -1) return null;
-        const urlParams = new URLSearchParams(magnetLink.substring(qIndex));
-        const xt = urlParams.get('xt');
+        const queryIndex = magnetLink.indexOf('?');
+        if (queryIndex === -1) return null;
+        const urlParameters = new URLSearchParams(magnetLink.substring(queryIndex));
+        const xt = urlParameters.get('xt');
         if (xt && xt.startsWith('urn:btih:')) {
           return xt.substring(9).toUpperCase();
         }
-      } catch (err) {
-        logger.debug('[Magnet Processor] Failed to parse magnet hash', err);
+      } catch (error) {
+        logger.debug('[Magnet Processor] Failed to parse magnet hash', error);
       }
       return null;
     }
 
     isTorrentExists(hash) {
       if (!hash) return false;
-      return Array.isArray(this.#existing) && this.#existing.some(t => (t.hash || '').toUpperCase() === hash);
+      return Array.isArray(this.#existingTorrents) && this.#existingTorrents.some(torrent => (torrent.hash || '').toUpperCase() === hash);
     }
 
-    // Filters files by allowed extensions and excludes those matching keywords or regex
+    // Filter files by extension and exclude those matching keywords or regex patterns
     filterFiles(files = []) {
-      const allowed = new Set(this.#config.allowedExtensions.map(s => s.trim().toLowerCase()).filter(Boolean));
-      const keywords = (this.#config.filterKeywords || []).map(k => k.trim()).filter(Boolean);
+      const allowed = new Set(this.#config.allowedExtensions.map(extension => extension.trim().toLowerCase()).filter(Boolean));
+      const keywords = (this.#config.filterKeywords || []).map(keyword => keyword.trim()).filter(Boolean);
 
       return (files || []).filter(file => {
         const path = (file.path || '').toLowerCase();
         const name = path.split('/').pop() || '';
-        const ext = name.includes('.') ? name.split('.').pop() : '';
+        const extension = name.includes('.') ? name.split('.').pop() : '';
 
-        if (!allowed.has(ext)) return false;
+        if (!allowed.has(extension)) return false;
 
-        for (const kw of keywords) {
-          if (!kw) continue;
-          if (kw.startsWith('/') && kw.endsWith('/')) {
+        for (const keyword of keywords) {
+          if (!keyword) continue;
+          // Handle regex patterns (format: /pattern/)
+          if (keyword.startsWith('/') && keyword.endsWith('/')) {
             try {
-              const re = new RegExp(kw.slice(1, -1), 'i');
-              if (re.test(path) || re.test(name)) return false;
-            } catch (err) {
+              const regex = new RegExp(keyword.slice(1, -1), 'i');
+              if (regex.test(path) || regex.test(name)) return false;
+            } catch {
               // invalid regex: ignore it
             }
           }
-          if (path.includes(kw.toLowerCase()) || name.includes(kw.toLowerCase())) return false;
+          if (path.includes(keyword.toLowerCase()) || name.includes(keyword.toLowerCase())) return false;
         }
         return true;
       });
     }
 
-    // Adds magnet to Real-Debrid, selects files, and handles cleanup on failure
     async processMagnetLink(magnetLink) {
       const hash = MagnetLinkProcessor.parseMagnetHash(magnetLink);
       if (!hash) throw new RealDebridError('Invalid magnet link');
 
       if (this.isTorrentExists(hash)) throw new RealDebridError('Torrent already exists on Real-Debrid');
 
-      const addResult = await this.#api.addMagnet(magnetLink);
+      const addResult = await this.#realDebridApi.addMagnet(magnetLink);
       if (!addResult || typeof addResult.id === 'undefined') {
         throw new RealDebridError('Failed to add magnet');
       }
       const torrentId = addResult.id;
 
-      const info = await this.#api.getTorrentInfo(torrentId);
+      const info = await this.#realDebridApi.getTorrentInfo(torrentId);
       const files = Array.isArray(info.files) ? info.files : [];
 
-      let chosen;
+      let selectedFileIds;
       if (this.#config.manualFileSelection) {
         if (files.length === 1) {
-          chosen = [files[0].id];
+          selectedFileIds = [files[0].id];
         } else {
-          chosen = await UIManager.createFileSelectionDialog(files);
-          if (chosen === null) {
-            await this.#api.deleteTorrent(torrentId);
+          selectedFileIds = await UIManager.createFileSelectionDialog(files);
+          if (selectedFileIds === null) {
+            await this.#realDebridApi.deleteTorrent(torrentId);
             throw new RealDebridError('File selection cancelled');
           }
-          if (!chosen.length) {
-            await this.#api.deleteTorrent(torrentId);
+          if (!selectedFileIds.length) {
+            await this.#realDebridApi.deleteTorrent(torrentId);
             throw new RealDebridError('No files selected');
           }
         }
       } else {
-        chosen = this.filterFiles(files).map(f => f.id);
-        if (!chosen.length) {
-          await this.#api.deleteTorrent(torrentId);
+        selectedFileIds = this.filterFiles(files).map(f => f.id);
+        if (!selectedFileIds.length) {
+          await this.#realDebridApi.deleteTorrent(torrentId);
           throw new RealDebridError('No matching files found after filtering');
         }
       }
 
-      logger.debug(`[Magnet Processor] Selected files: ${chosen.map(id => files.find(f => f.id === id)?.path || `ID:${id}`).join(', ')}`);
-      await this.#api.selectFiles(torrentId, chosen.join(','));
-      return chosen.length;
+      logger.debug(`[Magnet Processor] Selected files: ${selectedFileIds.map(id => files.find(f => f.id === id)?.path || `ID:${id}`).join(', ')}`);
+      await this.#realDebridApi.selectFiles(torrentId, selectedFileIds.join(','));
+      return selectedFileIds.length;
     }
   }
 
-  // Handles user interface elements like dialogs and toasts
-  class UIManager {
-    // Icon state management
-    static setIconState(icon, state) {
+  const UIManager = {
+    setIconState(icon, state) {
       switch (state) {
-        case 'default':
+        case 'default': {
           icon.src = ICON_SRC;
           icon.style.filter = '';
           icon.style.opacity = '';
           icon.title = '';
           break;
-        case 'processing':
+        }
+        case 'processing': {
           icon.style.opacity = '0.5';
           break;
+        }
         case 'added':
-        case 'existing':
+        case 'existing': {
           icon.style.filter = 'grayscale(100%)';
           icon.style.opacity = '0.65';
           icon.title = state === 'existing' ? 'Already on Real-Debrid' : 'Added to Real-Debrid';
           break;
+        }
       }
-    }
+    },
 
-    static createConfigDialog(currentConfig) {
+    createConfigDialog(currentConfig) {
       const dialog = document.createElement('div');
       dialog.innerHTML = `
         <div class="rd-overlay">
           <div class="rd-dialog">
             <div class="rd-header">
               <h2 class="rd-title">Real-Debrid Settings</h2>
-              <button class="rd-close" id="cancelBtnTop">×</button>
+              <button class="rd-close" id="cancelButtonTop">×</button>
             </div>
             <div class="rd-content">
               <div class="rd-form-group">
                 <label class="rd-label">API Key</label>
-                <input type="text" id="apiKey" class="rd-input" placeholder="Enter your Real-Debrid API Key" value="${currentConfig.apiKey}">
+                <input type="text" id="apiKeyInput" class="rd-input" placeholder="Enter your Real-Debrid API Key" value="${currentConfig.apiKey}">
               </div>
               <div class="rd-form-group">
                 <label class="rd-label">Allowed Extensions</label>
-                <textarea id="extensions" class="rd-textarea" placeholder="mp4,mkv,avi">${currentConfig.allowedExtensions.join(',')}</textarea>
+                <textarea id="allowedExtensionsTextarea" class="rd-textarea" placeholder="mp4,mkv,avi">${currentConfig.allowedExtensions.join(',')}</textarea>
                 <div class="rd-help">Comma-separated file extensions</div>
               </div>
               <div class="rd-form-group">
                 <label class="rd-label">Filter Keywords</label>
-                <textarea id="keywords" class="rd-textarea" placeholder="sample,/trailer/">${currentConfig.filterKeywords.join(',')}</textarea>
+                <textarea id="filterKeywordsTextarea" class="rd-textarea" placeholder="sample,/trailer/">${currentConfig.filterKeywords.join(',')}</textarea>
                 <div class="rd-help">Keywords or regex patterns to exclude</div>
               </div>
               <div class="rd-form-group">
                 <label class="rd-checkbox-label">
-                  <input type="checkbox" id="manualFileSelection" ${currentConfig.manualFileSelection ? 'checked' : ''}>
+                  <input type="checkbox" id="manualFileSelectionCheckbox" ${currentConfig.manualFileSelection ? 'checked' : ''}>
                   Manual File Selection
                 </label>
                 <div class="rd-help">Show file selection dialog for manual selection</div>
               </div>
               <div class="rd-form-group">
                 <label class="rd-checkbox-label">
-                  <input type="checkbox" id="debugEnabled" ${currentConfig.debugEnabled ? 'checked' : ''}>
+                  <input type="checkbox" id="debugEnabledCheckbox" ${currentConfig.debugEnabled ? 'checked' : ''}>
                   Enable Debug Logging
                 </label>
                 <div class="rd-help">Log debug messages to console</div>
               </div>
             </div>
             <div class="rd-footer">
-              <button class="rd-button rd-primary" id="saveBtn">Save Settings</button>
-              <button class="rd-button rd-secondary" id="cancelBtn">Cancel</button>
+              <button class="rd-button rd-primary" id="saveButton">Save Settings</button>
+              <button class="rd-button rd-secondary" id="cancelButton">Cancel</button>
             </div>
           </div>
         </div>
@@ -571,19 +564,19 @@
       this.injectStyles();
       document.body.appendChild(dialog);
 
-      const saveBtn = dialog.querySelector('#saveBtn');
-      const cancelBtn = dialog.querySelector('#cancelBtn');
-      const cancelBtnTop = dialog.querySelector('#cancelBtnTop');
-      const manualCheckbox = dialog.querySelector('#manualFileSelection');
-      const extensionsTextarea = dialog.querySelector('#extensions');
-      const keywordsTextarea = dialog.querySelector('#keywords');
+      const saveButton = dialog.querySelector('#saveButton');
+      const cancelButton = dialog.querySelector('#cancelButton');
+      const cancelButtonTop = dialog.querySelector('#cancelButtonTop');
+      const manualCheckbox = dialog.querySelector('#manualFileSelectionCheckbox');
+      const allowedExtensionsTextarea = dialog.querySelector('#allowedExtensionsTextarea');
+      const filterKeywordsTextarea = dialog.querySelector('#filterKeywordsTextarea');
 
       const toggleFiltering = () => {
         const disabled = manualCheckbox.checked;
-        extensionsTextarea.disabled = disabled;
-        keywordsTextarea.disabled = disabled;
-        extensionsTextarea.style.opacity = disabled ? '0.5' : '1';
-        keywordsTextarea.style.opacity = disabled ? '0.5' : '1';
+        allowedExtensionsTextarea.disabled = disabled;
+        filterKeywordsTextarea.disabled = disabled;
+        allowedExtensionsTextarea.style.opacity = disabled ? '0.5' : '1';
+        filterKeywordsTextarea.style.opacity = disabled ? '0.5' : '1';
       };
 
       manualCheckbox.addEventListener('change', toggleFiltering);
@@ -594,21 +587,21 @@
         document.removeEventListener('keydown', escHandler);
       };
 
-      const escHandler = (e) => {
-        if (e.key === 'Escape') close();
+      const escHandler = (event_) => {
+        if (event_.key === 'Escape') close();
       };
       document.addEventListener('keydown', escHandler);
 
-      saveBtn.addEventListener('click', async () => {
-        const newCfg = {
-          apiKey: dialog.querySelector('#apiKey').value.trim(),
-          allowedExtensions: dialog.querySelector('#extensions').value.split(',').map(e => e.trim()).filter(Boolean),
-          filterKeywords: dialog.querySelector('#keywords').value.split(',').map(k => k.trim()).filter(Boolean),
-          manualFileSelection: dialog.querySelector('#manualFileSelection').checked,
-          debugEnabled: dialog.querySelector('#debugEnabled').checked
+      saveButton.addEventListener('click', async () => {
+        const newConfig = {
+          apiKey: dialog.querySelector('#apiKeyInput').value.trim(),
+          allowedExtensions: dialog.querySelector('#allowedExtensionsTextarea').value.split(',').map(extension => extension.trim()).filter(Boolean),
+          filterKeywords: dialog.querySelector('#filterKeywordsTextarea').value.split(',').map(k => k.trim()).filter(Boolean),
+          manualFileSelection: dialog.querySelector('#manualFileSelectionCheckbox').checked,
+          debugEnabled: dialog.querySelector('#debugEnabledCheckbox').checked
         };
         try {
-          await ConfigManager.saveConfig(newCfg);
+          await ConfigManager.saveConfig(newConfig);
           close();
           this.showToast('Configuration saved successfully!', 'success');
           location.reload();
@@ -617,20 +610,19 @@
         }
       });
 
-      cancelBtn.addEventListener('click', close);
-      cancelBtnTop.addEventListener('click', close);
+      cancelButton.addEventListener('click', close);
+      cancelButtonTop.addEventListener('click', close);
 
-      const apiInput = dialog.querySelector('#apiKey');
+      const apiInput = dialog.querySelector('#apiKeyInput');
       if (apiInput) apiInput.focus();
 
       return dialog;
-    }
+    },
 
-    // Creates a dialog for manual file selection with tree view
-    static createFileSelectionDialog(files) {
+    createFileSelectionDialog(files) {
       return new Promise((resolve) => {
         const fileTree = new FileTree(files);
-        const totalAllSize = fileTree.getAllFiles().reduce((sum, file) => sum + (file.bytes || 0), 0);
+        const totalSizeOfAllFiles = fileTree.getAllFiles().reduce((sum, file) => sum + (file.bytes || 0), 0);
         const dialog = document.createElement('div');
 
         dialog.innerHTML = `
@@ -638,7 +630,7 @@
             <div class="rd-dialog rd-file-dialog">
               <div class="rd-header">
                 <h2 class="rd-title">Select Files</h2>
-                <button class="rd-close" id="cancelBtnTop">×</button>
+                <button class="rd-close" id="cancelButtonTop">×</button>
               </div>
               <div class="rd-content">
                 <div class="rd-file-help">
@@ -646,14 +638,14 @@
                   Clicking file names will also select/deselect files.
                 </div>
                 <div class="rd-file-toolbar">
-                  <button class="rd-button rd-small" id="toggleAllBtn">Select All</button>
-                  <span class="rd-file-stats" id="fileStats">0 files selected</span>
+                  <button class="rd-button rd-small" id="toggleAllButton">Select All</button>
+                  <span class="rd-file-stats" id="fileStatsLabel">0 files selected</span>
                 </div>
                 <div class="rd-file-tree" id="fileTreeContainer"></div>
               </div>
               <div class="rd-footer">
-                <button class="rd-button rd-primary" id="okBtn">Add Selected Files</button>
-                <button class="rd-button rd-secondary" id="cancelBtn">Cancel</button>
+                <button class="rd-button rd-primary" id="okButton">Add Selected Files</button>
+                <button class="rd-button rd-secondary" id="cancelButton">Cancel</button>
               </div>
             </div>
           </div>
@@ -663,26 +655,24 @@
         document.body.appendChild(dialog);
 
         const treeContainer = dialog.querySelector('#fileTreeContainer');
-        const toggleAllBtn = dialog.querySelector('#toggleAllBtn');
-        const fileStats = dialog.querySelector('#fileStats');
-        const okBtn = dialog.querySelector('#okBtn');
-        const cancelBtn = dialog.querySelector('#cancelBtn');
-        const cancelBtnTop = dialog.querySelector('#cancelBtnTop');
+        const toggleAllButton = dialog.querySelector('#toggleAllButton');
+        const fileStatsLabel = dialog.querySelector('#fileStatsLabel');
+        const okButton = dialog.querySelector('#okButton');
+        const cancelButton = dialog.querySelector('#cancelButton');
+        const cancelButtonTop = dialog.querySelector('#cancelButtonTop');
 
-        // Function to recursively set folder checked state
         const setFolderChecked = (folder, checked) => {
           folder.checked = checked;
           if (folder.children) {
-            folder.children.forEach(child => {
+            for (const child of folder.children) {
               child.checked = checked;
               if (child.type === 'folder') {
                 setFolderChecked(child, checked);
               }
-            });
+            }
           }
         };
 
-        // Function to update parent states based on children
         const updateParentStates = (node = fileTree.root) => {
           if (node.type === 'file') return node.checked;
 
@@ -699,25 +689,22 @@
           return false;
         };
 
-        // Function to count selected files
         const countSelectedFiles = () => {
           return fileTree.getAllFiles().filter(file => file.checked).length;
         };
 
-        // Function to update the UI
         const updateUI = () => {
           updateParentStates();
           const selectedCount = countSelectedFiles();
           const totalCount = fileTree.getAllFiles().length;
           const selectedFiles = fileTree.getAllFiles().filter(file => file.checked);
           const totalSize = selectedFiles.reduce((sum, file) => sum + (file.bytes || 0), 0);
-          fileStats.textContent = `${selectedCount} of ${totalCount} files selected (${UIManager.formatBytes(totalSize)} / ${UIManager.formatBytes(totalAllSize)})`;
+          fileStatsLabel.textContent = `${selectedCount} of ${totalCount} files selected (${UIManager.formatBytes(totalSize)} / ${UIManager.formatBytes(totalSizeOfAllFiles)})`;
 
           const allSelected = totalCount > 0 && selectedCount === totalCount;
-          toggleAllBtn.textContent = allSelected ? 'Select None' : 'Select All';
+          toggleAllButton.textContent = allSelected ? 'Select None' : 'Select All';
         };
 
-        // Recursive function to render the file tree
         const renderTree = (node, level = 0) => {
           const element = document.createElement('div');
           element.className = `rd-tree-item rd-tree-level-${level}`;
@@ -741,36 +728,32 @@
             const folderName = element.querySelector('.rd-folder-name');
             const childrenContainer = element.querySelector('.rd-folder-children');
 
-            // Expand/collapse functionality
-            expander.addEventListener('click', (e) => {
-              e.stopPropagation();
+            expander.addEventListener('click', (event_) => {
+              event_.stopPropagation();
               node.expanded = !node.expanded;
               renderFullTree();
             });
 
-            folderName.addEventListener('click', (e) => {
-              e.stopPropagation();
+            folderName.addEventListener('click', (event_) => {
+              event_.stopPropagation();
               node.expanded = !node.expanded;
               renderFullTree();
             });
 
-            // Folder checkbox functionality
-            checkbox.addEventListener('change', (e) => {
-              e.stopPropagation();
+            checkbox.addEventListener('change', (event_) => {
+              event_.stopPropagation();
               setFolderChecked(node, checkbox.checked);
               updateUI();
               renderFullTree();
             });
 
-            // Render children if expanded
             if (node.expanded && childrenContainer && node.children) {
-              node.children.forEach(child => {
+              for (const child of node.children) {
                 childrenContainer.appendChild(renderTree(child, level + 1));
-              });
+              }
             }
 
           } else {
-            // File element
             element.innerHTML = `
               <div class="rd-file">
                 <input type="checkbox" class="rd-checkbox" ${node.checked ? 'checked' : ''}>
@@ -782,22 +765,25 @@
             const checkbox = element.querySelector('.rd-checkbox');
             const fileName = element.querySelector('.rd-file-name');
 
-            // File selection functionality
             const toggleFile = () => {
               node.checked = !node.checked;
               checkbox.checked = node.checked;
               updateUI();
-              // Re-render to update parent folder states visually
               renderFullTree();
             };
 
-            checkbox.addEventListener('change', (e) => {
-              e.stopPropagation();
+            checkbox.addEventListener('change', (event_) => {
+              event_.stopPropagation();
               toggleFile();
             });
 
-            fileName.addEventListener('click', (e) => {
-              e.stopPropagation();
+            fileName.addEventListener('click', (event_) => {
+              event_.stopPropagation();
+              toggleFile();
+            });
+
+            checkbox.addEventListener('click', (event_) => {
+              event_.stopPropagation();
               toggleFile();
             });
           }
@@ -805,23 +791,19 @@
           return element;
         };
 
-        // Function to render the entire tree
         const renderFullTree = () => {
           treeContainer.innerHTML = '';
           treeContainer.appendChild(renderTree(fileTree.root));
         };
 
-        // Select All/None functionality
-        toggleAllBtn.addEventListener('click', () => {
+        toggleAllButton.addEventListener('click', () => {
           const allFiles = fileTree.getAllFiles();
           const allSelected = allFiles.length > 0 && allFiles.every(file => file.checked);
 
-          // Toggle all files
-          allFiles.forEach(file => {
+          for (const file of allFiles) {
             file.checked = !allSelected;
-          });
+          }
 
-          // Update folder states
           updateParentStates();
           updateUI();
           renderFullTree();
@@ -832,37 +814,36 @@
           document.removeEventListener('keydown', escHandler);
         };
 
-        const escHandler = (e) => {
-          if (e.key === 'Escape') {
+        const escHandler = (event_) => {
+          if (event_.key === 'Escape') {
             close();
             resolve(null);
           }
         };
         document.addEventListener('keydown', escHandler);
 
-        okBtn.addEventListener('click', () => {
-          const selected = fileTree.getSelectedFiles();
+        okButton.addEventListener('click', () => {
+          const selectedFileIds = fileTree.getSelectedFiles();
           close();
-          resolve(selected);
+          resolve(selectedFileIds);
         });
 
-        cancelBtn.addEventListener('click', () => {
-          close();
-          resolve(null);
-        });
-
-        cancelBtnTop.addEventListener('click', () => {
+        cancelButton.addEventListener('click', () => {
           close();
           resolve(null);
         });
 
-        // Initial render
+        cancelButtonTop.addEventListener('click', () => {
+          close();
+          resolve(null);
+        });
+
         updateUI();
         renderFullTree();
       });
-    }
+    },
 
-    static injectStyles() {
+    injectStyles() {
       if (document.getElementById('rd-styles')) return;
 
       const styles = `
@@ -873,17 +854,17 @@
       styleSheet.id = 'rd-styles';
       styleSheet.textContent = styles;
       document.head.appendChild(styleSheet);
-    }
+    },
 
-    static showToast(message, type = 'info') {
+    showToast(message, type = 'info') {
       const colors = {
         success: '#10b981',
         error: '#ef4444',
         info: '#3b82f6'
       };
 
-      const msgDiv = document.createElement('div');
-      Object.assign(msgDiv.style, {
+      const messageDiv = document.createElement('div');
+      Object.assign(messageDiv.style, {
         position: 'fixed',
         bottom: '20px',
         left: '20px',
@@ -897,31 +878,30 @@
         boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
         animation: 'rdSlideIn 0.2s ease-out'
       });
-      msgDiv.textContent = message;
-      document.body.appendChild(msgDiv);
+      messageDiv.textContent = message;
+      document.body.appendChild(messageDiv);
       setTimeout(() => {
-        if (msgDiv.parentNode) msgDiv.parentNode.removeChild(msgDiv);
+        if (messageDiv.parentNode) messageDiv.parentNode.removeChild(messageDiv);
       }, TOAST_DURATION_MS);
-    }
+    },
 
-    static createMagnetIcon() {
+    createMagnetIcon() {
       const icon = document.createElement('img');
       icon.src = ICON_SRC;
       icon.style.cssText = `cursor:pointer;width:16px;height:16px;margin-left:6px;vertical-align:middle;border-radius:2px`;
       icon.setAttribute(INSERTED_ICON_ATTR, '1');
       return icon;
-    }
+    },
 
-    static formatBytes(bytes) {
+    formatBytes(bytes) {
       if (bytes === 0) return '0 B';
-      const k = 1024;
+      const kilobyte = 1024;
       const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-      const i = Math.floor(Math.log(bytes) / Math.log(k));
-      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-    }
-  }
+      const index = Math.floor(Math.log(bytes) / Math.log(kilobyte));
+      return parseFloat((bytes / Math.pow(kilobyte, index)).toFixed(2)) + ' ' + sizes[index];
+    },
+  };
 
-  // Integrates the script with the page, adds icons to magnet links
   class PageIntegrator {
     constructor(processor = null) {
       this.processor = processor;
@@ -946,9 +926,9 @@
     _attach(icon, link) {
       const processMagnet = async () => {
         const key = this._magnetKeyFor(link.href);
-        const ok = await ensureApiInitialized();
+        const isInitialized = await ensureApiInitialized();
 
-        if (!ok) {
+        if (!isInitialized) {
           UIManager.showToast('Real-Debrid API key not configured. Use the menu to set it.', 'info');
           return;
         }
@@ -959,54 +939,50 @@
           return;
         }
 
-        // set processing
         UIManager.setIconState(icon, 'processing');
 
         try {
-          const count = await this.processor.processMagnetLink(link.href);
-          UIManager.showToast(`Added to Real-Debrid — ${count} file(s) selected`, 'success');
+          const fileCount = await this.processor.processMagnetLink(link.href);
+          UIManager.showToast(`Added to Real-Debrid — ${fileCount} file(s) selected`, 'success');
           UIManager.setIconState(icon, 'added');
-        } catch (err) {
-          // reset to default
+        } catch (error) {
           UIManager.setIconState(icon, 'default');
-          UIManager.showToast(err?.message || 'Failed to process magnet', 'error');
-          logger.error('[Magnet Processor] Failed to process magnet link', err);
+          UIManager.showToast(error?.message || 'Failed to process magnet', 'error');
+          logger.error('[Magnet Processor] Failed to process magnet link', error);
         }
       };
 
-      icon.addEventListener('click', (ev) => {
-        ev.preventDefault();
+      icon.addEventListener('click', (event_) => {
+        event_.preventDefault();
         processMagnet();
       });
     }
 
     addIconsTo(documentRoot = document) {
-      const links = Array.from(documentRoot.querySelectorAll('a[href^="magnet:"]'));
+      const links = [...documentRoot.querySelectorAll('a[href^="magnet:"]')];
       const newlyAddedKeys = [];
-      links.forEach(link => {
-        if (!link.parentNode) return;
+      for (const link of links) {
+        if (!link.parentNode) continue;
         const next = link.nextElementSibling;
         const key = this._magnetKeyFor(link.href);
         if (next && next.getAttribute && next.getAttribute(INSERTED_ICON_ATTR)) {
-          // existing icon, populate map
           if (key && !this.keyToIcon.has(key)) {
             this.keyToIcon.set(key, next);
           }
-          return;
+          continue;
         }
-        // add new icon
-        if (key && this.keyToIcon.has(key)) return;
+        if (key && this.keyToIcon.has(key)) continue;
         const icon = UIManager.createMagnetIcon();
         this._attach(icon, link);
         link.parentNode.insertBefore(icon, link.nextSibling);
         const storeKey = key || `href:${link.href.trim().toLowerCase()}`;
         this.keyToIcon.set(storeKey, icon);
         newlyAddedKeys.push(storeKey);
-      });
+      }
 
       if (newlyAddedKeys.length) {
-        ensureApiInitialized().then(ok => {
-          if (ok) this.markExistingTorrents();
+        ensureApiInitialized().then(isInitialized => {
+          if (isInitialized) this.markExistingTorrents();
         });
       }
     }
@@ -1023,14 +999,13 @@
       }
     }
 
-    // Uses MutationObserver to add icons to new magnet links as they appear
+    // Watch for new magnet links added to the page dynamically
     startObserving() {
       if (this.observer) return;
 
-      // Cache the debounced callback
       const debouncedHandler = debounce((mutations) => {
-        for (const m of mutations) {
-          if (m.addedNodes && m.addedNodes.length) {
+        for (const mutation of mutations) {
+          if (mutation.addedNodes && mutation.addedNodes.length) {
             this.addIconsTo(document);
             break;
           }
@@ -1051,37 +1026,36 @@
     }
   }
 
-  // Delays API setup until a magnet link is clicked to avoid unnecessary requests
+  // Lazy initialization to avoid API calls until first magnet link is clicked
   let _apiInitPromise = null;
   let _realDebridService = null;
   let _magnetProcessor = null;
   let _integratorInstance = null;
 
-  // Ensures the API is initialized lazily
   async function ensureApiInitialized() {
     if (_apiInitPromise) return _apiInitPromise;
 
     try {
       if (!document.querySelector || !document.querySelector('a[href^="magnet:"]')) {
-        return Promise.resolve(false);
+        return false;
       }
-    } catch (err) {
+    } catch {
       // Continue with init if DOM access fails
     }
 
-    const cfg = await ConfigManager.getConfig();
-    if (!cfg.apiKey) {
-      return Promise.resolve(false);
+    const config = await ConfigManager.getConfig();
+    if (!config.apiKey) {
+      return false;
     }
 
     try {
-      _realDebridService = new RealDebridService(cfg.apiKey);
-    } catch (err) {
-      logger.warn('[Initialization] Failed to create Real-Debrid service', err);
-      return Promise.resolve(false);
+      _realDebridService = new RealDebridService(config.apiKey);
+    } catch (error) {
+      logger.warn('[Initialization] Failed to create Real-Debrid service', error);
+      return false;
     }
 
-    _magnetProcessor = new MagnetLinkProcessor(cfg, _realDebridService);
+    _magnetProcessor = new MagnetLinkProcessor(config, _realDebridService);
     _apiInitPromise = _magnetProcessor.initialize()
       .then(() => {
         if (_integratorInstance) {
@@ -1090,34 +1064,32 @@
         }
         return true;
       })
-      .catch(err => {
-        logger.warn('[Initialization] Failed to initialize Real-Debrid integration', err);
+      .catch(error => {
+        logger.warn('[Initialization] Failed to initialize Real-Debrid integration', error);
         return false;
       });
 
     return _apiInitPromise;
   }
 
-  // Main initialization function
   async function init() {
     try {
-      const cfg = await ConfigManager.getConfig();
-      logger = Logger('Magnet Link to Real-Debrid', { debug: cfg.debugEnabled });
+      const config = await ConfigManager.getConfig();
+      logger = Logger('Magnet Link to Real-Debrid', { debug: config.debugEnabled });
 
       _integratorInstance = new PageIntegrator(null);
       _integratorInstance.addIconsTo();
       _integratorInstance.startObserving();
 
-      GMC.registerMenuCommand('Configure Real-Debrid Settings', async () => {
-        const currentCfg = await ConfigManager.getConfig();
-        UIManager.createConfigDialog(currentCfg);
+      GM_registerMenuCommand('Configure Real-Debrid Settings', async () => {
+        const currentConfig = await ConfigManager.getConfig();
+        UIManager.createConfigDialog(currentConfig);
       });
-    } catch (err) {
-      logger.error('[Initialization] Script initialization failed', err);
+    } catch (error) {
+      logger.error('[Initialization] Script initialization failed', error);
     }
   }
 
-  // Run immediately
   init();
 
 })();
