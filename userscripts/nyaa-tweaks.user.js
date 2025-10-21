@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          Nyaa - Tweaks
-// @version       1.0.0
+// @version       1.1.0
 // @description   Redirects to English-translated anime and formats timestamps in 12-hour time.
 // @author        Journey Over
 // @license       MIT

@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          ThePosterDB - Easy Links
-// @version       2.1.0
+// @version       2.2.0
 // @description   Makes it easier to copy data from ThePosterDB
 // @author        Journey Over
 // @license       MIT
