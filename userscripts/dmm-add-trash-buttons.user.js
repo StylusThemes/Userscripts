@@ -848,6 +848,8 @@
       this.lastProcessedUrl = null;
       this.cachedContainer = null;
       this.pollingInterval = null;
+      this.initializedForUrl = null;
+      this.initializing = false;
 
       this.debouncedCheck = debounce(this.checkPage.bind(this), 50);
 
@@ -861,11 +863,15 @@
       window.addEventListener('popstate', () => {
         this.buttonManager.cleanup();
         this.lastProcessedUrl = null;
+        this.initializedForUrl = null;
+        this.initializing = false;
         this.debouncedCheck();
       });
       window.addEventListener('hashchange', () => {
         this.buttonManager.cleanup();
         this.lastProcessedUrl = null;
+        this.initializedForUrl = null;
+        this.initializing = false;
         this.debouncedCheck();
       });
 
@@ -874,6 +880,8 @@
         if (location.href !== this.lastUrl) {
           this.buttonManager.cleanup();
           this.lastProcessedUrl = null;
+          this.initializedForUrl = null;
+          this.initializing = false;
           this.debouncedCheck();
           this.lastUrl = location.href;
         }
@@ -896,9 +904,13 @@
     async checkPage() {
       const url = location.href;
 
+      if (this.initializing || this.initializedForUrl === url) return;
+      this.initializing = true;
+
       if (!CONFIG.RELEVANT_PAGE_RX.test(url)) {
         this.buttonManager.cleanup();
         this.lastUrl = url;
+        this.initializing = false;
         return;
       }
 
@@ -914,12 +926,15 @@
         } else {
           this.retry = 0;
         }
+        this.initializing = false;
         return;
       }
 
       this.retry = 0;
 
       await this.buttonManager.initialize(container);
+      this.initializing = false;
+      this.initializedForUrl = url;
       this.lastProcessedUrl = url;
       this.lastUrl = url;
     }
