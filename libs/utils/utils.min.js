@@ -5,7 +5,7 @@
 // @name         @journeyover/utils
 // @description  Utility helpers for my userscripts
 // @license      MIT
-// @version      1.0.2
+// @version      1.0.3
 // @homepageURL  https://github.com/StylusThemes/Userscripts
 // ==/UserScript==
 
