@@ -5,12 +5,11 @@
 // @author        Journey Over
 // @license       MIT
 // @match         *://myanimelist.net/anime/*
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@807f8f21e147eb4fbbd11173b30334f28665bf69/libs/gm/gmcompat.min.js
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@807f8f21e147eb4fbbd11173b30334f28665bf69/libs/utils/utils.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@807f8f21e147eb4fbbd11173b30334f28665bf69/libs/metadata/animeapi/animeapi.min.js
-// @grant         GM.xmlHttpRequest
-// @grant         GM.setValue
-// @grant         GM.getValue
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@644b86d55bf5816a4fa2a165bdb011ef7c22dfe1/libs/metadata/animeapi/animeapi.min.js
+// @grant         GM_xmlhttpRequest
+// @grant         GM_setValue
+// @grant         GM_getValue
 // @run-at        document-end
 // @inject-into   content
 // @icon          https://www.google.com/s2/favicons?sz=64&domain=myanimelist.net
@@ -45,7 +44,7 @@
   }
 
   // Check cache first (24-hour validity)
-  const cachedEntry = await GMC.getValue(myAnimeListId);
+  const cachedEntry = GM_getValue(myAnimeListId);
   if (cachedEntry) {
     try {
       if (Date.now() - cachedEntry.timestamp < 24 * 60 * 60 * 1000) {
@@ -68,7 +67,7 @@
     }
 
     // Cache successful response with timestamp
-    GMC.setValue(myAnimeListId, {
+    GM_setValue(myAnimeListId, {
       data: apiData,
       timestamp: Date.now()
     });

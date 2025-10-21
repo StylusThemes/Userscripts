@@ -5,19 +5,18 @@
 // @author        Journey Over
 // @license       MIT
 // @match         *://trakt.tv/*
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@807f8f21e147eb4fbbd11173b30334f28665bf69/libs/gm/gmcompat.min.js
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@807f8f21e147eb4fbbd11173b30334f28665bf69/libs/utils/utils.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@807f8f21e147eb4fbbd11173b30334f28665bf69/libs/metadata/wikidata/wikidata.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@807f8f21e147eb4fbbd11173b30334f28665bf69/libs/metadata/armhaglund/armhaglund.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@807f8f21e147eb4fbbd11173b30334f28665bf69/libs/metadata/anilist/anilist.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@644b86d55bf5816a4fa2a165bdb011ef7c22dfe1/libs/metadata/wikidata/wikidata.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@644b86d55bf5816a4fa2a165bdb011ef7c22dfe1/libs/metadata/armhaglund/armhaglund.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@644b86d55bf5816a4fa2a165bdb011ef7c22dfe1/libs/metadata/anilist/anilist.min.js
 // @require       https://cdn.jsdelivr.net/npm/node-creation-observer@1.2.0/release/node-creation-observer-latest.min.js
 // @require       https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js
-// @grant         GM.deleteValue
-// @grant         GM.getValue
-// @grant         GM.listValues
-// @grant         GM.setValue
-// @grant         GM.xmlHttpRequest
-// @grant         GM.info
+// @grant         GM_deleteValue
+// @grant         GM_getValue
+// @grant         GM_listValues
+// @grant         GM_setValue
+// @grant         GM_xmlhttpRequest
+// @grant         GM_info
 // @run-at        document-start
 // @inject-into   content
 // @icon          https://www.google.com/s2/favicons?sz=64&domain=trakt.tv
@@ -33,9 +32,9 @@
 
   const CONSTANTS = {
     CACHE_DURATION: 24 * 60 * 60 * 1000,
-    SCRIPT_ID: GM.info.script.name.toLowerCase().replace(/\s/g, '-'),
+    SCRIPT_ID: GM_info.script.name.toLowerCase().replace(/\s/g, '-'),
     CONFIG_KEY: 'external-trakt-links-config',
-    TITLE: `${GM.info.script.name} Settings`,
+    TITLE: `${GM_info.script.name} Settings`,
     DUB_LANGUAGE_KEY: 'Dub Language',
     METADATA_SITES: [
       { name: 'Rotten Tomatoes', desc: 'Provides a direct link to Rotten Tomatoes for the selected title.' },
@@ -109,7 +108,7 @@
     }
 
     async loadConfig() {
-      const savedConfig = await GMC.getValue(CONSTANTS.CONFIG_KEY);
+      const savedConfig = GM_getValue(CONSTANTS.CONFIG_KEY);
       if (savedConfig) {
         this.config = { ...DEFAULT_CONFIG, ...savedConfig };
       }
@@ -225,7 +224,7 @@
 
     // Fetch Wikidata links with fallback to ArmHaglund for missing anime IDs
     async processWikidataLinks() {
-      const cache = await GMC.getValue(this.mediaInfo.imdbId);
+      const cache = GM_getValue(this.mediaInfo.imdbId);
 
       if (this.isCacheValid(cache)) {
         this.addWikidataLinks(cache.links);
@@ -244,7 +243,7 @@
         const hasMeaningfulData = Object.keys(data.links).length > 0 || data.item;
 
         if (hasMeaningfulData) {
-          await GMC.setValue(this.mediaInfo.imdbId, {
+          GM_setValue(this.mediaInfo.imdbId, {
             links: data.links,
             item: data.item,
             time: Date.now()
@@ -357,41 +356,38 @@
       const cacheKey = this.mediaInfo.imdbId;
       const selectedLanguage = this.config['Dub Language'];
 
-      GMC.getValue(cacheKey)
-        .then(cache => {
-          if (cache?.dubStatus?.[selectedLanguage] !== undefined) {
-            this.displayDubInfo(cache.dubStatus[selectedLanguage]);
-            return;
-          }
+      const cache = GM_getValue(cacheKey);
+      if (cache?.dubStatus?.[selectedLanguage] !== undefined) {
+        this.displayDubInfo(cache.dubStatus[selectedLanguage]);
+        return;
+      }
 
-          return this.queryAnilist(this.mediaInfo.anilistId)
-            .then(edges => {
-              // Check if any main characters have voice actors in the selected language
-              const hasDub = edges.some(edge => edge.voiceActors?.length > 0);
-              const updatedCache = {
-                ...cache,
-                dubStatus: {
-                  ...cache?.dubStatus,
-                  [selectedLanguage]: hasDub
-                }
-              };
-              return GMC.setValue(cacheKey, updatedCache).then(() => hasDub);
-            })
-            .then(hasDub => this.displayDubInfo(hasDub));
+      this.queryAnilist(this.mediaInfo.anilistId)
+        .then(edges => {
+          // Check if any main characters have voice actors in the selected language
+          const hasDub = edges.some(edge => edge.voiceActors?.length > 0);
+          const updatedCache = {
+            ...cache,
+            dubStatus: {
+              ...cache?.dubStatus,
+              [selectedLanguage]: hasDub
+            }
+          };
+          GM_setValue(cacheKey, updatedCache);
+          this.displayDubInfo(hasDub);
         })
         .catch(error => {
           logger.error(`Failed fetching AniList dub info: ${error.message}`);
           // Cache the failure to avoid repeated API calls
-          return GMC.getValue(cacheKey).then(cache => {
-            const updatedCache = {
-              ...cache,
-              dubStatus: {
-                ...cache?.dubStatus,
-                [selectedLanguage]: false
-              }
-            };
-            return GMC.setValue(cacheKey, updatedCache);
-          });
+          const cache = GM_getValue(cacheKey);
+          const updatedCache = {
+            ...cache,
+            dubStatus: {
+              ...cache?.dubStatus,
+              [selectedLanguage]: false
+            }
+          };
+          GM_setValue(cacheKey, updatedCache);
         });
     }
 
@@ -536,20 +532,16 @@
       return $(`#external-link-${site.toLowerCase().replace(/\s/g, '-')}`).length > 0;
     }
 
-    async clearExpiredCache() {
+    clearExpiredCache() {
       try {
-        const values = await GMC.listValues();
-        const deletePromises = [];
-
+        const values = GM_listValues();
         for (const value of values) {
           if (value === CONSTANTS.CONFIG_KEY) continue;
-          const cache = await GMC.getValue(value);
+          const cache = GM_getValue(value);
           if (cache?.time && (Date.now() - cache.time) > CONSTANTS.CACHE_DURATION) {
-            deletePromises.push(GMC.deleteValue(value));
+            GM_deleteValue(value);
           }
         }
-
-        await Promise.all(deletePromises);
       } catch (error) {
         logger.error(`Failed to clear expired cache: ${error.message}`);
       }
@@ -678,14 +670,14 @@
         this.refreshModalValues();
       });
 
-      $modal.find('#clear-cache').on('click', async () => {
+      $modal.find('#clear-cache').on('click', () => {
         try {
-          const values = await GMC.listValues();
-          const deletePromises = values
-            .filter(value => value !== CONSTANTS.CONFIG_KEY)
-            .map(value => GMC.deleteValue(value));
-
-          await Promise.all(deletePromises);
+          const values = GM_listValues();
+          for (const value of values) {
+            if (value !== CONSTANTS.CONFIG_KEY) {
+              GM_deleteValue(value);
+            }
+          }
           alert('Cache cleared successfully.');
         } catch (error) {
           logger.error(`Failed to clear cache: ${error.message}`);
@@ -693,9 +685,9 @@
         }
       });
 
-      $modal.find('#save-reload').on('click', async () => {
+      $modal.find('#save-reload').on('click', () => {
         try {
-          await this.saveSettingsFromModal();
+          this.saveSettingsFromModal();
           this.closeModal();
           window.location.reload();
         } catch (error) {
@@ -725,7 +717,7 @@
       $modal.find('#dub_language').val(this.config['Dub Language']);
     }
 
-    async saveSettingsFromModal() {
+    saveSettingsFromModal() {
       const modalSelector = `#${CONSTANTS.SCRIPT_ID}-config`;
       const $modal = $(modalSelector);
       const allSites = [...CONSTANTS.METADATA_SITES, ...CONSTANTS.STREAMING_SITES, CONSTANTS.DUB_INFO];
@@ -736,7 +728,7 @@
       }
 
       this.config['Dub Language'] = $modal.find('#dub_language').val();
-      await GMC.setValue(CONSTANTS.CONFIG_KEY, this.config);
+      GM_setValue(CONSTANTS.CONFIG_KEY, this.config);
       logger.debug('Settings saved', this.config);
     }
   }

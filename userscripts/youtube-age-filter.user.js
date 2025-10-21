@@ -6,11 +6,10 @@
 // @license       MIT
 // @match         *://*.youtube.com/*
 // @match         *://*.youtube-nocookie.com/*
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@807f8f21e147eb4fbbd11173b30334f28665bf69/libs/gm/gmcompat.min.js
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@807f8f21e147eb4fbbd11173b30334f28665bf69/libs/utils/utils.min.js
-// @grant         GM.setValue
-// @grant         GM.getValue
-// @grant         GM.registerMenuCommand
+// @grant         GM_setValue
+// @grant         GM_getValue
+// @grant         GM_registerMenuCommand
 // @run-at        document-body
 // @icon          https://www.google.com/s2/favicons?sz=64&domain=youtube.com
 // @homepageURL   https://github.com/StylusThemes/Userscripts
@@ -23,7 +22,7 @@
 
   const logger = Logger('YT - Age Filter', { debug: false });
 
-  let AGE_THRESHOLD = await GMC.getValue('AGE_THRESHOLD', { value: 4, unit: 'years' });
+  let AGE_THRESHOLD = GM_getValue('AGE_THRESHOLD', { value: 4, unit: 'years' });
   const processedVideos = new WeakSet();
 
   // eslint-disable-next-line no-unused-vars
@@ -231,7 +230,7 @@
       const thresholdValue = parseFloat(ageThresholdInput.value);
       const thresholdUnit = ageUnitSelect.value;
       AGE_THRESHOLD = { value: thresholdValue, unit: thresholdUnit };
-      await GMC.setValue('AGE_THRESHOLD', AGE_THRESHOLD);
+      GM_setValue('AGE_THRESHOLD', AGE_THRESHOLD);
       settingsOverlay.remove();
     });
 
@@ -245,6 +244,6 @@
     settingsOverlay.addEventListener('click', clickEvent => { if (clickEvent.target === settingsOverlay) closeMenu(); });
   }
 
-  GMC.registerMenuCommand('Open YouTube Filters Settings', openSettingsMenu);
+  GM_registerMenuCommand('Open YouTube Filters Settings', openSettingsMenu);
 
 })();

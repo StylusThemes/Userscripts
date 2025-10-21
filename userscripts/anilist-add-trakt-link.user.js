@@ -5,12 +5,11 @@
 // @author        Journey Over
 // @license       MIT
 // @match         *://anilist.co/*
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@807f8f21e147eb4fbbd11173b30334f28665bf69/libs/gm/gmcompat.min.js
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@807f8f21e147eb4fbbd11173b30334f28665bf69/libs/utils/utils.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@807f8f21e147eb4fbbd11173b30334f28665bf69/libs/metadata/animeapi/animeapi.min.js
-// @grant         GM.xmlHttpRequest
-// @grant         GM.setValue
-// @grant         GM.getValue
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@644b86d55bf5816a4fa2a165bdb011ef7c22dfe1/libs/metadata/animeapi/animeapi.min.js
+// @grant         GM_xmlhttpRequest
+// @grant         GM_setValue
+// @grant         GM_getValue
 // @run-at        document-end
 // @inject-into   content
 // @icon          https://www.google.com/s2/favicons?sz=64&domain=anilist.co
@@ -107,7 +106,7 @@
     }
 
     async getTraktData(anilistId) {
-      const cachedEntry = await GMC.getValue(anilistId);
+      const cachedEntry = GM_getValue(anilistId);
       if (cachedEntry && this.isCacheValid(cachedEntry)) {
         logger.debug(`Using cached data for AniList ID ${anilistId}`);
         return cachedEntry.data;
@@ -115,7 +114,7 @@
 
       const traktData = await this.fetchTraktData(anilistId);
       if (traktData) {
-        await GMC.setValue(anilistId, {
+        GM_setValue(anilistId, {
           data: traktData,
           timestamp: Date.now()
         });

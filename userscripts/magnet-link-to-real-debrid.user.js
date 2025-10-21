@@ -5,12 +5,11 @@
 // @author        Journey Over
 // @license       MIT
 // @match         *://*/*
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@807f8f21e147eb4fbbd11173b30334f28665bf69/libs/gm/gmcompat.min.js
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@807f8f21e147eb4fbbd11173b30334f28665bf69/libs/utils/utils.min.js
-// @grant         GM.xmlHttpRequest
-// @grant         GM.getValue
-// @grant         GM.setValue
-// @grant         GM.registerMenuCommand
+// @grant         GM_xmlhttpRequest
+// @grant         GM_getValue
+// @grant         GM_setValue
+// @grant         GM_registerMenuCommand
 // @connect       api.real-debrid.com
 // @icon          https://www.google.com/s2/favicons?sz=64&domain=real-debrid.com
 // @homepageURL   https://github.com/StylusThemes/Userscripts
@@ -79,7 +78,7 @@
     },
 
     async getConfig() {
-      const stored = await GMC.getValue(STORAGE_KEY);
+      const stored = GM_getValue(STORAGE_KEY);
       const parsed = this._safeParse(stored) || {};
       return {
         ...DEFAULTS,
@@ -89,7 +88,7 @@
 
     async saveConfig(config) {
       if (!config || !config.apiKey) throw new ConfigurationError('API Key is required');
-      await GMC.setValue(STORAGE_KEY, JSON.stringify(config));
+      GM_setValue(STORAGE_KEY, JSON.stringify(config));
     },
 
     validateConfig(config) {
@@ -121,7 +120,7 @@
         const now = Date.now();
         let rateLimitData = null;
         try {
-          const raw = await GMC.getValue(key);
+          const raw = GM_getValue(key);
           rateLimitData = raw ? JSON.parse(raw) : null;
         } catch {
           rateLimitData = null;
@@ -131,7 +130,7 @@
         if (!rateLimitData || typeof rateLimitData !== 'object' || !rateLimitData.windowStart || (now - rateLimitData.windowStart) >= windowMs) {
           const fresh = { windowStart: now, count: 1 };
           try {
-            await GMC.setValue(key, JSON.stringify(fresh));
+            GM_setValue(key, JSON.stringify(fresh));
             return;
           } catch {
             attempt += 1;
@@ -143,7 +142,7 @@
         if ((rateLimitData.count || 0) < limit) {
           rateLimitData.count = (rateLimitData.count || 0) + 1;
           try {
-            await GMC.setValue(key, JSON.stringify(rateLimitData));
+            GM_setValue(key, JSON.stringify(rateLimitData));
             return;
           } catch {
             attempt += 1;
@@ -180,7 +179,7 @@
           const payload = data ? new URLSearchParams(data).toString() : null;
           logger.debug(`[Real-Debrid API] ${method} ${endpoint} (attempt ${attempt + 1})`);
 
-          GMC.xmlHttpRequest({
+          GM_xmlhttpRequest({
             method,
             url,
             headers: {
@@ -1082,7 +1081,7 @@
       _integratorInstance.addIconsTo();
       _integratorInstance.startObserving();
 
-      GMC.registerMenuCommand('Configure Real-Debrid Settings', async () => {
+      GM_registerMenuCommand('Configure Real-Debrid Settings', async () => {
         const currentConfig = await ConfigManager.getConfig();
         UIManager.createConfigDialog(currentConfig);
       });

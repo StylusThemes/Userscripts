@@ -5,12 +5,11 @@
 // @author        Journey Over
 // @license       MIT
 // @match         *://mediux.pro/*
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@807f8f21e147eb4fbbd11173b30334f28665bf69/libs/gm/gmcompat.min.js
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@807f8f21e147eb4fbbd11173b30334f28665bf69/libs/utils/utils.min.js
 // @require       https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js
-// @grant         GM.xmlHttpRequest
-// @grant         GM.setValue
-// @grant         GM.getValue
+// @grant         GM_xmlhttpRequest
+// @grant         GM_setValue
+// @grant         GM_getValue
 // @run-at        document-end
 // @icon          https://www.google.com/s2/favicons?sz=64&domain=mediux.pro
 // @homepageURL   https://github.com/StylusThemes/Userscripts
@@ -133,7 +132,7 @@
             const jsonData = JSON.parse(scriptContent)[1].split('{"set":')[1];
             const fullJsonString = `{"set":${jsonData}`;
             const parsedData = JSON.parse(fullJsonString.substring(0, fullJsonString.length - 2));
-            GMC.setValue('creator', parsedData.set.user_created.username);
+            GM_setValue('creator', parsedData.set.user_created.username);
             return parsedData.set.boxset.sets;
           }
         }
@@ -142,7 +141,7 @@
 
       getSet(setId) {
         return new Promise((resolve, reject) => {
-          GMC.xmlHttpRequest({
+          GM_xmlhttpRequest({
             method: 'GET',
             url: `https://mediux.pro/sets/${setId}`,
             timeout: 30000,
@@ -168,7 +167,7 @@
         const button = document.querySelector('#bsetbutton');
         let yamlOutput = codeblock.textContent + '\n';
         const sets = MediuxFixes.data.getSets();
-        const creator = await GMC.getValue('creator');
+        const creator = GM_getValue('creator');
         const startTime = Date.now();
         let elapsedTime = 0;
         let processedMovieTitles = [];

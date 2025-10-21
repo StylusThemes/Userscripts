@@ -6,13 +6,12 @@
 // @license       MIT
 // @match         *://*.youtube.com/*
 // @match         *://*.youtube-nocookie.com/*
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@807f8f21e147eb4fbbd11173b30334f28665bf69/libs/gm/gmcompat.min.js
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@807f8f21e147eb4fbbd11173b30334f28665bf69/libs/utils/utils.min.js
-// @grant         GM.setValue
-// @grant         GM.getValue
-// @grant         GM.deleteValue
-// @grant         GM.listValues
-// @grant         GM.addValueChangeListener
+// @grant         GM_setValue
+// @grant         GM_getValue
+// @grant         GM_deleteValue
+// @grant         GM_listValues
+// @grant         GM_addValueChangeListener
 // @icon          https://www.google.com/s2/favicons?sz=64&domain=youtube.com
 // @homepageURL   https://github.com/StylusThemes/Userscripts
 // @downloadURL   https://github.com/StylusThemes/Userscripts/raw/main/userscripts/youtube-resumer.user.js
@@ -54,12 +53,12 @@
   };
 
   async function getStorage() {
-    const storedData = await GMC.getValue('yt_resumer_storage');
+    const storedData = GM_getValue('yt_resumer_storage');
     return storedData || { videos: {}, playlists: {}, meta: {} };
   }
 
   async function setStorage(storage) {
-    await GMC.setValue('yt_resumer_storage', storage);
+    GM_setValue('yt_resumer_storage', storage);
   }
 
   async function seekVideo(player, videoElement, time) {
@@ -270,7 +269,7 @@
       await periodicCleanup();
       setInterval(periodicCleanup, CLEANUP_INTERVAL_MS);
 
-      GMC.addValueChangeListener(onStorageChange);
+      GM_addValueChangeListener(onStorageChange);
 
       logger('This tab is handling the initial load');
       window.addEventListener('pageshow', () => {

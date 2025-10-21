@@ -6,12 +6,11 @@
 // @license       MIT
 // @match         *://debridmediamanager.com/*
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@807f8f21e147eb4fbbd11173b30334f28665bf69/libs/dmm/button-data.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@807f8f21e147eb4fbbd11173b30334f28665bf69/libs/gm/gmcompat.min.js
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@807f8f21e147eb4fbbd11173b30334f28665bf69/libs/utils/utils.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@807f8f21e147eb4fbbd11173b30334f28665bf69/libs/metadata/armhaglund/armhaglund.min.js
-// @grant         GM.getValue
-// @grant         GM.setValue
-// @grant         GM.xmlHttpRequest
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@644b86d55bf5816a4fa2a165bdb011ef7c22dfe1/libs/metadata/armhaglund/armhaglund.min.js
+// @grant         GM_getValue
+// @grant         GM_setValue
+// @grant         GM_xmlhttpRequest
 // @icon          https://www.google.com/s2/favicons?sz=64&domain=debridmediamanager.com
 // @homepageURL   https://github.com/StylusThemes/Userscripts
 // @downloadURL   https://github.com/StylusThemes/Userscripts/raw/main/userscripts/dmm-add-trash-buttons.user.js
@@ -71,7 +70,7 @@
   const allQualityValues = QUALITY_TOKENS.flatMap(token => token.values);
 
   const getCachedAnimeData = async (imdbId) => {
-    const cache = await GMC.getValue(CONFIG.CACHE_KEY) || {};
+    const cache = GM_getValue(CONFIG.CACHE_KEY) || {};
     if (typeof cache !== 'object' || Array.isArray(cache)) return null;
     const cacheKey = `${CONFIG.CACHE_PREFIX}${imdbId}`;
     const cached = cache[cacheKey];
@@ -92,14 +91,14 @@
   };
 
   const updateCache = async (imdbId, result) => {
-    let cache = await GMC.getValue(CONFIG.CACHE_KEY) || {};
+    let cache = GM_getValue(CONFIG.CACHE_KEY) || {};
     if (typeof cache !== 'object' || Array.isArray(cache)) cache = {};
     const cacheKey = `${CONFIG.CACHE_PREFIX}${imdbId}`;
     cache[cacheKey] = { data: result, timestamp: Date.now() };
 
     // Cleanup old entries to prevent cache bloat
     const now = Date.now();
-    const lastCleanup = await GMC.getValue(CONFIG.CACHE_LAST_CLEANUP_KEY) || 0;
+    const lastCleanup = GM_getValue(CONFIG.CACHE_LAST_CLEANUP_KEY) || 0;
     if (now - lastCleanup >= CONFIG.CACHE_DURATION) {
       let cleanedCount = 0;
       for (const [key, entry] of Object.entries(cache)) {
@@ -108,19 +107,19 @@
           cleanedCount++;
         }
       }
-      await GMC.setValue(CONFIG.CACHE_LAST_CLEANUP_KEY, now);
+      GM_setValue(CONFIG.CACHE_LAST_CLEANUP_KEY, now);
       if (cleanedCount > 0) {
         logger.debug(`Cache cleanup: Removed ${cleanedCount} expired entries`);
       }
     }
-    await GMC.setValue(CONFIG.CACHE_KEY, cache);
+    GM_setValue(CONFIG.CACHE_KEY, cache);
   };
 
   const checkReleasesMoeExists = (anilistId) => {
     return new Promise((resolve) => {
       const apiUrl = `https://releases.moe/api/collections/entries/records?filter=alID=${anilistId}`;
 
-      GMC.xmlHttpRequest({
+      GM_xmlhttpRequest({
         method: 'GET',
         url: apiUrl,
         onload: (response) => {
@@ -277,14 +276,14 @@
 
     async loadPersistedSettings() {
       try {
-        const stored = await GMC.getValue(CONFIG.QUALITY_OPTIONS_KEY, null);
+        const stored = GM_getValue(CONFIG.QUALITY_OPTIONS_KEY, null);
         this.selectedOptions = stored ? JSON.parse(stored) : [];
 
-        const polarityStored = await GMC.getValue(CONFIG.QUALITY_POLARITY_KEY, null);
+        const polarityStored = GM_getValue(CONFIG.QUALITY_POLARITY_KEY, null);
         const polarityData = polarityStored ? JSON.parse(polarityStored) : {};
         this.qualityPolarity = new Map(Object.entries(polarityData));
 
-        const logicStored = await GMC.getValue(CONFIG.LOGIC_MODE_KEY, null);
+        const logicStored = GM_getValue(CONFIG.LOGIC_MODE_KEY, null);
         this.useAndLogic = logicStored ? JSON.parse(logicStored) : false;
       } catch (error) {
         logger.error('Failed to load quality options:', error);
@@ -423,7 +422,7 @@
       }
 
       try {
-        await GMC.setValue(CONFIG.LOGIC_MODE_KEY, JSON.stringify(this.useAndLogic));
+        GM_setValue(CONFIG.LOGIC_MODE_KEY, JSON.stringify(this.useAndLogic));
       } catch (error) {
         logger.error('Failed to save logic mode:', error);
       }
@@ -479,8 +478,8 @@
 
     async _saveOptions() {
       try {
-        await GMC.setValue(CONFIG.QUALITY_OPTIONS_KEY, JSON.stringify(this.selectedOptions));
-        await GMC.setValue(CONFIG.QUALITY_POLARITY_KEY, JSON.stringify(Object.fromEntries(this.qualityPolarity)));
+        GM_setValue(CONFIG.QUALITY_OPTIONS_KEY, JSON.stringify(this.selectedOptions));
+        GM_setValue(CONFIG.QUALITY_POLARITY_KEY, JSON.stringify(Object.fromEntries(this.qualityPolarity)));
       } catch (error) {
         logger.error('Failed to save quality options:', error);
       }

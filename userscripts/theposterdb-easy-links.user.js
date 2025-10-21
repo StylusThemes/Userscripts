@@ -5,10 +5,9 @@
 // @author        Journey Over
 // @license       MIT
 // @match         *://theposterdb.com/*
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@807f8f21e147eb4fbbd11173b30334f28665bf69/libs/gm/gmcompat.min.js
 // @require       https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js
-// @grant         GM.setClipboard
-// @grant         GM.addStyle
+// @grant         GM_setClipboard
+// @grant         GM_addStyle
 // @icon          https://www.google.com/s2/favicons?sz=64&domain=theposterdb.com
 // @homepageURL   https://github.com/StylusThemes/Userscripts
 // @downloadURL   https://github.com/StylusThemes/Userscripts/raw/main/userscripts/theposterdb-easy-links.user.js
@@ -116,7 +115,7 @@
     }
 
     setupStyles() {
-      GMC.addStyle(STYLES);
+      GM_addStyle(STYLES);
     }
 
     createButton(text, className, clickHandler) {
@@ -132,12 +131,12 @@
       buttonContainer.className = 'tpdb-button-container';
 
       const copyLinkButton = this.createButton('Copy Link', 'tpdb-button-link', () => {
-        GMC.setClipboard(Utilities.createUrl(posterId));
+        GM_setClipboard(Utilities.createUrl(posterId));
         NotificationManager.show(CONFIG.notifications.messages.link);
       });
 
       const copyIdButton = this.createButton('Copy ID', 'tpdb-button-id', () => {
-        GMC.setClipboard(posterId);
+        GM_setClipboard(posterId);
         NotificationManager.show(CONFIG.notifications.messages.id);
       });
 
@@ -199,7 +198,7 @@
       metadataButton.textContent = 'Copy Metadata';
       metadataButton.addEventListener('click', () => {
         const metadataString = `metadata:\n\n${posterDataList.map(poster => poster.toMetadata()).join('\n\n')}`;
-        GMC.setClipboard(metadataString);
+        GM_setClipboard(metadataString);
         NotificationManager.show(CONFIG.notifications.messages.metadata);
       });
 

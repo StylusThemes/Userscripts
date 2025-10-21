@@ -6,11 +6,10 @@
 // @license       MIT
 // @match         *://*.youtube.com/*
 // @match         *://*.youtube-nocookie.com/*
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@807f8f21e147eb4fbbd11173b30334f28665bf69/libs/gm/gmcompat.min.js
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@807f8f21e147eb4fbbd11173b30334f28665bf69/libs/utils/utils.min.js
-// @grant         GM.getValue
-// @grant         GM.setValue
-// @grant         GM.registerMenuCommand
+// @grant         GM_getValue
+// @grant         GM_setValue
+// @grant         GM_registerMenuCommand
 // @icon          https://www.google.com/s2/favicons?sz=64&domain=youtube.com
 // @homepageURL   https://github.com/StylusThemes/Userscripts
 // @downloadURL   https://github.com/StylusThemes/Userscripts/raw/main/userscripts/youtube-tweaks.user.js
@@ -258,7 +257,7 @@
 
   for (const featureName of Object.keys(features)) {
     const featureConfig = features[featureName];
-    featureConfig.enabled = await GMC.getValue(`feature_${featureConfig.id}`, featureConfig.default);
+    featureConfig.enabled = GM_getValue(`feature_${featureConfig.id}`, featureConfig.default);
     if (featureConfig.enabled) { try { featureConfig.start(); } catch (error) { logger.error('Error starting', featureConfig.id, error); } }
   }
 
@@ -290,7 +289,7 @@
         const newEnabledState = !!enableCheckbox.checked;
         if (newEnabledState === featureConfig.enabled) return;
         featureConfig.enabled = newEnabledState;
-        try { await GMC.setValue(`feature_${featureConfig.id}`, featureConfig.enabled); } catch (error) { logger.error('Failed to save feature state', featureConfig.id, error); }
+        try { GM_setValue(`feature_${featureConfig.id}`, featureConfig.enabled); } catch (error) { logger.error('Failed to save feature state', featureConfig.id, error); }
         try {
           if (featureConfig.enabled) featureConfig.start();
           else featureConfig.stop();
@@ -320,7 +319,7 @@
         const newEnabledState = !!checkboxElement.checked;
         if (newEnabledState === featureConfig.enabled) continue;
         featureConfig.enabled = newEnabledState;
-        await GMC.setValue(`feature_${featureConfig.id}`, featureConfig.enabled);
+        GM_setValue(`feature_${featureConfig.id}`, featureConfig.enabled);
         try {
           if (featureConfig.enabled) featureConfig.start();
           else featureConfig.stop();
@@ -345,7 +344,7 @@
   }
 
   try {
-    GMC.registerMenuCommand('Open YouTube Tweaks Settings', () => { const modalElement = createSettingsModal(); if (!document.body.contains(modalElement)) document.body.appendChild(modalElement); });
+    GM_registerMenuCommand('Open YouTube Tweaks Settings', () => { const modalElement = createSettingsModal(); if (!document.body.contains(modalElement)) document.body.appendChild(modalElement); });
   } catch (error) { logger.error('Failed to register menu command', error); }
 
 })();
