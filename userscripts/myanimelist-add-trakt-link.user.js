@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          MyAnimeList - Add Trakt link
-// @version       1.2.0
+// @version       1.2.1
 // @description   Add trakt link to MyAnimeList anime pages
 // @author        Journey Over
 // @license       MIT
@@ -10,6 +10,8 @@
 // @grant         GM_xmlhttpRequest
 // @grant         GM_setValue
 // @grant         GM_getValue
+// @grant         GM_listValues
+// @grant         GM_deleteValue
 // @run-at        document-end
 // @inject-into   content
 // @icon          https://www.google.com/s2/favicons?sz=64&domain=myanimelist.net
@@ -24,6 +26,23 @@
   const logger = Logger('MAL - Add Trakt link', { debug: false });
 
   const animeapi = new AnimeAPI();
+
+  // clear expired cache entries
+  function clearExpiredCache() {
+    try {
+      const values = GM_listValues();
+      for (const value of values) {
+        const cache = GM_getValue(value);
+        if (cache?.timestamp && (Date.now() - cache.timestamp) > 24 * 60 * 60 * 1000) {
+          GM_deleteValue(value);
+        }
+      }
+    } catch (error) {
+      logger.debug(`Failed to clear expired cache: ${error.message}`);
+    }
+  }
+
+  clearExpiredCache();
 
   const myAnimeListId = window.location.pathname.split('/')[2];
   if (!myAnimeListId) {

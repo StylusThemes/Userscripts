@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          AniList - Add Trakt link
-// @version       1.1.0
+// @version       1.1.1
 // @description   Add trakt link to AniList anime pages
 // @author        Journey Over
 // @license       MIT
@@ -10,6 +10,8 @@
 // @grant         GM_xmlhttpRequest
 // @grant         GM_setValue
 // @grant         GM_getValue
+// @grant         GM_listValues
+// @grant         GM_deleteValue
 // @run-at        document-end
 // @inject-into   content
 // @icon          https://www.google.com/s2/favicons?sz=64&domain=anilist.co
@@ -38,6 +40,7 @@
     }
 
     init() {
+      this.clearExpiredCache();
       this.setupSPAWatcher();
       this.handleCurrentPage();
     }
@@ -224,9 +227,24 @@
       return !!container.querySelector('a[href*="trakt.tv"]');
     }
 
-    // Validates cache has timestamp and hasn't expired (24 hours)
+    // Validates cache has timestamp and is within duration
     isCacheValid(cachedEntry) {
       return cachedEntry.timestamp && (Date.now() - cachedEntry.timestamp < CONFIG.CACHE_DURATION);
+    }
+
+    // clear expired cache entries
+    clearExpiredCache() {
+      try {
+        const values = GM_listValues();
+        for (const value of values) {
+          const cache = GM_getValue(value);
+          if (cache?.timestamp && (Date.now() - cache.timestamp) > CONFIG.CACHE_DURATION) {
+            GM_deleteValue(value);
+          }
+        }
+      } catch (error) {
+        logger.error(`Failed to clear expired cache: ${error.message}`);
+      }
     }
   }
 
