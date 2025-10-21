@@ -9,7 +9,7 @@
 // @homepageURL  https://github.com/StylusThemes/Userscripts
 // ==/UserLibrary==
 // @connect      animeapi.my.id
-// @grant        GM.xmlHttpRequest
+// @grant        GM_xmlhttpRequest
 // ==/UserScript==
 
 /**
@@ -27,7 +27,7 @@ this.AnimeAPI = class {
     if (!id) throw new Error('An ID is required');
 
     return new Promise((resolve, reject) => {
-      GM.xmlHttpRequest({
+      GM_xmlhttpRequest({
         method: 'GET',
         url: `https://animeapi.my.id/${source}/${id}`,
         timeout: 15e3,

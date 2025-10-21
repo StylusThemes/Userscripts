@@ -9,7 +9,7 @@
 // @homepageURL  https://github.com/StylusThemes/Userscripts
 // ==/UserLibrary==
 // @connect      graphql.anilist.co
-// @grant        GM.xmlHttpRequest
+// @grant        GM_xmlhttpRequest
 // ==/UserScript==
 
 /**
@@ -26,7 +26,7 @@ this.AniList = class {
     if (!query) throw new Error('A GraphQL query is required');
 
     return new Promise((resolve, reject) => {
-      GM.xmlHttpRequest({
+      GM_xmlhttpRequest({
         method: 'POST',
         url: 'https://graphql.anilist.co',
         headers: {

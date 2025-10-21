@@ -9,7 +9,7 @@
 // @homepageURL  https://github.com/StylusThemes/Userscripts
 // ==/UserLibrary==
 // @connect      query.wikidata.org
-// @grant        GM.xmlHttpRequest
+// @grant        GM_xmlhttpRequest
 // ==/UserScript==
 
 /**
@@ -228,7 +228,7 @@ this.Wikidata = class {
     `;
 
     return new Promise((resolve, reject) => {
-      GM.xmlHttpRequest({
+      GM_xmlhttpRequest({
         method: 'GET',
         url: `https://query.wikidata.org/sparql?query=${encodeURIComponent(query)}`,
         headers: { Accept: 'application/sparql-results+json' },
