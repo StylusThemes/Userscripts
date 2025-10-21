@@ -48,7 +48,11 @@
       OR_ALTERNATION: /\|\([^)]+\)$/,
       QUALITY_GROUP: /^\([^)]+\)$/,
       NEGATIVE_LOOKAHEAD: /^\(\?[\=!].*?\)$/
-    }
+    },
+
+    // Timing settings
+    POLLING_INTERVAL: 100,
+    DEBOUNCE_DELAY: 50
   };
 
   const BUTTON_DATA = Array.isArray(window?.DMM_BUTTON_DATA) ? window.DMM_BUTTON_DATA : [];
@@ -254,9 +258,11 @@
 
   class QualityManager {
     constructor() {
-      this.selectedOptions = [];
-      this.qualityPolarity = new Map();
-      this.useAndLogic = false;
+      this.state = {
+        selectedOptions: [],
+        qualityPolarity: new Map(),
+        useAndLogic: false
+      };
       this.container = null;
       this.buttons = new Map();
       this.logicSelect = null;
@@ -269,7 +275,7 @@
       this.restoreStates();
 
       // Auto-apply quality options if any are selected
-      if (this.selectedOptions.length > 0) {
+      if (this.state.selectedOptions.length > 0) {
         setTimeout(() => this.updateInputWithQualityOptions(), 50);
       }
     }
@@ -277,19 +283,17 @@
     async loadPersistedSettings() {
       try {
         const stored = GM_getValue(CONFIG.QUALITY_OPTIONS_KEY, null);
-        this.selectedOptions = stored ? JSON.parse(stored) : [];
+        this.state.selectedOptions = stored ? JSON.parse(stored) : [];
 
         const polarityStored = GM_getValue(CONFIG.QUALITY_POLARITY_KEY, null);
         const polarityData = polarityStored ? JSON.parse(polarityStored) : {};
-        this.qualityPolarity = new Map(Object.entries(polarityData));
+        this.state.qualityPolarity = new Map(Object.entries(polarityData));
 
         const logicStored = GM_getValue(CONFIG.LOGIC_MODE_KEY, null);
-        this.useAndLogic = logicStored ? JSON.parse(logicStored) : false;
+        this.state.useAndLogic = logicStored ? JSON.parse(logicStored) : false;
       } catch (error) {
         logger.error('Failed to load quality options:', error);
-        this.selectedOptions = [];
-        this.qualityPolarity = new Map();
-        this.useAndLogic = false;
+        this.state = { selectedOptions: [], qualityPolarity: new Map(), useAndLogic: false };
       }
     }
 
@@ -353,12 +357,12 @@
     }
 
     restoreStates() {
-      for (const key of this.selectedOptions) {
+      for (const key of this.state.selectedOptions) {
         const button = this.buttons.get(key);
         if (button) {
           button.classList.add('active');
-          if (this.useAndLogic) {
-            const isPositive = this.qualityPolarity.get(key) !== false;
+          if (this.state.useAndLogic) {
+            const isPositive = this.state.qualityPolarity.get(key) !== false;
             if (!isPositive) {
               button.classList.add('negative');
             }
@@ -370,8 +374,8 @@
         const allOptions = this.logicSelect.querySelectorAll(`.${CONFIG.CSS_CLASS_PREFIX}-logic-option`);
         for (const option of allOptions) {
           option.classList.remove('active');
-          if ((option.dataset.mode === 'and' && this.useAndLogic) ||
-            (option.dataset.mode === 'or' && !this.useAndLogic)) {
+          if ((option.dataset.mode === 'and' && this.state.useAndLogic) ||
+            (option.dataset.mode === 'or' && !this.state.useAndLogic)) {
             option.classList.add('active');
           }
         }
@@ -404,14 +408,14 @@
         setInputValueReactive(target, cleanedValue);
       }
 
-      this.useAndLogic = useAndLogic;
+      this.state.useAndLogic = useAndLogic;
 
       // Update button visual states based on new mode
-      for (const key of this.selectedOptions) {
+      for (const key of this.state.selectedOptions) {
         const button = this.buttons.get(key);
         if (button) {
           if (useAndLogic) {
-            const isPositive = this.qualityPolarity.get(key) !== false;
+            const isPositive = this.state.qualityPolarity.get(key) !== false;
             if (!isPositive) {
               button.classList.add('negative');
             }
@@ -422,7 +426,7 @@
       }
 
       try {
-        GM_setValue(CONFIG.LOGIC_MODE_KEY, JSON.stringify(this.useAndLogic));
+        GM_setValue(CONFIG.LOGIC_MODE_KEY, JSON.stringify(this.state.useAndLogic));
       } catch (error) {
         logger.error('Failed to save logic mode:', error);
       }
@@ -438,7 +442,7 @@
       if (!isActive && !isNegative) {
         this._activateOption(key, button);
       } else if (isActive && !isNegative) {
-        if (this.useAndLogic) {
+        if (this.state.useAndLogic) {
           this._makeNegative(key, button);
         } else {
           this._deactivateOption(key, button);
@@ -453,33 +457,33 @@
 
     _activateOption(key, button) {
       button.classList.add('active');
-      if (!this.selectedOptions.includes(key)) {
-        this.selectedOptions.push(key);
+      if (!this.state.selectedOptions.includes(key)) {
+        this.state.selectedOptions.push(key);
       }
-      if (this.useAndLogic) {
-        this.qualityPolarity.set(key, true);
+      if (this.state.useAndLogic) {
+        this.state.qualityPolarity.set(key, true);
       }
     }
 
     _makeNegative(key, button) {
       button.classList.add('negative');
-      this.qualityPolarity.set(key, false);
+      this.state.qualityPolarity.set(key, false);
     }
 
     _deactivateOption(key, button) {
       button.classList.remove('active');
       button.classList.remove('negative');
-      const index = this.selectedOptions.indexOf(key);
+      const index = this.state.selectedOptions.indexOf(key);
       if (index > -1) {
-        this.selectedOptions.splice(index, 1);
+        this.state.selectedOptions.splice(index, 1);
       }
-      this.qualityPolarity.delete(key);
+      this.state.qualityPolarity.delete(key);
     }
 
     async _saveOptions() {
       try {
-        GM_setValue(CONFIG.QUALITY_OPTIONS_KEY, JSON.stringify(this.selectedOptions));
-        GM_setValue(CONFIG.QUALITY_POLARITY_KEY, JSON.stringify(Object.fromEntries(this.qualityPolarity)));
+        GM_setValue(CONFIG.QUALITY_OPTIONS_KEY, JSON.stringify(this.state.selectedOptions));
+        GM_setValue(CONFIG.QUALITY_POLARITY_KEY, JSON.stringify(Object.fromEntries(this.state.qualityPolarity)));
       } catch (error) {
         logger.error('Failed to save quality options:', error);
       }
@@ -490,12 +494,12 @@
       if (!target) return;
 
       const currentValue = target.value || '';
-      const qualityString = buildQualityString(this.selectedOptions, this.useAndLogic, this.qualityPolarity);
+      const qualityString = buildQualityString(this.state.selectedOptions, this.state.useAndLogic, this.state.qualityPolarity);
 
       let newValue;
       if (qualityString) {
         const cleanedBase = removeQualityFromRegex(currentValue);
-        if (this.useAndLogic) {
+        if (this.state.useAndLogic) {
           newValue = cleanedBase ? `^${qualityString}.*${cleanedBase}` : `^${qualityString}.*`;
         } else {
           newValue = cleanedBase ? `${cleanedBase}|${qualityString}` : qualityString;
@@ -508,12 +512,12 @@
     }
 
     applyQualityOptionsToValue(baseValue) {
-      const qualityString = buildQualityString(this.selectedOptions, this.useAndLogic, this.qualityPolarity);
+      const qualityString = buildQualityString(this.state.selectedOptions, this.state.useAndLogic, this.state.qualityPolarity);
       if (!qualityString) return baseValue;
 
       const cleanedBase = removeQualityFromRegex(baseValue);
 
-      if (this.useAndLogic) {
+      if (this.state.useAndLogic) {
         return cleanedBase ? `^${qualityString}.*${cleanedBase}` : `^${qualityString}.*`;
       } else {
         return cleanedBase ? `${cleanedBase}|${qualityString}` : qualityString;
@@ -522,7 +526,7 @@
 
     cleanup() {
       this.buttons.clear();
-      this.qualityPolarity.clear();
+      this.state.qualityPolarity.clear();
       if (this.container) {
         const existing = this.container?.querySelector(`.${CONFIG.CSS_CLASS_PREFIX}-quality-section`);
         if (existing) existing.remove();
@@ -537,6 +541,7 @@
       this.openMenu = null;
       this.qualityManager = new QualityManager();
       this.listenersAttached = false;
+      this.cachedTargetInput = null;
 
       this.documentClickHandler = this.onDocumentClick.bind(this);
       this.resizeHandler = this.onWindowResize.bind(this);
@@ -708,7 +713,11 @@
     }
 
     onSelectPattern(value, name) {
-      let target = findTargetInput(this.cachedContainer || this.container);
+      let target = this.cachedTargetInput;
+      if (!target || !document.contains(target)) {
+        target = findTargetInput(this.cachedContainer || this.container);
+        this.cachedTargetInput = target;
+      }
 
       if (!target) {
         logger.error('Could not find target input element:', { name, value });
@@ -746,27 +755,32 @@
     }
 
     async detectAnimeForCurrentPage(imdbId) {
-      const cachedData = await getCachedAnimeData(imdbId);
-      if (cachedData) {
-        logger.debug(`Anime cache hit for ${imdbId}`);
-        this.handleAnimeResult(cachedData);
-        return;
-      }
-
-      logger.debug(`Anime cache miss for ${imdbId}, fetching from APIs`);
-
-      const result = await fetchAnimeData(imdbId);
-      if (result.isAnime && result.anilistId) {
-        const releasesExists = await checkReleasesMoeExists(result.anilistId);
-        const fullResult = { ...result, releasesExists };
-        await updateCache(imdbId, fullResult);
-
-        if (releasesExists) {
-          this.createReleasesMoeButton(result.anilistId);
+      try {
+        const cachedData = await getCachedAnimeData(imdbId);
+        if (cachedData) {
+          logger.debug(`Anime cache hit for ${imdbId}`);
+          this.handleAnimeResult(cachedData);
+          return;
         }
-      } else {
-        const fullResult = { ...result, releasesExists: false };
-        await updateCache(imdbId, fullResult);
+
+        logger.debug(`Anime cache miss for ${imdbId}, fetching from APIs`);
+
+        const result = await fetchAnimeData(imdbId);
+        if (result.isAnime && result.anilistId) {
+          const releasesExists = await checkReleasesMoeExists(result.anilistId);
+          const fullResult = { ...result, releasesExists };
+          await updateCache(imdbId, fullResult);
+
+          if (releasesExists) {
+            this.createReleasesMoeButton(result.anilistId);
+          }
+        } else {
+          const fullResult = { ...result, releasesExists: false };
+          await updateCache(imdbId, fullResult);
+        }
+      } catch (error) {
+        logger.error(`Anime detection failed for ${imdbId}:`, error);
+        this.handleAnimeResult({ isAnime: false, anilistId: null, releasesExists: false });
       }
     }
 
@@ -851,11 +865,33 @@
       this.initializedForUrl = null;
       this.initializing = false;
 
-      this.debouncedCheck = debounce(this.checkPage.bind(this), 50);
+      this.debouncedCheck = debounce(this.checkPage.bind(this), CONFIG.DEBOUNCE_DELAY);
 
       this.setupNavigationDetection();
       this.setupMutationObserver();
       this.checkPage();
+    }
+
+    isRelevantPage(url) {
+      return CONFIG.RELEVANT_PAGE_RX.test(url);
+    }
+
+    getContainer() {
+      let container = this.cachedContainer;
+      if (!container || !document.contains(container)) {
+        container = qs(CONFIG.CONTAINER_SELECTOR);
+        this.cachedContainer = container;
+      }
+      return container;
+    }
+
+    handleRetry() {
+      if (this.retry < CONFIG.MAX_RETRIES) {
+        this.retry++;
+        this.debouncedCheck();
+      } else {
+        this.retry = 0;
+      }
     }
 
     // Sets up navigation detection using event listeners and polling for SPA navigation
@@ -885,7 +921,7 @@
           this.debouncedCheck();
           this.lastUrl = location.href;
         }
-      }, 100);
+      }, CONFIG.POLLING_INTERVAL);
     }
 
     setupMutationObserver() {
@@ -907,25 +943,16 @@
       if (this.initializing || this.initializedForUrl === url) return;
       this.initializing = true;
 
-      if (!CONFIG.RELEVANT_PAGE_RX.test(url)) {
+      if (!this.isRelevantPage(url)) {
         this.buttonManager.cleanup();
         this.lastUrl = url;
         this.initializing = false;
         return;
       }
 
-      let container = this.cachedContainer;
-      if (!container || !document.contains(container)) {
-        container = qs(CONFIG.CONTAINER_SELECTOR);
-        this.cachedContainer = container;
-      }
+      const container = this.getContainer();
       if (!container) {
-        if (this.retry < CONFIG.MAX_RETRIES) {
-          this.retry++;
-          this.debouncedCheck();
-        } else {
-          this.retry = 0;
-        }
+        this.handleRetry();
         this.initializing = false;
         return;
       }
