@@ -5,7 +5,7 @@
 // @name         @journeyover/utils
 // @description  Utility helpers for my userscripts
 // @license      MIT
-// @version      1.0.3
+// @version      1.1.0
 // @homepageURL  https://github.com/StylusThemes/Userscripts
 // ==/UserScript==
 
@@ -132,119 +132,12 @@ function Logger(prefix, options = {}) {
   return log;
 }
 
-/**
- * DOM utility functions for concise element selection and manipulation
- */
-function qs(sel, root = document) {
-  return root.querySelector(sel);
-}
-
-function qsa(sel, root = document) {
-  return [...root.querySelectorAll(sel)];
-}
-
-function isVisible(element) {
-  if (!element) return false;
-  const style = getComputedStyle(element);
-  return element.offsetParent !== null && style.visibility !== 'hidden' && style.display !== 'none' && style.opacity !== '0';
-}
-
-/**
- * Finds the target input element using priority-based search
- * Prefers #query, falls back to container inputs, then any visible input
- * @param {HTMLElement} container - Optional container to search within
- * @returns {HTMLInputElement|HTMLTextAreaElement|null} The target input element or null
- */
-function findTargetInput(container = null) {
-  // Primary target: #query input
-  let target = qs('#query');
-  if (target && isVisible(target)) return target;
-
-  // Secondary: inputs within provided container
-  if (container) {
-    target = container.querySelector('input, textarea');
-    if (target && isVisible(target)) return target;
-  }
-
-  // Fallback: any visible input
-  const candidates = qsa('input, textarea');
-  target = candidates.find(isVisible) || null;
-  return target;
-}
-
-/**
- * Gets the native value property setter for React input compatibility
- * React overrides the default input.value setter, so we need the original
- * @param {HTMLInputElement|HTMLTextAreaElement} element - Input element
- * @returns {Function} Native setter function or null if not found
- */
-function getNativeValueSetter(element) {
-  const proto = element instanceof HTMLInputElement ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype;
-  const desc = Object.getOwnPropertyDescriptor(proto, 'value');
-  return desc && desc.set;
-}
-
-/**
- * Sets input value in a React-compatible way that triggers re-renders
- * Uses native setter and dispatches events to ensure React sees the change
- * @param {HTMLInputElement|HTMLTextAreaElement} element - Target input element
- * @param {string} value - Value to set
- */
-function setInputValueReactive(element, value) {
-  const nativeSetter = getNativeValueSetter(element);
-  if (nativeSetter) {
-    nativeSetter.call(element, value);
-  } else {
-    element.value = value;
-  }
-
-  // Set focus and cursor position for better UX
-  try {
-    element.focus();
-    if (typeof element.setSelectionRange === 'function') element.setSelectionRange(value.length, value.length);
-  } catch {
-    /* Ignore focus errors */
-  }
-
-  // Trigger events that React listens for
-  element.dispatchEvent(new Event('input', { bubbles: true }));
-  element.dispatchEvent(new Event('change', { bubbles: true }));
-
-  // Handle React's internal value tracking if present
-  try {
-    if (element._valueTracker?.setValue) {
-      element._valueTracker.setValue(value);
-    }
-  } catch {
-    /* Ignore React internals errors */
-  }
-}
-
-/**
- * Execute a function when the DOM is ready
- * @param {Function} callback - Function to execute when DOM is ready
- */
-function ready(callback) {
-  if (document.readyState !== 'loading') {
-    callback();
-  } else {
-    document.addEventListener('DOMContentLoaded', callback);
-  }
-}
-
 // Expose utilities.
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { debounce, Logger, qs, qsa, isVisible, findTargetInput, getNativeValueSetter, setInputValueReactive, ready };
+  module.exports = { debounce, Logger };
 }
 
 if (typeof window !== 'undefined') {
   window.debounce = debounce;
   window.Logger = Logger;
-  window.qs = qs;
-  window.qsa = qsa;
-  window.isVisible = isVisible;
-  window.findTargetInput = findTargetInput;
-  window.getNativeValueSetter = getNativeValueSetter;
-  window.setInputValueReactive = setInputValueReactive;
-  window.ready = ready;
 }
