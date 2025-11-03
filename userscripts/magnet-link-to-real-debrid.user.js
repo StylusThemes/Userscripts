@@ -1,11 +1,11 @@
 // ==UserScript==
 // @name          Magnet Link to Real-Debrid
-// @version       2.7.0
+// @version       2.7.1
 // @description   Automatically send magnet links to Real-Debrid
 // @author        Journey Over
 // @license       MIT
 // @match         *://*/*
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@9db06a14c296ae584e0723cde883729d819e0625/libs/utils/utils.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@0171b6b6f24caea737beafbc2a8dacd220b729d8/libs/utils/utils.min.js
 // @grant         GM_xmlhttpRequest
 // @grant         GM_getValue
 // @grant         GM_setValue

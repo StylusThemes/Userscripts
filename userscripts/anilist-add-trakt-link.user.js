@@ -1,11 +1,11 @@
 // ==UserScript==
 // @name          AniList - Add Trakt link
-// @version       1.1.1
+// @version       1.1.2
 // @description   Add trakt link to AniList anime pages
 // @author        Journey Over
 // @license       MIT
 // @match         *://anilist.co/*
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@9db06a14c296ae584e0723cde883729d819e0625/libs/utils/utils.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@0171b6b6f24caea737beafbc2a8dacd220b729d8/libs/utils/utils.min.js
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@644b86d55bf5816a4fa2a165bdb011ef7c22dfe1/libs/metadata/animeapi/animeapi.min.js
 // @grant         GM_xmlhttpRequest
 // @grant         GM_setValue

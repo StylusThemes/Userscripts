@@ -1,11 +1,11 @@
 // ==UserScript==
 // @name          GitHub - Latest
-// @version       1.9.0
+// @version       1.9.1
 // @description   Always keep an eye on the latest activity of your favorite projects
 // @author        Journey Over
 // @license       MIT
 // @match         *://github.com/*
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@9db06a14c296ae584e0723cde883729d819e0625/libs/utils/utils.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@0171b6b6f24caea737beafbc2a8dacd220b729d8/libs/utils/utils.min.js
 // @grant         none
 // @icon          https://www.google.com/s2/favicons?sz=64&domain=github.com
 // @homepageURL   https://github.com/StylusThemes/Userscripts

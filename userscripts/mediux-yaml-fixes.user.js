@@ -1,11 +1,11 @@
 // ==UserScript==
 // @name          Mediux - Yaml Fixes
-// @version       2.2.0
+// @version       2.2.1
 // @description   Adds fixes and functions to Mediux
 // @author        Journey Over
 // @license       MIT
 // @match         *://mediux.pro/*
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@9db06a14c296ae584e0723cde883729d819e0625/libs/utils/utils.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@0171b6b6f24caea737beafbc2a8dacd220b729d8/libs/utils/utils.min.js
 // @require       https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js
 // @grant         GM_xmlhttpRequest
 // @grant         GM_setValue
