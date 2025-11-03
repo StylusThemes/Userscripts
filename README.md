@@ -148,7 +148,7 @@ This table shows supported browsers and their compatible userscript managers. Cl
     </tbody>
 </table>
 
-> **Note:** This table shows the most popular browsers. For mobile browsers and additional options, check the [full compatibility guide](https://github.com/StylusThemes/Userscripts/wiki/Browser-Compatibility).
+> **Note:** This table shows the most popular browsers. For mobile browsers and additional options, check the [full compatibility guide](./wiki/Browser-Compatibility.md).
 
 > **Note:** At this time I do not support greasemonkey 4.0+
 

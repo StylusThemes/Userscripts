@@ -454,4 +454,4 @@ If you're having issues:
 3. Verify the `@match` patterns in the script headers
 4. Clear browser cache and reload
 
-For more help, check the [main repository](https://github.com/StylusThemes/Userscripts) or open an issue.
+For more help open an issue.
