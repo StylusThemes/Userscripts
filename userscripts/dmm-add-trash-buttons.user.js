@@ -1,12 +1,12 @@
 // ==UserScript==
 // @name          DMM - Add Trash Guide Regex Buttons
-// @version       3.2.1
+// @version       3.3.0
 // @description   Adds buttons to Debrid Media Manager for applying Trash Guide regex patterns.
 // @author        Journey Over
 // @license       MIT
 // @match         *://debridmediamanager.com/*
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@9db06a14c296ae584e0723cde883729d819e0625/libs/dmm/button-data.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@9db06a14c296ae584e0723cde883729d819e0625/libs/utils/utils.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@0171b6b6f24caea737beafbc2a8dacd220b729d8/libs/utils/utils.min.js
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@644b86d55bf5816a4fa2a165bdb011ef7c22dfe1/libs/metadata/armhaglund/armhaglund.min.js
 // @grant         GM_getValue
 // @grant         GM_setValue
@@ -267,6 +267,67 @@
       this.logicSelect = null;
     }
 
+    getInputElement(scope = this.container) {
+      const primary = document.getElementById('query');
+      if (this.isInputUsable(primary)) return primary;
+
+      if (scope) {
+        const scoped = scope.querySelector('input, textarea');
+        if (this.isInputUsable(scoped)) return scoped;
+      }
+
+      const candidates = document.querySelectorAll('input, textarea');
+      for (const candidate of candidates) {
+        if (this.isInputUsable(candidate)) return candidate;
+      }
+
+      return null;
+    }
+
+    isInputUsable(element) {
+      if (!element) return false;
+      if (element.disabled) return false;
+      const style = getComputedStyle(element);
+      return (
+        element.offsetParent !== null &&
+        style.visibility !== 'hidden' &&
+        style.display !== 'none' &&
+        style.opacity !== '0'
+      );
+    }
+
+    writeToInput(element, value) {
+      if (!element) return;
+
+      const stringValue = typeof value === 'string' ? value : String(value ?? '');
+      const proto = element instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      const nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+
+      if (nativeSetter) {
+        nativeSetter.call(element, stringValue);
+      } else {
+        element.value = stringValue;
+      }
+
+      try {
+        element.focus();
+        if (typeof element.setSelectionRange === 'function') {
+          element.setSelectionRange(stringValue.length, stringValue.length);
+        }
+      } catch {
+        /* ignore focus errors */
+      }
+
+      element.dispatchEvent(new Event('input', { bubbles: true }));
+      element.dispatchEvent(new Event('change', { bubbles: true }));
+
+      try {
+        element._valueTracker?.setValue?.(stringValue);
+      } catch {
+        /* ignore React internals */
+      }
+    }
+
     async initialize(container) {
       this.container = container;
       this.createQualitySection();
@@ -400,11 +461,11 @@
 
     async onLogicChange(useAndLogic) {
       // Clean existing patterns before switching modes to prevent regex conflicts
-      const target = findTargetInput(this.container);
+      const target = this.getInputElement();
       if (target) {
         const currentValue = target.value || '';
         const cleanedValue = removeQualityFromRegex(currentValue);
-        setInputValueReactive(target, cleanedValue);
+        this.writeToInput(target, cleanedValue);
       }
 
       this.state.useAndLogic = useAndLogic;
@@ -489,7 +550,7 @@
     }
 
     updateInputWithQualityOptions() {
-      const target = findTargetInput(this.container);
+      const target = this.getInputElement();
       if (!target) return;
 
       const currentValue = target.value || '';
@@ -507,7 +568,7 @@
         newValue = removeQualityFromRegex(currentValue);
       }
 
-      setInputValueReactive(target, newValue);
+      this.writeToInput(target, newValue);
     }
 
     applyQualityOptionsToValue(baseValue) {
@@ -714,7 +775,7 @@
     onSelectPattern(value, name) {
       let target = this.cachedTargetInput;
       if (!target || !document.contains(target)) {
-        target = findTargetInput(this.cachedContainer || this.container);
+        target = this.qualityManager.getInputElement(this.cachedContainer || this.container);
         this.cachedTargetInput = target;
       }
 
@@ -726,7 +787,7 @@
       try {
         const finalValue = this.qualityManager.applyQualityOptionsToValue(value || '');
         logger.debug('Applied pattern to input:', { name, value, finalValue, targetId: target.id || null });
-        setInputValueReactive(target, finalValue);
+        this.qualityManager.writeToInput(target, finalValue);
       } catch (error) {
         logger.error('Failed to set input value:', error, {
           value,
@@ -798,7 +859,7 @@
     }
 
     createExternalLinkButton({ link, iconUrl, iconAlt, label, className, existingSelector, debugName }) {
-      const existingButton = qs(existingSelector);
+      const existingButton = document.querySelector(existingSelector);
       if (existingButton) {
         logger.debug(`${debugName} button already exists, skipping creation`);
         return existingButton;
@@ -814,7 +875,7 @@
         window.open(link, '_blank', 'noopener,noreferrer');
       });
 
-      const buttonContainer = qs('.grid > div:last-child');
+      const buttonContainer = document.querySelector('.grid > div:last-child');
       if (buttonContainer) {
         buttonContainer.appendChild(button);
         logger.debug(`${debugName} button added to container`);
@@ -878,7 +939,7 @@
     getContainer() {
       let container = this.cachedContainer;
       if (!container || !document.contains(container)) {
-        container = qs(CONFIG.CONTAINER_SELECTOR);
+        container = document.querySelector(CONFIG.CONTAINER_SELECTOR);
         this.cachedContainer = container;
       }
       return container;
@@ -978,12 +1039,18 @@
     }
   }
 
-  ready(() => {
+  function initialize() {
     try {
       if (!BUTTON_DATA.length) return;
       new PageManager();
     } catch (error) {
       logger.error('Load error:', error);
     }
-  });
+  }
+
+  if (document.readyState !== 'loading') {
+    initialize();
+  } else {
+    document.addEventListener('DOMContentLoaded', initialize, { once: true });
+  }
 })();
