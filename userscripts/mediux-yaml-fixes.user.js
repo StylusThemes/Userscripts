@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          Mediux - Yaml Fixes
-// @version       2.2.1
+// @version       2.2.2
 // @description   Adds fixes and functions to Mediux
 // @author        Journey Over
 // @license       MIT
@@ -47,10 +47,27 @@
         );
       },
 
+      // Extract year from page elements, trying multiple selectors for reliability
+      getYear() {
+        const selectors = [
+          'h1',
+          'a[href*="/sets/"]',
+          'a[href*="/shows/"]'
+        ];
+
+        for (const selector of selectors) {
+          const element = document.querySelector(selector);
+          if (element) {
+            const match = element.textContent.match(/\((\d{4})\)/);
+            if (match) return match[1];
+          }
+        }
+        return 'Unknown';
+      },
+
       showNotification(message, duration = 3000) {
         const notification = document.createElement('div');
         const myleftDiv = document.querySelector('#myleftdiv');
-        const parentDiv = $(myleftDiv).parent();
 
         Object.assign(notification.style, {
           width: '50%',
@@ -62,16 +79,14 @@
           justifyContent: 'center',
           alignItems: 'center',
           zIndex: '1000',
-          display: 'none'
+          display: 'flex'
         });
 
         notification.innerText = message;
         $(myleftDiv).after(notification);
-        notification.style.display = 'flex';
 
         setTimeout(() => {
-          notification.style.display = 'none';
-          parentDiv.removeChild(notification);
+          $(notification).remove();
         }, duration);
       },
 
@@ -308,9 +323,7 @@
 
         const regexSetInfo = /(\d+): # TVDB id for (.*?)\. Set by (.*?) on MediUX\. (https:\/\/mediux\.pro\/sets\/\d+)/;
 
-        const pageTitle = document.querySelector('h1').textContent;
-        const yearMatch = pageTitle.match(/\((\d{4})\)/);
-        const year = yearMatch ? yearMatch[1] : 'Unknown';
+        const year = MediuxFixes.utils.getYear();
 
         const setMatch = yamlContent.match(regexSetInfo);
         if (setMatch) {
