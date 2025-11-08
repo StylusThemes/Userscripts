@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          YouTube - Tweaks
-// @version       1.1.1
+// @version       1.1.2
 // @description   Random tweaks and fixes for YouTube!
 // @author        Journey Over
 // @license       MIT
@@ -172,85 +172,6 @@
           this.mutationObserver.disconnect();
           this.mutationObserver = null;
         }
-      }
-    },
-
-    dimWatched: {
-      id: 'dimWatched',
-      name: 'Dim Watched Videos',
-      default: true,
-      enabled: false,
-      DIMMED_CLASS_NAME: 'yt-dimmed',
-      DIMMED_OPACITY: 0.1,
-      DIMMED_OPACITY_HOVER: 1,
-      isUpdatePending: false,
-      mutationObserver: null,
-      initializeStyles() {
-        if (document.getElementById('gm-dimwatched-style')) return;
-        const style = document.createElement('style');
-        style.id = 'gm-dimwatched-style';
-        style.textContent = `
-                    ytd-rich-grid-media,
-                    ytd-rich-item-renderer,
-                    ytd-grid-video-renderer,
-                    ytd-playlist-video-renderer,
-                    ytd-video-renderer,
-                    yt-lockup-view-model {
-                        transition: opacity 0.3s ease;
-                    }
-                    .${this.DIMMED_CLASS_NAME} { opacity: ${this.DIMMED_OPACITY} !important; }
-                    .${this.DIMMED_CLASS_NAME}:hover { opacity: ${this.DIMMED_OPACITY_HOVER} !important; }
-                `;
-        document.head.appendChild(style);
-      },
-      isVideoWatched(element) {
-        return element.querySelector('ytd-thumbnail-overlay-resume-playback-renderer #progress') || element.querySelector('.ytThumbnailOverlayProgressBarHostWatchedProgressBarSegment');
-      },
-      updateDimmedVideos() {
-        const processedVideoElements = new WeakSet();
-        const videoRendererSelectors = { grid: ['ytd-rich-item-renderer'], channel: ['ytd-grid-video-renderer'], playlist: ['ytd-playlist-video-renderer'], sidebar: ['yt-lockup-view-model'], search: ['ytd-video-renderer'] };
-        for (const [selectorCategory, selectorsForCategory] of Object.entries(videoRendererSelectors)) {
-          for (const selector of selectorsForCategory) {
-            for (const videoElement of document.querySelectorAll(selector)) {
-              if (processedVideoElements.has(videoElement)) continue;
-
-              // Avoid double-dimming nested elements
-              if (selectorCategory === 'grid' && videoElement.tagName === 'YTD-RICH-GRID-MEDIA' && videoElement.closest('ytd-rich-item-renderer')?.classList.contains(this.DIMMED_CLASS_NAME)) {
-                continue;
-              }
-
-              if (selectorCategory === 'sidebar' && videoElement.tagName === 'YT-LOCKUP-VIEW-MODEL' && videoElement.closest('ytd-rich-item-renderer')?.classList.contains(this.DIMMED_CLASS_NAME)) {
-                continue;
-              }
-
-              processedVideoElements.add(videoElement);
-              const watchedIndicator = this.isVideoWatched(videoElement);
-              videoElement.classList.toggle(this.DIMMED_CLASS_NAME, !!watchedIndicator);
-            }
-          }
-        }
-      },
-      debouncedUpdateDimmed() {
-        if (this.isUpdatePending) return;
-        this.isUpdatePending = true;
-        requestAnimationFrame(() => {
-          this.updateDimmedVideos();
-          this.isUpdatePending = false;
-        });
-      },
-      start() {
-        this.initializeStyles();
-        if (this.mutationObserver) return;
-        this.mutationObserver = new MutationObserver(() => this.debouncedUpdateDimmed());
-        this.mutationObserver.observe(document.body, { childList: true, subtree: true });
-        this.updateDimmedVideos();
-      },
-      stop() {
-        if (this.mutationObserver) {
-          this.mutationObserver.disconnect();
-          this.mutationObserver = null;
-        }
-        for (const videoElement of document.querySelectorAll('.' + this.DIMMED_CLASS_NAME)) videoElement.classList.remove(this.DIMMED_CLASS_NAME);
       }
     }
   };
