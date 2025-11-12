@@ -5,7 +5,7 @@
 // @name         @journeyover/dmm-add-trash-buttons
 // @description  Adds trash buttons to DMM
 // @license      MIT
-// @version      1.0.6
+// @version      1.0.7
 // @homepageURL  https://github.com/StylusThemes/Userscripts
 // ==/UserScript==
 
@@ -232,15 +232,6 @@
         {
           name: 'Anime WEB Tier 06 (FanSubs)',
           value: '(\\b(Asenshi)\\b|\\[Chihiro\\]|-Chihiro\\b|\\b(Commie)\\b|\\b(DameDesuYo)\\b|\\[Doki\\]|-Doki\\b|\\[Tsundere\\]|-Tsundere(?!-)\\b)'
-        }
-      ],
-    },
-    {
-      name: 'Extra',
-      buttonData: [
-        {
-          name: 'Journey\'s Extra',
-          value: '\\b(QxR|UTR|Joy|Silence|Vyndros|ReVyndros|Ghost|Tigole|D3g|TAoE|PSA|BeiTai|userHEVC)\\b'
         }
       ],
     },

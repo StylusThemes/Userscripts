@@ -10,7 +10,8 @@
     "build": "bun ./scripts/build.js",
     "update-hashes": "bun ./scripts/update-jsdelivr-hashes.js",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "trash-regex": "bun ./scripts/trash-json-to-regex.js"
   },
   "dependencies": {
     "terser": "^5.44.0",
