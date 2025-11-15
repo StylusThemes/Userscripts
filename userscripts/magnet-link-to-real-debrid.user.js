@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          Magnet Link to Real-Debrid
-// @version       2.7.1
+// @version       2.7.2
 // @description   Automatically send magnet links to Real-Debrid
 // @author        Journey Over
 // @license       MIT
@@ -893,6 +893,25 @@
       return icon;
     },
 
+    createMagnetIconWithCheckbox() {
+      const container = document.createElement('span');
+      container.style.cssText = `display:inline-flex;align-items:center;margin-left:6px;vertical-align:middle;`;
+      container.setAttribute(INSERTED_ICON_ATTR, '1');
+
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.style.cssText = `margin-right:4px;cursor:pointer;`;
+
+      const icon = document.createElement('img');
+      icon.src = ICON_SRC;
+      icon.style.cssText = `cursor:pointer;width:16px;height:16px;border-radius:2px;`;
+
+      container.appendChild(checkbox);
+      container.appendChild(icon);
+
+      return container;
+    },
+
     formatBytes(bytes) {
       if (bytes === 0) return '0 B';
       const kilobyte = 1024;
@@ -907,10 +926,131 @@
       this.processor = processor;
       this.observer = null;
       this.keyToIcon = new Map();
+      this.selectedLinks = new Set();
+      this.totalMagnetLinks = 0;
+      this.initialMagnetLinkCount = 0; // Store the initial count separately
+      this.batchButton = null;
     }
 
     setProcessor(processor) {
       this.processor = processor;
+    }
+
+    _shouldShowBatchUI() {
+      return this.initialMagnetLinkCount > 1;
+    }
+
+    _updateBatchButton() {
+      if (!this._shouldShowBatchUI()) {
+        this._removeBatchButton();
+        return;
+      }
+
+      const selectedCount = this.selectedLinks.size;
+      if (selectedCount === 0) {
+        this._removeBatchButton();
+        return;
+      }
+
+      if (!this.batchButton) {
+        this._createBatchButton();
+      }
+
+      this.batchButton.textContent = `Process ${selectedCount} Selected Link${selectedCount !== 1 ? 's' : ''}`;
+    }
+
+    _createBatchButton() {
+      if (this.batchButton) return;
+
+      this.batchButton = document.createElement('button');
+      Object.assign(this.batchButton.style, {
+        position: 'fixed',
+        bottom: '20px',
+        right: '20px',
+        backgroundColor: '#3b82f6',
+        color: 'white',
+        border: 'none',
+        borderRadius: '8px',
+        padding: '12px 16px',
+        fontSize: '14px',
+        fontWeight: '500',
+        cursor: 'pointer',
+        zIndex: '10000',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+        transition: 'all 0.2s'
+      });
+
+      this.batchButton.addEventListener('mouseenter', () => {
+        this.batchButton.style.backgroundColor = '#2563eb';
+      });
+
+      this.batchButton.addEventListener('mouseleave', () => {
+        this.batchButton.style.backgroundColor = '#3b82f6';
+      });
+
+      this.batchButton.addEventListener('click', () => this._processBatch());
+
+      document.body.appendChild(this.batchButton);
+    }
+
+    _removeBatchButton() {
+      if (this.batchButton && this.batchButton.parentNode) {
+        this.batchButton.parentNode.removeChild(this.batchButton);
+        this.batchButton = null;
+      }
+    }
+
+    async _processBatch() {
+      const selectedUrls = [...this.selectedLinks];
+      if (selectedUrls.length === 0) return;
+
+      const isInitialized = await ensureApiInitialized();
+      if (!isInitialized) {
+        UIManager.showToast('Real-Debrid API key not configured. Use the menu to set it.', 'info');
+        return;
+      }
+
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (let index = 0; index < selectedUrls.length; index++) {
+        const url = selectedUrls[index];
+        const key = this._magnetKeyFor(url);
+        const icon = this.keyToIcon.get(key);
+
+        UIManager.showToast(`Processing ${index + 1}/${selectedUrls.length} links...`, 'info');
+
+        if (icon) {
+          UIManager.setIconState(icon, 'processing');
+        }
+
+        try {
+          await this.processor.processMagnetLink(url);
+          successCount++;
+          if (icon) {
+            UIManager.setIconState(icon, 'added');
+          }
+        } catch (error) {
+          errorCount++;
+          if (icon) {
+            UIManager.setIconState(icon, 'default');
+          }
+          logger.error(`[Batch Processing] Failed to process ${url}`, error);
+        }
+      }
+
+      // Clear selections after processing
+      this.selectedLinks.clear();
+      this._updateBatchButton();
+
+      // Show final summary
+      if (errorCount === 0) {
+        UIManager.showToast(`Successfully processed ${successCount} link${successCount !== 1 ? 's' : ''}!`, 'success');
+      } else if (successCount === 0) {
+        UIManager.showToast(`Failed to process all ${errorCount} link${errorCount !== 1 ? 's' : ''}`, 'error');
+      } else {
+        UIManager.showToast(`Processed ${successCount} successfully, ${errorCount} failed`, 'info');
+      }
     }
 
     _magnetKeyFor(href) {
@@ -923,7 +1063,10 @@
       }
     }
 
-    _attach(icon, link) {
+    _attach(iconContainer, link) {
+      const icon = iconContainer.querySelector('img') || iconContainer;
+      const checkbox = iconContainer.querySelector('input[type="checkbox"]');
+
       const processMagnet = async () => {
         const key = this._magnetKeyFor(link.href);
         const isInitialized = await ensureApiInitialized();
@@ -956,27 +1099,72 @@
         event_.preventDefault();
         processMagnet();
       });
+
+      // Handle checkbox selection for batch processing
+      if (checkbox) {
+        checkbox.addEventListener('change', (event_) => {
+          event_.stopPropagation();
+          if (checkbox.checked) {
+            this.selectedLinks.add(link.href);
+          } else {
+            this.selectedLinks.delete(link.href);
+          }
+          this._updateBatchButton();
+        });
+
+        checkbox.addEventListener('click', (event_) => {
+          event_.stopPropagation();
+        });
+      }
     }
 
     addIconsTo(documentRoot = document) {
       const links = [...documentRoot.querySelectorAll('a[href^="magnet:"]')];
+      this.totalMagnetLinks = links.length;
+
+      // Set initial count only once when we first find magnet links
+      if (this.initialMagnetLinkCount === 0 && links.length > 0) {
+        // Count unique magnet hashes
+        const uniqueHashes = new Set();
+        for (const link of links) {
+          const hash = MagnetLinkProcessor.parseMagnetHash(link.href);
+          if (hash) {
+            uniqueHashes.add(hash);
+          }
+        }
+        this.initialMagnetLinkCount = uniqueHashes.size;
+      }
+
       const newlyAddedKeys = [];
+
       for (const link of links) {
         if (!link.parentNode) continue;
-        const next = link.nextElementSibling;
-        const key = this._magnetKeyFor(link.href);
-        if (next && next.getAttribute && next.getAttribute(INSERTED_ICON_ATTR)) {
+
+        // Check if this link has already been processed
+        if (link.hasAttribute('data-rd-processed')) {
+          const key = this._magnetKeyFor(link.href);
           if (key && !this.keyToIcon.has(key)) {
-            this.keyToIcon.set(key, next);
+            // Find the icon - it might not be the immediate next sibling anymore
+            const icon = link.parentNode.querySelector(`[${INSERTED_ICON_ATTR}]`);
+            if (icon) {
+              this.keyToIcon.set(key, icon);
+            }
           }
           continue;
         }
+
+        const key = this._magnetKeyFor(link.href);
         if (key && this.keyToIcon.has(key)) continue;
-        const icon = UIManager.createMagnetIcon();
-        this._attach(icon, link);
-        link.parentNode.insertBefore(icon, link.nextSibling);
+
+        const iconContainer = this._shouldShowBatchUI() ?
+          UIManager.createMagnetIconWithCheckbox() :
+          UIManager.createMagnetIcon();
+
+        this._attach(iconContainer, link);
+        link.parentNode.insertBefore(iconContainer, link.nextSibling);
+        link.setAttribute('data-rd-processed', '1');
         const storeKey = key || `href:${link.href.trim().toLowerCase()}`;
-        this.keyToIcon.set(storeKey, icon);
+        this.keyToIcon.set(storeKey, iconContainer);
         newlyAddedKeys.push(storeKey);
       }
 
@@ -985,15 +1173,18 @@
           if (isInitialized) this.markExistingTorrents();
         });
       }
+
+      this._updateBatchButton();
     }
 
     markExistingTorrents() {
       if (!this.processor) return;
 
-      for (const [key, icon] of this.keyToIcon.entries()) {
+      for (const [key, iconContainer] of this.keyToIcon.entries()) {
         if (!key.startsWith('hash:')) continue;
         const hash = key.split(':')[1];
         if (this.processor.isTorrentExists(hash)) {
+          const icon = iconContainer.querySelector('img') || iconContainer;
           UIManager.setIconState(icon, 'existing');
         }
       }
@@ -1004,11 +1195,27 @@
       if (this.observer) return;
 
       const debouncedHandler = debounce((mutations) => {
+        let hasNewMagnetLinks = false;
         for (const mutation of mutations) {
           if (mutation.addedNodes && mutation.addedNodes.length) {
-            this.addIconsTo(document);
-            break;
+            for (const node of mutation.addedNodes) {
+              if (node.nodeType === Node.ELEMENT_NODE) {
+                if (node.matches && node.matches('a[href^="magnet:"]')) {
+                  hasNewMagnetLinks = true;
+                  break;
+                }
+                // Check descendants too
+                if (node.querySelector && node.querySelector('a[href^="magnet:"]')) {
+                  hasNewMagnetLinks = true;
+                  break;
+                }
+              }
+            }
+            if (hasNewMagnetLinks) break;
           }
+        }
+        if (hasNewMagnetLinks) {
+          this.addIconsTo(document);
         }
       }, MUTATION_DEBOUNCE_MS);
 
@@ -1023,6 +1230,7 @@
       if (!this.observer) return;
       this.observer.disconnect();
       this.observer = null;
+      this._removeBatchButton();
     }
   }
 

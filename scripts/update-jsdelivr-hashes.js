@@ -12,33 +12,42 @@ const root = path.resolve(__dirname, "..");
 const userscriptsDirectory = path.join(root, "userscripts");
 
 // -----------------------------
+// Helper function to get all files recursively
+// -----------------------------
+async function getAllFiles(dirPath, arrayOfFiles = []) {
+  const files = await fs.readdir(dirPath);
+  for (const file of files) {
+    const fullPath = path.join(dirPath, file);
+    const stat = await fs.stat(fullPath);
+    if (stat.isDirectory()) {
+      await getAllFiles(fullPath, arrayOfFiles);
+    } else {
+      arrayOfFiles.push(fullPath);
+    }
+  }
+  return arrayOfFiles;
+}
+
+// -----------------------------
 // Main function
 // -----------------------------
 async function updateJsdelivrHashes() {
   try {
-    // Get current commit hash
-    const currentCommit = execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim();
-    console.log(`Current commit: ${currentCommit}`);
-
-    // Get changed files in the last commit
-    const changedFilesOutput = execSync('git diff --name-only HEAD~1..HEAD', { encoding: 'utf8' });
-    const changedFiles = changedFilesOutput.split('\n').filter(line => line.trim() !== '');
-    console.log(`Changed files: ${changedFiles.join(', ')}`);
-
-    // Filter files in libs/
-    const libsChangedFiles = changedFiles.filter(file => file.startsWith('libs/'));
-
-    if (libsChangedFiles.length === 0) {
-      console.log('No libs files changed in the last commit. Nothing to update.');
-      return;
-    }
+    // Get all lib files
+    const libsDirectory = path.join(root, 'libs');
+    const allLibFiles = await getAllFiles(libsDirectory);
 
     // Get all userscript files
     const userscriptFiles = await fs.readdir(userscriptsDirectory);
     const jsFiles = userscriptFiles.filter(file => file.endsWith('.user.js'));
 
-    for (const libFile of libsChangedFiles) {
-      const relativePath = libFile; // e.g., libs/utils/utils.min.js
+    for (const libFile of allLibFiles) {
+      const relativePath = path.relative(root, libFile); // e.g., libs/utils/utils.min.js
+
+      // Get the last commit hash for this file
+      const lastCommit = execSync(`git log -1 --format=%H -- "${relativePath}"`, { encoding: 'utf8' }).trim();
+      console.log(`Last commit for ${relativePath}: ${lastCommit}`);
+
       const escapedPath = relativePath.replace(/\./g, '\\.');
 
       // Regex to match the @require line for this file, only if commit hash is present
@@ -50,9 +59,9 @@ async function updateJsdelivrHashes() {
 
         if (regex.test(content)) {
           // Replace the commit hash
-          const updatedContent = content.replace(regex, `$1${currentCommit}$2`);
+          const updatedContent = content.replace(regex, `$1${lastCommit}$2`);
           await fs.writeFile(filePath, updatedContent, 'utf8');
-          console.log(`Updated ${jsFile} for ${libFile}`);
+          console.log(`Updated ${jsFile} for ${relativePath}`);
         }
       }
     }
