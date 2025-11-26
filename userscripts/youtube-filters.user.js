@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name          YouTube - Filters
 // @version       2.3.0
-// @description   Filter YouTube videos by age and members-only videos.
+// @description   Filter out unwanted content on YouTube to enhance your browsing experience. (Currently is able to filter videos based on age and members-only status)
 // @author        Journey Over
 // @license       MIT
 // @match         *://*.youtube.com/*
@@ -13,8 +13,8 @@
 // @run-at        document-body
 // @icon          https://www.google.com/s2/favicons?sz=64&domain=youtube.com
 // @homepageURL   https://github.com/StylusThemes/Userscripts
-// @downloadURL   https://github.com/StylusThemes/Userscripts/raw/main/userscripts/youtube-age-filter.user.js
-// @updateURL     https://github.com/StylusThemes/Userscripts/raw/main/userscripts/youtube-age-filter.user.js
+// @downloadURL   https://github.com/StylusThemes/Userscripts/raw/main/userscripts/youtube-filters.user.js
+// @updateURL     https://github.com/StylusThemes/Userscripts/raw/main/userscripts/youtube-filters.user.js
 // ==/UserScript==
 
 (async function() {
