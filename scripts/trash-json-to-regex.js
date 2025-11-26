@@ -4,12 +4,12 @@
 // Keeps full escaped regex fragments exactly as written, preserves order,
 // doubles backslashes for output safety, and supports a --raw flag.
 
-const args = process.argv.slice(2);
-const url = args.find(a => !a.startsWith('--'));
-const rawOutput = args.includes('--raw');
+const arguments_ = process.argv.slice(2);
+const url = arguments_.find(a => !a.startsWith('--'));
+const rawOutput = arguments_.includes('--raw');
 
 if (!url) {
-    console.error('Usage: bun run trash-json-to-regex.js <url> [--raw]');
+    process.stderr.write('Usage: bun run trash-json-to-regex.js <url> [--raw]\n');
     process.exit(1);
 }
 
@@ -27,20 +27,20 @@ function extractRegexParts(value) {
         const parts = value.split(/(?<!\\)\|/).map(v => v.trim()).filter(Boolean);
         return parts;
     } catch {
-        console.warn('Skipping malformed regex value:', value);
+        process.stderr.write('Skipping malformed regex value: ' + value + '\n');
         return [];
     }
 }
 
 // Escape all single backslashes to double (for literal JSON-safe output)
-function escapeBackslashes(str) {
-    return str.replace(/\\/g, '\\\\');
+function escapeBackslashes(string_) {
+    return string_.replace(/\\/g, '\\\\');
 }
 
 // Process JSON and return either full combined regex or raw list
 function processJson(json) {
     if (!json || !Array.isArray(json.specifications)) {
-        console.error('Invalid TRaSH JSON format.');
+        process.stderr.write('Invalid TRaSH JSON format.\n');
         process.exit(1);
     }
 
@@ -70,7 +70,7 @@ function processJson(json) {
 
     if (rawOutput) {
         // Print each fragment on its own line
-        console.log(escaped.join('\n'));
+        process.stdout.write(escaped.join('\n') + '\n');
         return null;
     }
 
@@ -90,9 +90,9 @@ async function main() {
 
         const json = await response.json();
         const regex = processJson(json);
-        if (regex) console.log(regex);
+        if (regex) process.stdout.write(regex + '\n');
     } catch (error) {
-        console.error('Error:', error.message);
+        process.stderr.write('Error: ' + error.message + '\n');
         process.exit(1);
     }
 }

@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          YouTube - Filters
-// @version       2.2.1
+// @version       2.3.0
 // @description   Filter YouTube videos by age and members-only videos.
 // @author        Journey Over
 // @license       MIT
@@ -57,7 +57,9 @@
 
   const MEMBERS_SELECTORS = [
     '.badge.badge-style-type-members-only',
-    '.yt-badge-shape--commerce .yt-badge-shape__text'
+    'badge-shape[aria-label*="Members only" i]',
+    '.yt-badge-shape--commerce .yt-badge-shape__text',
+    '.yt-badge-shape__text'
   ];
 
   const MEMBERS_REGEX = /\bmembers\s*[- ]?\s*only\b/i;
@@ -156,8 +158,9 @@
 
   // ---------- Members-Only Filtering ----------
   function isMembersOnlyBadge(badge) {
-    return badge.classList.contains('badge-style-type-members-only') ||
-      MEMBERS_REGEX.test(badge.textContent || '');
+    if (badge.classList.contains('badge-style-type-members-only')) return true;
+    const label = badge.getAttribute('aria-label') || badge.textContent || '';
+    return MEMBERS_REGEX.test(label);
   }
 
   function removeMembersOnlyVideo(badge) {
