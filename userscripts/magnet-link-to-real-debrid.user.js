@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          Magnet Link to Real-Debrid
-// @version       2.7.2
+// @version       2.8.0
 // @description   Automatically send magnet links to Real-Debrid
 // @author        Journey Over
 // @license       MIT
@@ -24,7 +24,6 @@
 
   const STORAGE_KEY = 'realDebridConfig';
   const API_BASE = 'https://api.real-debrid.com/rest/1.0';
-  const ICON_SRC = 'https://fcdn.real-debrid.com/0830/favicons/favicon.ico';
   const INSERTED_ICON_ATTR = 'data-rd-inserted';
 
   // Rate limiting to respect Real-Debrid's 250 requests/minute limit with headroom
@@ -494,21 +493,33 @@
     setIconState(icon, state) {
       switch (state) {
         case 'default': {
-          icon.src = ICON_SRC;
+          icon.textContent = 'RD';
+          icon.style.background = '#3b82f6';
           icon.style.filter = '';
           icon.style.opacity = '';
+          icon.style.cursor = 'pointer';
           icon.title = '';
+          const checkbox = icon.parentNode?.querySelector('input[type="checkbox"]');
+          if (checkbox) checkbox.style.cursor = 'pointer';
           break;
         }
         case 'processing': {
           icon.style.opacity = '0.5';
+          icon.style.cursor = 'pointer';
+          const checkbox = icon.parentNode?.querySelector('input[type="checkbox"]');
+          if (checkbox) checkbox.style.cursor = 'pointer';
           break;
         }
         case 'added':
         case 'existing': {
-          icon.style.filter = 'grayscale(100%)';
+          icon.textContent = '✓';
+          icon.style.background = '#10b981';
+          icon.style.filter = '';
           icon.style.opacity = '0.65';
+          icon.style.cursor = 'not-allowed';
           icon.title = state === 'existing' ? 'Already on Real-Debrid' : 'Added to Real-Debrid';
+          const checkbox = icon.parentNode?.querySelector('input[type="checkbox"]');
+          if (checkbox) checkbox.style.cursor = 'not-allowed';
           break;
         }
       }
@@ -886,25 +897,27 @@
     },
 
     createMagnetIcon() {
-      const icon = document.createElement('img');
-      icon.src = ICON_SRC;
-      icon.style.cssText = `cursor:pointer;width:16px;height:16px;margin-left:6px;vertical-align:middle;border-radius:2px`;
+      const icon = document.createElement('span');
+      icon.className = 'rd-icon';
+      icon.textContent = 'RD';
+      icon.style.cssText = `cursor:pointer;display:inline-block;width:18px;height:18px;margin-left:6px;vertical-align:middle;border-radius:3px;background:#3b82f6;color:white;text-align:center;line-height:18px;font-size:11px;font-weight:bold;`;
       icon.setAttribute(INSERTED_ICON_ATTR, '1');
       return icon;
     },
 
     createMagnetIconWithCheckbox() {
       const container = document.createElement('span');
-      container.style.cssText = `display:inline-flex;align-items:center;margin-left:6px;vertical-align:middle;`;
+      container.style.cssText = `display:inline-flex;align-items:center;gap:4px;vertical-align:middle;`;
       container.setAttribute(INSERTED_ICON_ATTR, '1');
 
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
-      checkbox.style.cssText = `margin-right:4px;cursor:pointer;`;
+      checkbox.style.cssText = `cursor:pointer;width:16px;height:16px;margin:0;`;
 
-      const icon = document.createElement('img');
-      icon.src = ICON_SRC;
-      icon.style.cssText = `cursor:pointer;width:16px;height:16px;border-radius:2px;`;
+      const icon = document.createElement('span');
+      icon.className = 'rd-icon';
+      icon.textContent = 'RD';
+      icon.style.cssText = `cursor:pointer;display:inline-block;width:18px;height:18px;border-radius:3px;background:#3b82f6;color:white;text-align:center;line-height:18px;font-size:11px;font-weight:bold;`;
 
       container.appendChild(checkbox);
       container.appendChild(icon);
@@ -1064,10 +1077,11 @@
     }
 
     _attach(iconContainer, link) {
-      const icon = iconContainer.querySelector('img') || iconContainer;
+      const icon = iconContainer.querySelector('.rd-icon') || iconContainer;
       const checkbox = iconContainer.querySelector('input[type="checkbox"]');
 
       const processMagnet = async () => {
+        if (icon.textContent === '✓') return; // Already processed
         const key = this._magnetKeyFor(link.href);
         const isInitialized = await ensureApiInitialized();
 
@@ -1104,6 +1118,7 @@
       if (checkbox) {
         checkbox.addEventListener('change', (event_) => {
           event_.stopPropagation();
+          if (icon.textContent === '✓') return; // Already processed
           if (checkbox.checked) {
             this.selectedLinks.add(link.href);
           } else {
@@ -1184,7 +1199,7 @@
         if (!key.startsWith('hash:')) continue;
         const hash = key.split(':')[1];
         if (this.processor.isTorrentExists(hash)) {
-          const icon = iconContainer.querySelector('img') || iconContainer;
+          const icon = iconContainer.querySelector('.rd-icon') || iconContainer;
           UIManager.setIconState(icon, 'existing');
         }
       }

@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          YouTube - Tweaks
-// @version       1.1.2
+// @version       1.2.0
 // @description   Random tweaks and fixes for YouTube!
 // @author        Journey Over
 // @license       MIT
@@ -172,6 +172,96 @@
           this.mutationObserver.disconnect();
           this.mutationObserver = null;
         }
+      }
+    },
+
+    actualTimeDisplay: {
+      id: 'actualTimeDisplay',
+      name: 'Display Actual Time and End Time',
+      default: true,
+      enabled: false,
+      video: null,
+      interval: null,
+      handleNavigation: null,
+      secondsToDHMS(value) {
+        const d = Math.floor(value / 86400);
+        const h = Math.floor((value % 86400) / 3600);
+        const m = Math.floor((value % 3600) / 60);
+        const s = Math.floor(value % 60);
+        const days = d > 0 ? d + ':' : '';
+        const hours = h.toString().padStart(2, '0');
+        const minutes = m.toString().padStart(2, '0');
+        const seconds = s.toString().padStart(2, '0');
+        return `${days}${hours}:${minutes}:${seconds}`;
+      },
+      updateTimeDisplay() {
+        const video = this.video;
+        if (!video || isNaN(video.duration)) return;
+        const times = document.querySelector('.ytp-time-contents') || document.querySelector('.ytp-time-display');
+        const totalAtRate = video.duration / video.playbackRate;
+        const actualTime = this.secondsToDHMS(totalAtRate);
+        const rateText = video.playbackRate !== 1 ? ` (${actualTime} @ ${video.playbackRate}x)` : '';
+        let actualTimeSpan = document.querySelector('.ytp-actual-time');
+        if (!actualTimeSpan) {
+          actualTimeSpan = document.createElement('span');
+          actualTimeSpan.className = 'ytp-actual-time';
+          times?.appendChild(actualTimeSpan);
+        }
+        actualTimeSpan.textContent = rateText;
+        const remainingSec = (video.duration - video.currentTime) / video.playbackRate;
+        const finishDate = new Date(Date.now() + remainingSec * 1000);
+        const showDate = remainingSec >= 10 * 3600;
+        let finishText = showDate ?
+          finishDate.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' +
+          finishDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) :
+          finishDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        let finishTimeSpan = document.querySelector('.ytp-finish-time');
+        if (!finishTimeSpan) {
+          finishTimeSpan = document.createElement('span');
+          finishTimeSpan.className = 'ytp-finish-time';
+          times?.appendChild(finishTimeSpan);
+        }
+        finishTimeSpan.textContent = ` ends at ${finishText}`;
+      },
+      setupVideoListeners() {
+        this.video = document.querySelector('.video-stream.html5-main-video');
+        if (!this.video) return;
+        for (const event of ['loadedmetadata', 'play', 'ratechange', 'seeked', 'timeupdate']) {
+          this.video.addEventListener(event, () => this.updateTimeDisplay());
+        }
+        this.updateTimeDisplay();
+      },
+      start() {
+        this.handleNavigation = () => {
+          if (location.pathname !== '/watch') return;
+          this.interval = setInterval(() => {
+            if (document.querySelector('.video-stream.html5-main-video')) {
+              clearInterval(this.interval);
+              this.interval = null;
+              this.setupVideoListeners();
+            }
+          }, 100);
+        };
+        window.addEventListener('yt-navigate-finish', this.handleNavigation);
+        if (document.readyState === 'complete') {
+          this.handleNavigation();
+        } else {
+          window.addEventListener('load', this.handleNavigation);
+        }
+      },
+      stop() {
+        if (this.handleNavigation) {
+          window.removeEventListener('yt-navigate-finish', this.handleNavigation);
+          window.removeEventListener('load', this.handleNavigation);
+        }
+        if (this.interval) {
+          clearInterval(this.interval);
+          this.interval = null;
+        }
+        const actualTimeSpan = document.querySelector('.ytp-actual-time');
+        if (actualTimeSpan) actualTimeSpan.remove();
+        const finishTimeSpan = document.querySelector('.ytp-finish-time');
+        if (finishTimeSpan) finishTimeSpan.remove();
       }
     }
   };
