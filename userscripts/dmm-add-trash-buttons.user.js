@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          DMM - Add Trash Guide Regex Buttons
-// @version       3.3.1
+// @version       3.3.2
 // @description   Adds buttons to Debrid Media Manager for applying Trash Guide regex patterns.
 // @author        Journey Over
 // @license       MIT
@@ -24,7 +24,7 @@
 
   const CONFIG = {
     // Page and DOM selectors
-    RELEVANT_PAGE_RX: '^https:\/\/debridmediamanager\.com\/(movie|show)\/(tt\d+)(?:\/(\d+))?$', // Pages where buttons should appear
+    RELEVANT_PAGE_RX: /^https:\/\/debridmediamanager\.com\/(movie|show)\/(tt\d+)(?:\/(\d+))?$/, // Pages where buttons should appear
     CONTAINER_SELECTOR: '.mb-2', // CSS selector for button container
     MAX_RETRIES: 20, // Max attempts to find container on SPA pages
 
