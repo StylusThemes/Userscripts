@@ -42,7 +42,7 @@ async function updateJsdelivrHashes() {
     const jsFiles = userscriptFiles.filter(file => file.endsWith('.user.js'));
 
     for (const libFile of allLibFiles) {
-      const relativePath = path.relative(root, libFile); // e.g., libs/utils/utils.min.js
+       const relativePath = path.relative(root, libFile).replace(/\\/g, '/'); // e.g., libs/utils/utils.min.js
 
       // Get the last commit hash for this file
       const lastCommit = execSync(`git log -1 --format=%H -- "${relativePath}"`, { encoding: 'utf8' }).trim();
@@ -51,18 +51,20 @@ async function updateJsdelivrHashes() {
       const escapedPath = relativePath.replace(/\./g, '\\.');
 
       // Regex to match the @require line for this file, only if commit hash is present
-      const regex = new RegExp(`(@require\\s+https://cdn\\.jsdelivr\\.net/gh/StylusThemes/Userscripts@)[a-f0-9]{40}(/${escapedPath})`, 'g');
+      const regex = new RegExp(`(// @require\\s+https://cdn\\.jsdelivr\\.net/gh/StylusThemes/Userscripts@)[a-f0-9]{40}(/${escapedPath})`, 'g');
 
       for (const jsFile of jsFiles) {
         const filePath = path.join(userscriptsDirectory, jsFile);
         const content = await fs.readFile(filePath, 'utf8');
 
-        if (regex.test(content)) {
-          // Replace the commit hash
-          const updatedContent = content.replace(regex, `$1${lastCommit}$2`);
-          await fs.writeFile(filePath, updatedContent, 'utf8');
-          console.log(`Updated ${jsFile} for ${relativePath}`);
-        }
+         if (regex.test(content)) {
+           // Replace the commit hash
+           const updatedContent = content.replace(regex, `$1${lastCommit}$2`);
+           if (updatedContent !== content) {
+             await fs.writeFile(filePath, updatedContent, 'utf8');
+             console.log(`Updated ${jsFile} for ${relativePath}`);
+           }
+         }
       }
     }
 
