@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          GitHub - Latest
-// @version       1.9.2
+// @version       1.9.3
 // @description   Always keep an eye on the latest activity of your favorite projects
 // @author        Journey Over
 // @license       MIT
@@ -49,6 +49,9 @@
     } catch {
       anchorElement.href = `${(anchorElement.href || '#').split('?')[0]}?${QUERY_STRING}`;
     }
+
+    // Remove aria-current to prevent underline styling for latest issues tab
+    anchorElement.removeAttribute('aria-current');
 
     anchorElement.style.float = 'none';
     if (clonedTab.style) clonedTab.style.marginLeft = 'auto';
