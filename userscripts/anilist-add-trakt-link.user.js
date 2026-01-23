@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name          AniList - Add Trakt link
-// @version       1.1.2
-// @description   Add trakt link to AniList anime pages
+// @version       1.2.0
+// @description   Add trakt and MyAnimeList links to AniList anime pages
 // @author        Journey Over
 // @license       MIT
 // @match         *://anilist.co/*
@@ -12,7 +12,6 @@
 // @grant         GM_getValue
 // @grant         GM_listValues
 // @grant         GM_deleteValue
-// @run-at        document-end
 // @inject-into   content
 // @icon          https://www.google.com/s2/favicons?sz=64&domain=anilist.co
 // @homepageURL   https://github.com/StylusThemes/Userscripts
@@ -26,14 +25,16 @@
   const CONFIG = {
     CACHE_DURATION: 24 * 60 * 60 * 1000,
     TRAKT_COLOR: '#ED1C24E0',
-    ICON_URL: 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/trakt.svg',
+    ICON_URL_TRAKT: 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/trakt.svg',
+    MAL_COLOR: '#2E51A2',
+    ICON_URL_MAL: 'https://www.google.com/s2/favicons?sz=64&domain=myanimelist.net',
     ICON_SIZE: '16px'
   };
 
   const animeApi = new AnimeAPI();
   const logger = Logger('AniList - Add Trakt link', { debug: false });
 
-  class AniListTraktLinker {
+  class AniListExternalLinker {
     constructor() {
       this.lastProcessedAnimeId = null;
       this.init();
@@ -94,14 +95,14 @@
           return;
         }
 
-        if (this.hasTraktLink(externalLinksContainer)) {
-          logger.debug('Trakt link already exists');
-          return;
-        }
-
         const traktData = await this.getTraktData(anilistId);
         if (traktData) {
-          this.addTraktLink(traktData, externalLinksContainer);
+          if (traktData.trakt && traktData.trakt_type && !this.hasTraktLink(externalLinksContainer)) {
+            this.addTraktLink(traktData, externalLinksContainer);
+          }
+          if (traktData.myanimelist && !this.hasMyAnimeListLink(externalLinksContainer)) {
+            this.addMyAnimeListLink(traktData, externalLinksContainer);
+          }
         }
       } catch (error) {
         logger.error(`Error processing page: ${error.message}`);
@@ -149,19 +150,26 @@
 
     addTraktLink(data, container) {
       const traktUrl = `https://trakt.tv/${data.trakt_type}/${data.trakt}`;
-      const linkElement = this.createTraktLinkElement(traktUrl);
+      const linkElement = this.createExternalLinkElement(traktUrl, 'Trakt', CONFIG.TRAKT_COLOR, CONFIG.ICON_URL_TRAKT);
       container.appendChild(linkElement);
       logger(`Added Trakt link: ${traktUrl}`);
     }
 
-    createTraktLinkElement(url) {
+    addMyAnimeListLink(data, container) {
+      const malUrl = `https://myanimelist.net/anime/${data.myanimelist}`;
+      const linkElement = this.createExternalLinkElement(malUrl, 'MyAnimeList', CONFIG.MAL_COLOR, CONFIG.ICON_URL_MAL);
+      container.appendChild(linkElement);
+      logger(`Added MyAnimeList link: ${malUrl}`);
+    }
+
+    createExternalLinkElement(url, name, color, iconUrl) {
       const linkElement = document.createElement('a');
       linkElement.setAttribute('data-v-c1b7ee7c', '');
       linkElement.href = url;
       linkElement.target = '_blank';
       linkElement.className = 'external-link';
       // Use CSS custom property to match AniList's theming system
-      linkElement.style.cssText = `--link-color: ${CONFIG.TRAKT_COLOR};`;
+      linkElement.style.cssText = `--link-color: ${color};`;
 
       const iconWrapper = document.createElement('div');
       iconWrapper.setAttribute('data-v-c1b7ee7c', '');
@@ -171,14 +179,14 @@
 
       const iconImage = document.createElement('img');
       iconImage.setAttribute('data-v-c1b7ee7c', '');
-      iconImage.src = CONFIG.ICON_URL;
+      iconImage.src = iconUrl;
       iconImage.className = 'icon';
       iconImage.style.cssText = `width: ${CONFIG.ICON_SIZE}; height: ${CONFIG.ICON_SIZE};`;
 
       const nameSpan = document.createElement('span');
       nameSpan.setAttribute('data-v-c1b7ee7c', '');
       nameSpan.className = 'name';
-      nameSpan.textContent = 'Trakt';
+      nameSpan.textContent = name;
 
       iconWrapper.appendChild(iconImage);
       linkElement.appendChild(iconWrapper);
@@ -227,6 +235,10 @@
       return !!container.querySelector('a[href*="trakt.tv"]');
     }
 
+    hasMyAnimeListLink(container) {
+      return !!container.querySelector('a[href*="myanimelist.net"]');
+    }
+
     // Validates cache has timestamp and is within duration
     isCacheValid(cachedEntry) {
       return cachedEntry.timestamp && (Date.now() - cachedEntry.timestamp < CONFIG.CACHE_DURATION);
@@ -248,5 +260,5 @@
     }
   }
 
-  new AniListTraktLinker();
+  new AniListExternalLinker();
 })();
