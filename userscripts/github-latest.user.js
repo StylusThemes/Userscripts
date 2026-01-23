@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          GitHub - Latest
-// @version       1.9.3
+// @version       1.9.4
 // @description   Always keep an eye on the latest activity of your favorite projects
 // @author        Journey Over
 // @license       MIT
@@ -22,7 +22,7 @@
   const QUERY_STRING = 'q=sort%3Aupdated-desc';
   const NAVIGATION_SELECTOR = 'nav[aria-label="Repository"] > ul';
 
-  // Find Issues tab first
+  // Find Issues tab first, fallback to any tab with anchor
   const findTemplateTab = (navigationBody) => {
     const issuesAnchor = navigationBody.querySelector('a[href*="/issues"]');
     if (issuesAnchor) {
@@ -30,7 +30,11 @@
       if (listItem) return listItem;
       return issuesAnchor.closest(':scope > *') || issuesAnchor;
     }
-    return null;
+
+    // Fallback: any child that contains an anchor
+    const fallback = [...navigationBody.children].find(child => child.querySelector && child.querySelector('a'));
+    if (fallback) logger.debug('Fallback tab found as template');
+    return fallback || null;
   };
 
   // Clone template tab and transform it into "Latest issues" with custom icon and query
