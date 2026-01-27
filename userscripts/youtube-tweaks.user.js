@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          YouTube - Tweaks
-// @version       1.2.0
+// @version       1.3.0
 // @description   Random tweaks and fixes for YouTube!
 // @author        Journey Over
 // @license       MIT
@@ -102,6 +102,68 @@
         document.removeEventListener('yt-navigate-finish', this.eventHandlers.handleNavigateFinish);
         document.removeEventListener('yt-action', this.eventHandlers.handleAction);
         for (const playSingleButton of document.querySelectorAll('button-view-model#button-play-single')) playSingleButton.remove();
+        this.eventHandlers = {};
+      }
+    },
+
+    // Open video links (watch/shorts) in a new tab instead of navigating in the current tab
+    openVideosNewTab: {
+      id: 'openVideosNewTab',
+      name: 'Open video links in new tab',
+      default: true,
+      enabled: false,
+      eventHandlers: {},
+      // Extract video id from URL (supports /watch?v= and /shorts/)
+      getVideoId(urlStr) {
+        try {
+          const url = new URL(urlStr, location.href);
+          if (url.pathname.startsWith('/watch')) return url.searchParams.get('v');
+          if (url.pathname.startsWith('/shorts/')) return url.pathname.split('/')[2] || null;
+        } catch (e) {
+          return null;
+        }
+        return null;
+      },
+      handleClick(event) {
+        try {
+          const link = event.target.closest && event.target.closest('a');
+          if (!link || !link.href) return;
+
+          // If link already opens in a new tab or is a download, respect it
+          if (link.target === '_blank' || link.hasAttribute('download')) return;
+
+          // Parse URL and check if it's a video link
+          let url;
+          try { url = new URL(link.href, location.href); } catch { return; }
+          if (!url.pathname.startsWith('/watch') && !url.pathname.startsWith('/shorts/')) return;
+
+          // Allow timestamps/chapters to function normally when they point to the same video
+          const currentVideoId = this.getVideoId(location.href);
+          const targetVideoId = this.getVideoId(url.href);
+          if (currentVideoId && targetVideoId && currentVideoId === targetVideoId) return;
+
+          // Clicks inside the player (up next / endscreen) should behave natively
+          if (link.closest && (link.closest('.html5-video-player') || link.closest('#movie_player'))) return;
+
+          // Only intercept plain left-clicks without modifier keys
+          if (event.button === 0 && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
+            event.preventDefault();
+            event.stopPropagation();
+            window.open(url.href, '_blank');
+          }
+        } catch (err) {
+          logger.error('openVideosNewTab handler error', err);
+        }
+      },
+      start() {
+        if (this.eventHandlers._started) return;
+        this.eventHandlers.handleClick = this.handleClick.bind(this);
+        document.body.addEventListener('click', this.eventHandlers.handleClick, true);
+        this.eventHandlers._started = true;
+      },
+      stop() {
+        if (!this.eventHandlers._started) return;
+        document.body.removeEventListener('click', this.eventHandlers.handleClick, true);
         this.eventHandlers = {};
       }
     },
