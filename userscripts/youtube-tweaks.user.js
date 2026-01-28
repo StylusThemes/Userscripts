@@ -114,12 +114,12 @@
       enabled: false,
       eventHandlers: {},
       // Extract video id from URL (supports /watch?v= and /shorts/)
-      getVideoId(urlStr) {
+      getVideoId(urlString) {
         try {
-          const url = new URL(urlStr, location.href);
+          const url = new URL(urlString, location.href);
           if (url.pathname.startsWith('/watch')) return url.searchParams.get('v');
           if (url.pathname.startsWith('/shorts/')) return url.pathname.split('/')[2] || null;
-        } catch (e) {
+        } catch {
           return null;
         }
         return null;
@@ -151,8 +151,8 @@
             event.stopPropagation();
             window.open(url.href, '_blank');
           }
-        } catch (err) {
-          logger.error('openVideosNewTab handler error', err);
+        } catch (error) {
+          logger.error('openVideosNewTab handler error', error);
         }
       },
       start() {
