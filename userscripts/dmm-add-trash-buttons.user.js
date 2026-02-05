@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          DMM - Add Trash Guide Regex Buttons
-// @version       3.3.2
+// @version       3.3.3
 // @description   Adds buttons to Debrid Media Manager for applying Trash Guide regex patterns.
 // @author        Journey Over
 // @license       MIT
