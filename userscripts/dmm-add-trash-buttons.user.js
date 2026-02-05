@@ -224,6 +224,11 @@
 
       .${p}-help-icon{background:#1f2937;color:#e6f0ff;border:1px solid rgba(148,163,184,.4);border-radius:50%;width:16px;height:16px;font-size:11px;cursor:help;margin-left:.25rem;display:inline-flex;align-items:center;justify-content:center;font-weight:bold;}
       .${p}-help-icon:hover{background:#374151;}
+      /* Allow the top button row to wrap instead of horizontal scrolling */
+      div.mb-2.flex.items-center.gap-2.overflow-x-auto.p-2{flex-wrap:wrap;overflow-x:visible;}
+      /* Let quality items participate in the same flex row as the top controls */
+      .${p}-quality-section{display:contents;}
+      .${p}-quality-grid{display:contents;}
       h2.line-clamp-2{display:block!important;-webkit-line-clamp:unset!important;-webkit-box-orient:unset!important;overflow:visible!important;text-overflow:unset!important;white-space:normal!important;} //untruncates titles so they are easier to read
     `;
     const style = document.createElement('style');
