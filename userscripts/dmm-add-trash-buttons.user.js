@@ -207,15 +207,15 @@
       .${p}-item{padding:.45rem .75rem;cursor:pointer;font-size:13px;white-space:nowrap;border-bottom:1px solid rgba(255,255,255,.03);}
       .${p}-item:last-child{border-bottom:none;}
       .${p}-item:hover{background:#1f2937;}
-      .${p}-quality-section{display:flex;align-items:center;gap:.75rem;margin-left:.75rem;padding-left:.75rem;border-left:1px solid rgba(148,163,184,.15);}
-      .${p}-quality-grid{display:flex;flex-wrap:wrap;gap:.6rem;}
+      .${p}-quality-section{display:contents;}
+      .${p}-quality-grid{display:contents;}
       .${p}-quality-item{display:inline-flex;align-items:center;font-size:12px;}
       .${p}-quality-button{padding:.25rem .5rem;border-radius:.375rem;border:1px solid rgba(148,163,184,.15);background:transparent;color:#e6f0ff;cursor:pointer;font-size:12px;line-height:1}
       .${p}-quality-button.active{background:#3b82f6;color:#fff;border-color:#3b82f6}
       .${p}-quality-button.active.negative{background:#dc2626;color:#fff;border-color:#dc2626}
       .${p}-quality-button:focus{outline:1px solid rgba(59,130,246,.5);}
       .${p}-quality-label{color:#e6f0ff;cursor:pointer;white-space:nowrap;}
-      .${p}-logic-selector{margin-right:.75rem;padding-right:.75rem;border-right:1px solid rgba(148,163,184,.15);display:flex;align-items:center;}
+      .${p}-logic-selector{margin:0 .75rem;padding:0 .75rem;border-left:1px solid rgba(148,163,184,.15);border-right:1px solid rgba(148,163,184,.15);display:flex;align-items:center;}
       .${p}-logic-toggle{display:inline-flex;border:1px solid rgba(148,163,184,.4);border-radius:.375rem;overflow:hidden;}
       .${p}-logic-option{background:#1f2937;color:#e6f0ff;border:none;padding:.25rem .5rem;font-size:12px;cursor:pointer;transition:all 0.2s ease;line-height:1;display:flex;align-items:center;position:relative;}
       .${p}-logic-option:hover{background:#374151;}
@@ -226,9 +226,6 @@
       .${p}-help-icon:hover{background:#374151;}
       /* Allow the top button row to wrap instead of horizontal scrolling */
       div.mb-2.flex.items-center.gap-2.overflow-x-auto.p-2{flex-wrap:wrap;overflow-x:visible;}
-      /* Let quality items participate in the same flex row as the top controls */
-      .${p}-quality-section{display:contents;}
-      .${p}-quality-grid{display:contents;}
       h2.line-clamp-2{display:block!important;-webkit-line-clamp:unset!important;-webkit-box-orient:unset!important;overflow:visible!important;text-overflow:unset!important;white-space:normal!important;} //untruncates titles so they are easier to read
     `;
     const style = document.createElement('style');
