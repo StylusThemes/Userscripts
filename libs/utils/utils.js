@@ -5,7 +5,7 @@
 // @name         @journeyover/utils
 // @description  Utility helpers for my userscripts
 // @license      MIT
-// @version      1.0.1
+// @version      1.1.0
 // @homepageURL  https://github.com/StylusThemes/Userscripts
 // ==/UserScript==
 
@@ -36,12 +36,12 @@
  * const save = debounce(() => api.save(data), 250);
  * input.addEventListener('input', save);
  */
-function debounce(fn, wait) {
+function debounce(callback, wait) {
   let timeoutId = null;
-  return function(...args) {
+  return function(...arguments_) {
     if (timeoutId) clearTimeout(timeoutId);
     const context = this;
-    timeoutId = setTimeout(() => fn.apply(context, args), wait);
+    timeoutId = setTimeout(() => callback.apply(context, arguments_), wait);
   };
 }
 
@@ -80,7 +80,7 @@ function debounce(fn, wait) {
  * log.error('Failed to resume playback', new Error('Timeout'));
  * log.debug('Progress data', { time: 123 });
  */
-function Logger(prefix, opts = {}) {
+function Logger(prefix, options = {}) {
   const baseStyle = 'font-weight: bold; padding:2px 6px; border-radius: 4px;';
   const formattedPrefix = `[${prefix}]`;
 
@@ -99,6 +99,7 @@ function Logger(prefix, opts = {}) {
   };
 
   function format(type, message, ...rest) {
+    // eslint-disable-next-line no-console
     console[type](
       `%c${icons[type]} ${formattedPrefix}%c ${message}`,
       styles[type],
@@ -120,18 +121,18 @@ function Logger(prefix, opts = {}) {
   };
 
   log.debug = function(message, ...rest) {
-    if (opts.debug) {
+    if (options.debug) {
       format('debug', message, ...rest);
     }
   };
 
   // expose debug flag
-  log.debugEnabled = !!opts.debug;
+  log.debugEnabled = !!options.debug;
 
   return log;
 }
 
-// Expose for CommonJS (node) and as browser globals to match previous usage.
+// Expose utilities.
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { debounce, Logger };
 }

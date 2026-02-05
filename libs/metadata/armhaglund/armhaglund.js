@@ -1,0 +1,58 @@
+// ==UserScript==
+// @author       Journey Over
+// @exclude      *
+// ==UserLibrary==
+// @name         @journeyover/armhaglund
+// @description  Arm Haglund API client for fetching external IDs
+// @license      MIT
+// @version      1.0.0
+// @homepageURL  https://github.com/StylusThemes/Userscripts
+// ==/UserLibrary==
+// @connect      arm.haglund.dev
+// @grant        GM_xmlhttpRequest
+// ==/UserScript==
+
+/**
+ * Arm Haglund API client for fetching external IDs from various sources.
+ */
+this.ArmHaglund = class {
+  /**
+   * Fetches external IDs for a given source and ID.
+   * @param {string} source - The source (e.g., "themoviedb", "thetvdb", "imdb").
+   * @param {string} id - The ID value.
+   * @returns {Promise<Object|null>} A promise that resolves to the first result object or null if not found.
+   */
+  fetchIds(source, id) {
+    if (!source) throw new Error('A source is required');
+    if (!id) throw new Error('An ID is required');
+
+    return new Promise((resolve, reject) => {
+      GM_xmlhttpRequest({
+        method: 'GET',
+        url: `https://arm.haglund.dev/api/v2/${source}?id=${id}`,
+        timeout: 15e3,
+        onload: (response) => {
+          if (response.status !== 200) {
+            // Debug: ${response.status}: ${response.finalUrl}
+          }
+          try {
+            const data = JSON.parse(response.responseText);
+            if (Array.isArray(data) && data.length > 0) {
+              resolve(data[0]);
+            } else {
+              resolve(null);
+            }
+          } catch {
+            reject(new Error('Failed to parse Arm Haglund response'));
+          }
+        },
+        onerror: () => {
+          reject(new Error('An error occurs while processing the request'));
+        },
+        ontimeout: () => {
+          reject(new Error('Request times out'));
+        },
+      });
+    });
+  }
+};
