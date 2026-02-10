@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          Magnet Link to Real-Debrid
-// @version       2.9.0
+// @version       2.10.0
 // @description   Automatically send magnet links to Real-Debrid
 // @author        Journey Over
 // @license       MIT
@@ -77,13 +77,18 @@
       }
     },
 
-    async getConfig() {
+    // Synchronous retrieval since GM_getValue is synchronous
+    getConfigSync() {
       const stored = GM_getValue(STORAGE_KEY);
       const parsed = this._safeParse(stored) || {};
       return {
         ...DEFAULTS,
         ...parsed
       };
+    },
+
+    async getConfig() {
+      return this.getConfigSync();
     },
 
     async saveConfig(config) {
@@ -324,7 +329,7 @@
 
   class FileTree {
     constructor(files) {
-      this.root = { name: 'Torrent Contents', children: [], type: 'folder', path: '', expanded: false };
+      this.root = { name: 'Torrent Contents', children: [], type: 'folder', path: '', expanded: true };
       this.buildTree(files);
     }
 
@@ -395,6 +400,441 @@
       return this.getAllFiles().filter(file => file.checked).map(file => file.id);
     }
   }
+
+  const UIManager = {
+    injectStyles() {
+      const id = 'rd-modern-styles';
+      if (document.getElementById(id)) return;
+
+      const styles = `:root{--rd-green:#64cc2e;--rd-green-hover:#52a825;--rd-bg:#1d1d1d;--rd-panel:#242424;--rd-border:#333;--rd-text:#eee;--rd-text-dim:#999;--rd-input-bg:#161616;--rd-overlay:rgba(0,0,0,0.85)}.rd-overlay{position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;background:var(--rd-overlay);backdrop-filter:blur(5px);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;opacity:0;animation:rd-fade-in .2s forwards}@keyframes rd-fade-in{to{opacity:1}}.rd-dialog{width:800px;max-width:90%;height:600px;max-height:90vh;background:var(--rd-bg);border-radius:8px;box-shadow:0 20px 50px rgba(0,0,0,0.5);display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--rd-border)}.rd-header{padding:20px 25px;border-bottom:1px solid var(--rd-border);display:flex;justify-content:space-between;align-items:center;background:var(--rd-panel)}.rd-title{margin:0;font-size:20px;color:#fff;font-weight:600}.rd-close{background:0 0;border:none;color:var(--rd-text-dim);font-size:24px;cursor:pointer;line-height:1;padding:5px}.rd-close:hover{color:#fff}.rd-body{flex:1;display:flex;overflow:hidden}.rd-sidebar{width:200px;background:#181818;border-right:1px solid var(--rd-border);padding:15px 0;display:flex;flex-direction:column;gap:5px}.rd-nav-item{padding:12px 20px;cursor:pointer;color:var(--rd-text-dim);font-size:14px;font-weight:500;transition:.2s;border-left:3px solid transparent}.rd-nav-item:hover{color:#fff;background:rgba(255,255,255,.03)}.rd-nav-item.active{color:#fff;background:rgba(100,204,46,.1);border-left-color:var(--rd-green)}.rd-content{flex:1;padding:0;overflow-y:auto;position:relative}.rd-tab-pane{display:none;padding:25px}.rd-tab-pane.active{display:block;animation:rd-slide-up .3s ease}@keyframes rd-slide-up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}.rd-group{margin-bottom:20px}.rd-label{display:block;margin-bottom:8px;font-weight:600;color:var(--rd-text);font-size:14px}.rd-sub-label{font-size:12px;color:var(--rd-text-dim);margin-top:4px}.rd-input,.rd-textarea{width:100%;padding:12px;border-radius:6px;background:var(--rd-input-bg);border:1px solid var(--rd-border);color:#fff;font-size:14px;outline:0;transition:.2s;box-sizing:border-box}.rd-input:focus,.rd-textarea:focus{border-color:var(--rd-green)}.rd-textarea{min-height:100px;line-height:1.5;font-family:monospace}.rd-list-item{display:flex;align-items:center;justify-content:space-between;padding:15px;margin-bottom:10px;background:var(--rd-panel);border-radius:6px;border:1px solid transparent;transition:.2s}.rd-list-item:hover{border-color:#444}.rd-info h4{margin:0 0 4px;font-size:15px;color:#fff}.rd-info p{margin:0;font-size:12px;color:var(--rd-text-dim)}.rd-toggle{position:relative;width:44px;height:24px;flex-shrink:0}.rd-toggle input{opacity:0;width:0;height:0}.rd-slider{position:absolute;cursor:pointer;inset:0;background-color:#444;border-radius:24px;transition:.3s}.rd-slider:before{position:absolute;content:"";height:18px;width:18px;left:3px;bottom:3px;background-color:#fff;border-radius:50%;transition:.3s;box-shadow:0 2px 4px rgba(0,0,0,.2)}input:checked+.rd-slider{background-color:var(--rd-green)}input:checked+.rd-slider:before{transform:translateX(20px)}.rd-footer{padding:15px 25px;border-top:1px solid var(--rd-border);background:var(--rd-panel);display:flex;justify-content:flex-end;gap:10px}.rd-btn{padding:8px 16px;border-radius:4px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:.2s}.rd-btn-ghost{background:0 0;color:var(--rd-text-dim)}.rd-btn-ghost:hover{color:#fff;background:rgba(255,255,255,.05)}.rd-btn-primary{background:var(--rd-green);color:#fff}.rd-btn-primary:hover{background:var(--rd-green-hover)}.rd-file-dialog .rd-content{display:flex;flex-direction:column;height:100%}.rd-file-toolbar{display:flex;align-items:center;justify-content:space-between;padding:15px 25px;border-bottom:1px solid var(--rd-border);background:var(--rd-panel)}.rd-file-stats{font-size:13px;color:var(--rd-text-dim)}.rd-file-tree{flex:1;overflow-y:auto;padding:10px}.rd-tree-item{margin:1px 0}.rd-folder-header,.rd-file{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:4px;cursor:pointer;color:var(--rd-text-dim);font-size:13px}.rd-folder-header:hover,.rd-file:hover{background:var(--rd-panel);color:#fff}.rd-folder-name,.rd-file-name{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.rd-checkbox{accent-color:var(--rd-green);cursor:pointer}.rd-badge{background:#333;padding:2px 6px;border-radius:4px;font-size:11px}.rd-folder-children{margin-left:22px;border-left:1px solid #333}.rd-toast{position:fixed;bottom:20px;left:20px;background:var(--rd-panel);color:#fff;padding:12px 16px;border-radius:6px;z-index:10001;font-size:14px;box-shadow:0 5px 15px rgba(0,0,0,.3);border-left:4px solid var(--rd-green);animation:rd-slide-up .2s ease-out}.rd-input-wrapper{position:relative;width:100%}.rd-eye-btn{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:0 0;border:none;color:var(--rd-text-dim);cursor:pointer;font-size:16px;padding:0}.rd-eye-btn:hover{color:#fff}`;
+
+      const styleSheet = document.createElement('style');
+      styleSheet.id = id;
+      styleSheet.textContent = styles;
+      document.head.appendChild(styleSheet);
+    },
+
+    createConfigDialog(currentConfig) {
+      this.injectStyles();
+
+      const html = `
+        <div class="rd-dialog">
+          <div class="rd-header">
+            <h2 class="rd-title">Real-Debrid Settings</h2>
+            <button class="rd-close">&times;</button>
+          </div>
+
+          <div class="rd-body">
+            <div class="rd-sidebar">
+              <div class="rd-nav-item active" data-tab="tab-general">General</div>
+              <div class="rd-nav-item" data-tab="tab-filtering">Filters</div>
+            </div>
+
+            <div class="rd-content">
+              <div id="tab-general" class="rd-tab-pane active">
+                <div class="rd-group">
+                  <label class="rd-label">API Token</label>
+                  <div class="rd-input-wrapper">
+                    <input type="password" id="apiKeyInput" class="rd-input" value="${currentConfig.apiKey || ''}" placeholder="Paste your Real-Debrid API Token here" style="padding-right: 40px;">
+                    <button id="toggleApiVisibility" class="rd-eye-btn" title="Show/Hide Token">👁️</button>
+                  </div>
+                  <div class="rd-sub-label">Find this at real-debrid.com/apitoken</div>
+                </div>
+
+                <div class="rd-list-item">
+                  <div class="rd-info">
+                    <h4>Manual File Selection</h4>
+                    <p>Always show the file selection dialog before adding <br><span style="color:var(--rd-text-dim); font-size:11px">(Enabling this hides the Filters tab)</span></p>
+                  </div>
+                  <label class="rd-toggle">
+                    <input type="checkbox" id="manualFileSelection" ${currentConfig.manualFileSelection ? 'checked' : ''}>
+                    <span class="rd-slider"></span>
+                  </label>
+                </div>
+
+                <div class="rd-list-item">
+                  <div class="rd-info">
+                    <h4>Torrent Support</h4>
+                    <p>Alt+Click magnet links to process .torrent files instead</p>
+                  </div>
+                  <label class="rd-toggle">
+                    <input type="checkbox" id="enableTorrentSupport" ${currentConfig.enableTorrentSupport ? 'checked' : ''}>
+                    <span class="rd-slider"></span>
+                  </label>
+                </div>
+
+                 <div class="rd-list-item">
+                  <div class="rd-info">
+                    <h4>Debug Mode</h4>
+                    <p>Log detailed information to the browser console</p>
+                  </div>
+                  <label class="rd-toggle">
+                    <input type="checkbox" id="debugEnabled" ${currentConfig.debugEnabled ? 'checked' : ''}>
+                    <span class="rd-slider"></span>
+                  </label>
+                </div>
+              </div>
+
+              <div id="tab-filtering" class="rd-tab-pane">
+                <div class="rd-group">
+                  <label class="rd-label">Allowed Extensions</label>
+                  <textarea id="allowedExtensions" class="rd-textarea" placeholder="mkv, mp4, avi">${currentConfig.allowedExtensions.join(', ')}</textarea>
+                  <div class="rd-sub-label">Comma separated list of file extensions to auto-select</div>
+                </div>
+
+                <div class="rd-group">
+                  <label class="rd-label">Filter Keywords</label>
+                  <textarea id="filterKeywords" class="rd-textarea" placeholder="sample, trailer">${currentConfig.filterKeywords.join(', ')}</textarea>
+                  <div class="rd-sub-label">Files containing these words (or Regex /.../) will be skipped</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="rd-footer">
+            <button class="rd-btn rd-btn-ghost" id="cancelButton">Cancel</button>
+            <button class="rd-btn rd-btn-primary" id="saveButton">Save Changes</button>
+          </div>
+        </div>
+      `;
+
+      const overlay = document.createElement('div');
+      overlay.className = 'rd-overlay';
+      overlay.innerHTML = html;
+      document.body.appendChild(overlay);
+
+      // --- Logic for Tabs and Toggles ---
+
+      const manualCheckbox = overlay.querySelector('#manualFileSelection');
+      const filterTabNav = overlay.querySelector('.rd-nav-item[data-tab="tab-filtering"]');
+      const apiKeyInput = overlay.querySelector('#apiKeyInput');
+      const toggleApiBtn = overlay.querySelector('#toggleApiVisibility');
+
+      // 1. API Token Visibility Toggle
+      toggleApiBtn.onclick = () => {
+        if (apiKeyInput.type === 'password') {
+          apiKeyInput.type = 'text';
+          toggleApiBtn.style.color = '#fff'; // Highlight when visible
+        } else {
+          apiKeyInput.type = 'password';
+          toggleApiBtn.style.color = '';
+        }
+      };
+
+      // 2. Hide "Filters" tab if Manual Selection is enabled
+      const updateFilterTabVisibility = () => {
+        if (manualCheckbox.checked) {
+          filterTabNav.style.display = 'none';
+          // If the user was on the hidden tab, switch them back to General
+          if (filterTabNav.classList.contains('active')) {
+             overlay.querySelector('[data-tab="tab-general"]').click();
+          }
+        } else {
+          filterTabNav.style.display = 'block';
+        }
+      };
+      manualCheckbox.addEventListener('change', updateFilterTabVisibility);
+      updateFilterTabVisibility(); // Run on init
+
+      // Event Listeners for Closing
+      const close = () => {
+        overlay.remove();
+        document.removeEventListener('keydown', escHandler);
+      };
+      const escHandler = (e) => {
+        if (e.key === 'Escape') close();
+      };
+      document.addEventListener('keydown', escHandler);
+
+      overlay.querySelector('.rd-close').onclick = close;
+      overlay.querySelector('#cancelButton').onclick = close;
+
+      // Tab Switching
+      const tabs = overlay.querySelectorAll('.rd-nav-item');
+      tabs.forEach(tab => {
+        tab.onclick = () => {
+          overlay.querySelectorAll('.rd-nav-item').forEach(t => t.classList.remove('active'));
+          overlay.querySelectorAll('.rd-tab-pane').forEach(p => p.classList.remove('active'));
+
+          tab.classList.add('active');
+          overlay.querySelector(`#${tab.dataset.tab}`).classList.add('active');
+        };
+      });
+
+      // Save Logic
+      overlay.querySelector('#saveButton').onclick = async () => {
+        const btn = overlay.querySelector('#saveButton');
+        btn.textContent = 'Saving...';
+
+        try {
+          const newConfig = {
+            apiKey: overlay.querySelector('#apiKeyInput').value.trim(),
+            enableTorrentSupport: overlay.querySelector('#enableTorrentSupport').checked,
+            debugEnabled: overlay.querySelector('#debugEnabled').checked,
+            manualFileSelection: overlay.querySelector('#manualFileSelection').checked,
+            allowedExtensions: overlay.querySelector('#allowedExtensions').value.split(',').map(s => s.trim()).filter(Boolean),
+            filterKeywords: overlay.querySelector('#filterKeywords').value.split(',').map(s => s.trim()).filter(Boolean)
+          };
+
+          await ConfigManager.saveConfig(newConfig);
+          close();
+          this.showToast('Settings saved successfully', 'success');
+          location.reload();
+        } catch (error) {
+           this.showToast(error.message, 'error');
+           btn.textContent = 'Save Changes';
+        }
+      };
+    },
+
+    createFileSelectionDialog(files) {
+      this.injectStyles();
+      return new Promise((resolve) => {
+        const fileTree = new FileTree(files);
+        const totalSizeAll = fileTree.getAllFiles().reduce((s, f) => s + (f.bytes || 0), 0);
+
+        const overlay = document.createElement('div');
+        overlay.className = 'rd-overlay';
+        overlay.innerHTML = `
+          <div class="rd-dialog rd-file-dialog">
+            <div class="rd-header">
+              <h2 class="rd-title">Select Files</h2>
+              <button class="rd-close">&times;</button>
+            </div>
+
+            <div class="rd-file-toolbar">
+               <button class="rd-btn rd-btn-ghost" id="toggleAll" style="padding:4px 8px; font-size:12px; border:1px solid #444">Select All</button>
+               <span class="rd-file-stats" id="stats">0 files selected</span>
+            </div>
+
+            <div class="rd-content">
+               <div class="rd-file-tree" id="treeRoot"></div>
+            </div>
+
+            <div class="rd-footer">
+              <button class="rd-btn rd-btn-ghost" id="cancel">Cancel</button>
+              <button class="rd-btn rd-btn-primary" id="confirm">Add Selected</button>
+            </div>
+          </div>
+        `;
+
+        document.body.appendChild(overlay);
+
+        const treeRoot = overlay.querySelector('#treeRoot');
+        const statsLabel = overlay.querySelector('#stats');
+        const toggleBtn = overlay.querySelector('#toggleAll');
+
+        const updateUI = () => {
+          const updateStates = (node) => {
+             if (node.type === 'file') return node.checked;
+             if (node.children) {
+                const states = node.children.map(updateStates);
+                node.checked = states.every(s => s);
+                node.indeterminate = !node.checked && states.some(s => s);
+                return states.some(s => s);
+             }
+             return false;
+          };
+          updateStates(fileTree.root);
+
+          const selected = fileTree.getAllFiles().filter(f => f.checked);
+          const size = selected.reduce((s, f) => s + (f.bytes || 0), 0);
+          statsLabel.textContent = `${selected.length} files (${this.formatBytes(size)} / ${this.formatBytes(totalSizeAll)})`;
+          toggleBtn.textContent = selected.length === fileTree.getAllFiles().length ? 'Select None' : 'Select All';
+        };
+
+        const renderNode = (node) => {
+          const div = document.createElement('div');
+          div.className = 'rd-tree-item';
+
+          if (node.type === 'folder') {
+            const fileCount = fileTree.countFiles(node);
+            div.innerHTML = `
+              <div class="rd-folder-header">
+                 <span style="font-size:10px; width:12px">${node.expanded ? '▼' : '▶'}</span>
+                 <input type="checkbox" class="rd-checkbox" ${node.checked ? 'checked' : ''}>
+                 <span class="rd-folder-name">${node.name}</span>
+                 <span class="rd-badge">${fileCount}</span>
+              </div>
+              <div class="rd-folder-children" style="display:${node.expanded ? 'block' : 'none'}"></div>
+            `;
+
+            const childrenContainer = div.querySelector('.rd-folder-children');
+
+            const toggleExpand = (e) => {
+               // PREVENT PROPAGATION HERE is redundant if we handle click on the container,
+               // but explicitly separating logic helps.
+               e.stopPropagation();
+               node.expanded = !node.expanded;
+               childrenContainer.style.display = node.expanded ? 'block' : 'none';
+               div.querySelector('span').textContent = node.expanded ? '▼' : '▶';
+               if(node.expanded && !childrenContainer.hasChildNodes()) {
+                  node.children.forEach(c => childrenContainer.appendChild(renderNode(c)));
+               }
+            };
+
+            // Explicitly handle checkbox clicks to PREVENT bubbling to the row click
+            div.querySelector('.rd-checkbox').onclick = (e) => {
+               e.stopPropagation(); // Stop bubbling so row doesn't toggle
+            };
+
+            div.querySelector('.rd-checkbox').onchange = (e) => {
+               e.stopPropagation(); // Stop bubbling
+               const setAll = (n, v) => {
+                  n.checked = v;
+                  if(n.children) n.children.forEach(c => setAll(c, v));
+               };
+               setAll(node, e.target.checked);
+               updateUI();
+               if(node.expanded) {
+                  childrenContainer.innerHTML = '';
+                  node.children.forEach(c => childrenContainer.appendChild(renderNode(c)));
+               }
+            };
+
+            div.querySelector('.rd-folder-header').onclick = toggleExpand;
+            if(node.expanded) {
+               node.children.forEach(c => childrenContainer.appendChild(renderNode(c)));
+            }
+
+          } else {
+            div.innerHTML = `
+               <div class="rd-file">
+                 <input type="checkbox" class="rd-checkbox" ${node.checked ? 'checked' : ''}>
+                 <span class="rd-file-name">${node.name}</span>
+                 <span style="font-size:11px; opacity:0.7">${this.formatBytes(node.bytes)}</span>
+               </div>
+            `;
+            div.onclick = (e) => {
+               e.stopPropagation();
+               if(e.target.type !== 'checkbox') {
+                  node.checked = !node.checked;
+                  div.querySelector('input').checked = node.checked;
+               } else {
+                  node.checked = e.target.checked;
+               }
+               updateUI();
+            };
+          }
+          return div;
+        };
+
+        // Render children directly, skipping the dummy root
+        fileTree.root.children.forEach(child => {
+           treeRoot.appendChild(renderNode(child));
+        });
+
+        updateUI();
+
+        toggleBtn.onclick = () => {
+           const all = fileTree.getAllFiles();
+           const val = all.some(f => !f.checked);
+           all.forEach(f => f.checked = val);
+           treeRoot.innerHTML = '';
+           fileTree.root.children.forEach(child => {
+             treeRoot.appendChild(renderNode(child));
+           });
+           updateUI();
+        };
+
+        const close = (val) => {
+           overlay.remove();
+           resolve(val);
+        };
+
+        overlay.querySelector('#confirm').onclick = () => close(fileTree.getSelectedFiles());
+        overlay.querySelector('#cancel').onclick = () => close(null);
+        overlay.querySelector('.rd-close').onclick = () => close(null);
+      });
+    },
+
+    showToast(message, type = 'info') {
+      this.injectStyles();
+      const toast = document.createElement('div');
+      toast.className = 'rd-toast';
+      toast.textContent = message;
+      if (type === 'error') toast.style.borderLeftColor = '#ef4444';
+      if (type === 'success') toast.style.borderLeftColor = '#64cc2e';
+
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 4000);
+    },
+
+    setIconState(icon, state, torrentSupportEnabled = false) {
+      // Common styles for transition
+      icon.style.transition = 'all 0.2s';
+
+      if(state === 'processing') {
+         icon.style.opacity = '0.5';
+         icon.style.cursor = 'wait';
+         icon.title = 'Processing...';
+      }
+      else if(state === 'added') {
+         icon.textContent = '✓';
+         icon.style.background = '#64cc2e'; // Green
+         icon.style.opacity = '1';
+         icon.style.cursor = 'default';
+         icon.title = 'Torrent successfully added to Real-Debrid';
+      }
+      else if(state === 'existing') {
+         icon.textContent = '✓';
+         icon.style.background = '#64cc2e'; // Green
+         icon.style.opacity = '1';
+         icon.style.cursor = 'default';
+         icon.title = 'Torrent already exists on Real-Debrid';
+      } else {
+         icon.textContent = 'RD';
+         icon.style.background = '#3b82f6'; // Blue
+         icon.style.opacity = '1';
+         icon.style.cursor = 'pointer';
+         if(torrentSupportEnabled) {
+            icon.title = 'Click to send magnet to Real-Debrid, Alt+click to send torrent file';
+         } else {
+            icon.title = 'Click to send magnet to Real-Debrid';
+         }
+      }
+    },
+
+    createMagnetIcon(torrentSupportEnabled = false) {
+      const icon = document.createElement('span');
+      icon.className = 'rd-icon';
+      icon.textContent = 'RD';
+      icon.style.cssText = `cursor:pointer;display:inline-block;width:18px;height:18px;margin-left:6px;vertical-align:middle;border-radius:3px;background:#3b82f6;color:white;text-align:center;line-height:18px;font-size:11px;font-weight:bold;font-family:sans-serif;`;
+      icon.setAttribute('data-rd-inserted', '1');
+      if(torrentSupportEnabled) {
+         icon.title = 'Click to send magnet to Real-Debrid, Alt+click to send torrent file';
+      } else {
+         icon.title = 'Click to send magnet to Real-Debrid';
+      }
+      return icon;
+    },
+
+    createMagnetIconWithCheckbox(torrentSupportEnabled = false) {
+      const container = document.createElement('span');
+      container.style.cssText = `display:inline-flex;align-items:center;gap:4px;vertical-align:middle;`;
+      container.setAttribute('data-rd-inserted', '1');
+
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.style.cssText = `cursor:pointer;width:14px;height:14px;margin:0;accent-color:#64cc2e;`;
+
+      const icon = this.createMagnetIcon(torrentSupportEnabled);
+      icon.style.marginLeft = '0';
+      icon.removeAttribute('data-rd-inserted'); // Remove from icon, keep on container
+
+      container.appendChild(checkbox);
+      container.appendChild(icon);
+      return container;
+    },
+
+    formatBytes(bytes) {
+      if (bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    },
+  };
 
   class MagnetLinkProcessor {
     #config;
@@ -573,461 +1013,6 @@
     }
   }
 
-  const UIManager = {
-    setIconState(icon, state) {
-      switch (state) {
-        case 'default': {
-          icon.textContent = 'RD';
-          icon.style.background = '#3b82f6';
-          icon.style.filter = '';
-          icon.style.opacity = '';
-          icon.style.cursor = 'pointer';
-          icon.title = '';
-          const checkbox = icon.parentNode?.querySelector('input[type="checkbox"]');
-          if (checkbox) checkbox.style.cursor = 'pointer';
-          break;
-        }
-        case 'processing': {
-          icon.style.opacity = '0.5';
-          icon.style.cursor = 'pointer';
-          const checkbox = icon.parentNode?.querySelector('input[type="checkbox"]');
-          if (checkbox) checkbox.style.cursor = 'pointer';
-          break;
-        }
-        case 'added':
-        case 'existing': {
-          icon.textContent = '✓';
-          icon.style.background = '#10b981';
-          icon.style.filter = '';
-          icon.style.opacity = '0.65';
-          icon.style.cursor = 'not-allowed';
-          icon.title = state === 'existing' ? 'Already on Real-Debrid' : 'Added to Real-Debrid';
-          const checkbox = icon.parentNode?.querySelector('input[type="checkbox"]');
-          if (checkbox) checkbox.style.cursor = 'not-allowed';
-          break;
-        }
-      }
-    },
-
-    createConfigDialog(currentConfig) {
-      const dialog = document.createElement('div');
-      dialog.innerHTML = `
-        <div class="rd-overlay">
-          <div class="rd-dialog">
-            <div class="rd-header">
-              <h2 class="rd-title">Real-Debrid Settings</h2>
-              <button class="rd-close" id="cancelButtonTop">×</button>
-            </div>
-            <div class="rd-content">
-              <div class="rd-form-group">
-                <label class="rd-label">API Key</label>
-                <input type="text" id="apiKeyInput" class="rd-input" placeholder="Enter your Real-Debrid API Key" value="${currentConfig.apiKey}">
-              </div>
-              <div class="rd-form-group">
-                <label class="rd-label">Allowed Extensions</label>
-                <textarea id="allowedExtensionsTextarea" class="rd-textarea" placeholder="mp4,mkv,avi">${currentConfig.allowedExtensions.join(',')}</textarea>
-                <div class="rd-help">Comma-separated file extensions</div>
-              </div>
-              <div class="rd-form-group">
-                <label class="rd-label">Filter Keywords</label>
-                <textarea id="filterKeywordsTextarea" class="rd-textarea" placeholder="sample,/trailer/">${currentConfig.filterKeywords.join(',')}</textarea>
-                <div class="rd-help">Keywords or regex patterns to exclude</div>
-              </div>
-              <div class="rd-form-group">
-                <label class="rd-checkbox-label">
-                  <input type="checkbox" id="manualFileSelectionCheckbox" ${currentConfig.manualFileSelection ? 'checked' : ''}>
-                  Manual File Selection
-                </label>
-                <div class="rd-help">Show file selection dialog for manual selection</div>
-              </div>
-              <div class="rd-form-group">
-                <label class="rd-checkbox-label">
-                  <input type="checkbox" id="debugEnabledCheckbox" ${currentConfig.debugEnabled ? 'checked' : ''}>
-                  Enable Debug Logging
-                </label>
-                <div class="rd-help">Log debug messages to console</div>
-              </div>
-              <div class="rd-form-group">
-                <label class="rd-checkbox-label">
-                  <input type="checkbox" id="enableTorrentSupportCheckbox" ${currentConfig.enableTorrentSupport ? 'checked' : ''}>
-                  Enable Torrent File Support
-                </label>
-                <div class="rd-help">Allow Alt+click on magnet links to send torrent files</div>
-              </div>
-            </div>
-            <div class="rd-footer">
-              <button class="rd-button rd-primary" id="saveButton">Save Settings</button>
-              <button class="rd-button rd-secondary" id="cancelButton">Cancel</button>
-            </div>
-          </div>
-        </div>
-      `;
-
-      this.injectStyles();
-      document.body.appendChild(dialog);
-
-      const saveButton = dialog.querySelector('#saveButton');
-      const cancelButton = dialog.querySelector('#cancelButton');
-      const cancelButtonTop = dialog.querySelector('#cancelButtonTop');
-      const manualCheckbox = dialog.querySelector('#manualFileSelectionCheckbox');
-      const allowedExtensionsTextarea = dialog.querySelector('#allowedExtensionsTextarea');
-      const filterKeywordsTextarea = dialog.querySelector('#filterKeywordsTextarea');
-
-      const toggleFiltering = () => {
-        const disabled = manualCheckbox.checked;
-        allowedExtensionsTextarea.disabled = disabled;
-        filterKeywordsTextarea.disabled = disabled;
-        allowedExtensionsTextarea.style.opacity = disabled ? '0.5' : '1';
-        filterKeywordsTextarea.style.opacity = disabled ? '0.5' : '1';
-      };
-
-      manualCheckbox.addEventListener('change', toggleFiltering);
-      toggleFiltering();
-
-      const close = () => {
-        if (dialog.parentNode) dialog.parentNode.removeChild(dialog);
-        document.removeEventListener('keydown', escHandler);
-      };
-
-      const escHandler = (event_) => {
-        if (event_.key === 'Escape') close();
-      };
-      document.addEventListener('keydown', escHandler);
-
-      saveButton.addEventListener('click', async () => {
-        const newConfig = {
-          apiKey: dialog.querySelector('#apiKeyInput').value.trim(),
-          allowedExtensions: dialog.querySelector('#allowedExtensionsTextarea').value.split(',').map(extension => extension.trim()).filter(Boolean),
-          filterKeywords: dialog.querySelector('#filterKeywordsTextarea').value.split(',').map(k => k.trim()).filter(Boolean),
-          manualFileSelection: dialog.querySelector('#manualFileSelectionCheckbox').checked,
-          debugEnabled: dialog.querySelector('#debugEnabledCheckbox').checked,
-          enableTorrentSupport: dialog.querySelector('#enableTorrentSupportCheckbox').checked
-        };
-        try {
-          await ConfigManager.saveConfig(newConfig);
-          close();
-          this.showToast('Configuration saved successfully!', 'success');
-          location.reload();
-        } catch (error) {
-          this.showToast(error.message, 'error');
-        }
-      });
-
-      cancelButton.addEventListener('click', close);
-      cancelButtonTop.addEventListener('click', close);
-
-      const apiInput = dialog.querySelector('#apiKeyInput');
-      if (apiInput) apiInput.focus();
-
-      return dialog;
-    },
-
-    createFileSelectionDialog(files) {
-      return new Promise((resolve) => {
-        const fileTree = new FileTree(files);
-        const totalSizeOfAllFiles = fileTree.getAllFiles().reduce((sum, file) => sum + (file.bytes || 0), 0);
-        const dialog = document.createElement('div');
-
-        dialog.innerHTML = `
-          <div class="rd-overlay">
-            <div class="rd-dialog rd-file-dialog">
-              <div class="rd-header">
-                <h2 class="rd-title">Select Files</h2>
-                <button class="rd-close" id="cancelButtonTop">×</button>
-              </div>
-              <div class="rd-content">
-                <div class="rd-file-help">
-                  <strong>How to use:</strong> Click folder names to expand/collapse. Click checkboxes to select files or entire folders.
-                  Clicking file names will also select/deselect files.
-                </div>
-                <div class="rd-file-toolbar">
-                  <button class="rd-button rd-small" id="toggleAllButton">Select All</button>
-                  <span class="rd-file-stats" id="fileStatsLabel">0 files selected</span>
-                </div>
-                <div class="rd-file-tree" id="fileTreeContainer"></div>
-              </div>
-              <div class="rd-footer">
-                <button class="rd-button rd-primary" id="okButton">Add Selected Files</button>
-                <button class="rd-button rd-secondary" id="cancelButton">Cancel</button>
-              </div>
-            </div>
-          </div>
-        `;
-
-        this.injectStyles();
-        document.body.appendChild(dialog);
-
-        const treeContainer = dialog.querySelector('#fileTreeContainer');
-        const toggleAllButton = dialog.querySelector('#toggleAllButton');
-        const fileStatsLabel = dialog.querySelector('#fileStatsLabel');
-        const okButton = dialog.querySelector('#okButton');
-        const cancelButton = dialog.querySelector('#cancelButton');
-        const cancelButtonTop = dialog.querySelector('#cancelButtonTop');
-
-        const setFolderChecked = (folder, checked) => {
-          folder.checked = checked;
-          if (folder.children) {
-            for (const child of folder.children) {
-              child.checked = checked;
-              if (child.type === 'folder') {
-                setFolderChecked(child, checked);
-              }
-            }
-          }
-        };
-
-        const updateParentStates = (node = fileTree.root) => {
-          if (node.type === 'file') return node.checked;
-
-          if (node.children) {
-            const childrenStates = node.children.map(updateParentStates);
-            const allChecked = childrenStates.every(state => state === true);
-            const someChecked = childrenStates.some(state => state === true);
-
-            node.checked = allChecked;
-            node.indeterminate = !allChecked && someChecked;
-
-            return someChecked;
-          }
-          return false;
-        };
-
-        const countSelectedFiles = () => {
-          return fileTree.getAllFiles().filter(file => file.checked).length;
-        };
-
-        const updateUI = () => {
-          updateParentStates();
-          const selectedCount = countSelectedFiles();
-          const totalCount = fileTree.getAllFiles().length;
-          const selectedFiles = fileTree.getAllFiles().filter(file => file.checked);
-          const totalSize = selectedFiles.reduce((sum, file) => sum + (file.bytes || 0), 0);
-          fileStatsLabel.textContent = `${selectedCount} of ${totalCount} files selected (${UIManager.formatBytes(totalSize)} / ${UIManager.formatBytes(totalSizeOfAllFiles)})`;
-
-          const allSelected = totalCount > 0 && selectedCount === totalCount;
-          toggleAllButton.textContent = allSelected ? 'Select None' : 'Select All';
-        };
-
-        const renderTree = (node, level = 0) => {
-          const element = document.createElement('div');
-          element.className = `rd-tree-item rd-tree-level-${level}`;
-
-          if (node.type === 'folder') {
-            const fileCount = fileTree.countFiles(node);
-            element.innerHTML = `
-              <div class="rd-folder">
-                <div class="rd-folder-header">
-                  <span class="rd-expander">${node.expanded ? '▼' : '▶'}</span>
-                  <input type="checkbox" class="rd-checkbox" ${node.checked ? 'checked' : ''} ${node.indeterminate ? 'data-indeterminate="true"' : ''}>
-                  <span class="rd-folder-name">${node.name}</span>
-                  <span class="rd-folder-badge">${fileCount} file${fileCount !== 1 ? 's' : ''}</span>
-                </div>
-                ${node.expanded ? `<div class="rd-folder-children"></div>` : ''}
-              </div>
-            `;
-
-            const expander = element.querySelector('.rd-expander');
-            const checkbox = element.querySelector('.rd-checkbox');
-            const folderName = element.querySelector('.rd-folder-name');
-            const childrenContainer = element.querySelector('.rd-folder-children');
-
-            expander.addEventListener('click', (event_) => {
-              event_.stopPropagation();
-              node.expanded = !node.expanded;
-              renderFullTree();
-            });
-
-            folderName.addEventListener('click', (event_) => {
-              event_.stopPropagation();
-              node.expanded = !node.expanded;
-              renderFullTree();
-            });
-
-            checkbox.addEventListener('change', (event_) => {
-              event_.stopPropagation();
-              setFolderChecked(node, checkbox.checked);
-              updateUI();
-              renderFullTree();
-            });
-
-            if (node.expanded && childrenContainer && node.children) {
-              for (const child of node.children) {
-                childrenContainer.appendChild(renderTree(child, level + 1));
-              }
-            }
-
-          } else {
-            element.innerHTML = `
-              <div class="rd-file">
-                <input type="checkbox" class="rd-checkbox" ${node.checked ? 'checked' : ''}>
-                <span class="rd-file-name">${node.name}</span>
-                <span class="rd-file-size">${this.formatBytes(node.bytes)}</span>
-              </div>
-            `;
-
-            const checkbox = element.querySelector('.rd-checkbox');
-            const fileName = element.querySelector('.rd-file-name');
-
-            const toggleFile = () => {
-              node.checked = !node.checked;
-              checkbox.checked = node.checked;
-              updateUI();
-              renderFullTree();
-            };
-
-            checkbox.addEventListener('change', (event_) => {
-              event_.stopPropagation();
-              toggleFile();
-            });
-
-            fileName.addEventListener('click', (event_) => {
-              event_.stopPropagation();
-              toggleFile();
-            });
-
-            checkbox.addEventListener('click', (event_) => {
-              event_.stopPropagation();
-              toggleFile();
-            });
-          }
-
-          return element;
-        };
-
-        const renderFullTree = () => {
-          treeContainer.innerHTML = '';
-          treeContainer.appendChild(renderTree(fileTree.root));
-        };
-
-        toggleAllButton.addEventListener('click', () => {
-          const allFiles = fileTree.getAllFiles();
-          const allSelected = allFiles.length > 0 && allFiles.every(file => file.checked);
-
-          for (const file of allFiles) {
-            file.checked = !allSelected;
-          }
-
-          updateParentStates();
-          updateUI();
-          renderFullTree();
-        });
-
-        const close = () => {
-          if (dialog.parentNode) dialog.parentNode.removeChild(dialog);
-          document.removeEventListener('keydown', escHandler);
-        };
-
-        const escHandler = (event_) => {
-          if (event_.key === 'Escape') {
-            close();
-            resolve(null);
-          }
-        };
-        document.addEventListener('keydown', escHandler);
-
-        okButton.addEventListener('click', () => {
-          const selectedFileIds = fileTree.getSelectedFiles();
-          close();
-          resolve(selectedFileIds);
-        });
-
-        cancelButton.addEventListener('click', () => {
-          close();
-          resolve(null);
-        });
-
-        cancelButtonTop.addEventListener('click', () => {
-          close();
-          resolve(null);
-        });
-
-        updateUI();
-        renderFullTree();
-      });
-    },
-
-    injectStyles() {
-      if (document.getElementById('rd-styles')) return;
-
-      const styles = `
-        .rd-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;z-index:10000;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,Cantarell,sans-serif;backdrop-filter:blur(4px)}.rd-dialog{background:#1a1d23;border-radius:12px;padding:0;max-width:600px;width:95vw;max-height:90vh;display:flex;flex-direction:column;border:1px solid #2a2f3a;box-shadow:0 20px 60px rgba(0,0,0,0.5);animation:rdSlideIn .2s ease-out}.rd-file-dialog{max-width:800px}.rd-header{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid #2a2f3a}.rd-title{margin:0;font-size:18px;font-weight:600;color:#e2e8f0;flex:1}.rd-close{background:none;border:none;color:#94a3b8;font-size:24px;cursor:pointer;padding:4px;border-radius:4px;transition:all .2s}.rd-close:hover{background:#2a2f3a;color:#e2e8f0}.rd-content{padding:24px;flex:1;overflow-y:auto}.rd-form-group{margin-bottom:20px}.rd-label{display:block;margin-bottom:6px;font-weight:500;color:#e2e8f0;font-size:14px}.rd-input,.rd-textarea{width:100%;padding:10px 12px;border:1px solid #374151;border-radius:8px;background:#0f1117;color:#e2e8f0;font-size:14px;transition:all .2s}.rd-input:focus,.rd-textarea:focus{outline:none;border-color:#3b82f6;box-shadow:0 0 0 2px rgba(59,130,246,0.2)}.rd-textarea{min-height:80px;resize:vertical}.rd-help{margin-top:4px;font-size:12px;color:#94a3b8}.rd-checkbox-label{display:flex;align-items:center;gap:8px;cursor:pointer;color:#e2e8f0;font-size:14px}.rd-footer{padding:20px 24px;border-top:1px solid #2a2f3a;display:flex;gap:12px;justify-content:flex-end}.rd-button{padding:10px 20px;border:none;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;transition:all .2s}.rd-primary{background:#3b82f6;color:#fff}.rd-primary:hover{background:#2563eb}.rd-secondary{background:#374151;color:#e2e8f0}.rd-secondary:hover{background:#4b5563}.rd-small{padding:6px 12px;font-size:12px}.rd-file-help{background:#0f1117;border:1px solid #2a2f3a;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#94a3b8;line-height:1.4}.rd-file-toolbar{display:flex;align-items:center;gap:16px;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid #2a2f3a}.rd-file-stats{font-size:13px;color:#94a3b8;font-weight:500}.rd-file-tree{max-height:400px;overflow-y:auto}.rd-tree-item{margin:2px 0}.rd-folder-header{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;transition:background .2s}.rd-folder-header:hover{background:#2a2f3a}.rd-expander{width:16px;height:16px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#94a3b8;cursor:pointer;user-select:none}.rd-checkbox{margin:0}.rd-checkbox[data-indeterminate=true]{opacity:.7}.rd-folder-name{color:#e2e8f0;font-weight:500;font-size:14px;cursor:pointer}.rd-folder-badge{background:#374151;color:#94a3b8;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:500}.rd-folder-children{margin-left:20px;border-left:1px solid #2a2f3a;padding-left:12px}.rd-file{display:flex;align-items:center;gap:8px;padding:4px 8px;border-radius:6px;transition:background .2s}.rd-file:hover{background:#2a2f3a}.rd-file-name{color:#cbd5e1;font-size:13px;flex:1;cursor:pointer}.rd-file-size{color:#94a3b8;font-size:12px;font-family:monospace}@keyframes rdSlideIn{from{opacity:0;transform:scale(0.95) translateY(-10px)}to{opacity:1;transform:scale(1) translateY(0)}}.rd-file-tree::-webkit-scrollbar{width:6px}.rd-file-tree::-webkit-scrollbar-track{background:#1a1d23}.rd-file-tree::-webkit-scrollbar-thumb{background:#374151;border-radius:3px}.rd-file-tree::-webkit-scrollbar-thumb:hover{background:#4b5563}
-      `;
-
-      const styleSheet = document.createElement('style');
-      styleSheet.id = 'rd-styles';
-      styleSheet.textContent = styles;
-      document.head.appendChild(styleSheet);
-    },
-
-    showToast(message, type = 'info') {
-      const colors = {
-        success: '#10b981',
-        error: '#ef4444',
-        info: '#3b82f6'
-      };
-
-      const messageDiv = document.createElement('div');
-      Object.assign(messageDiv.style, {
-        position: 'fixed',
-        bottom: '20px',
-        left: '20px',
-        backgroundColor: colors[type] || colors.info,
-        color: 'white',
-        padding: '12px 16px',
-        borderRadius: '8px',
-        zIndex: 10001,
-        fontWeight: '500',
-        fontSize: '14px',
-        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
-        animation: 'rdSlideIn 0.2s ease-out'
-      });
-      messageDiv.textContent = message;
-      document.body.appendChild(messageDiv);
-      setTimeout(() => {
-        if (messageDiv.parentNode) messageDiv.parentNode.removeChild(messageDiv);
-      }, TOAST_DURATION_MS);
-    },
-
-    createMagnetIcon() {
-      const icon = document.createElement('span');
-      icon.className = 'rd-icon';
-      icon.textContent = 'RD';
-      icon.style.cssText = `cursor:pointer;display:inline-block;width:18px;height:18px;margin-left:6px;vertical-align:middle;border-radius:3px;background:#3b82f6;color:white;text-align:center;line-height:18px;font-size:11px;font-weight:bold;`;
-      icon.setAttribute(INSERTED_ICON_ATTR, '1');
-      icon.title = 'Click to send magnet to Real-Debrid, Alt+click to send torrent file';
-      return icon;
-    },
-
-    createMagnetIconWithCheckbox() {
-      const container = document.createElement('span');
-      container.style.cssText = `display:inline-flex;align-items:center;gap:4px;vertical-align:middle;`;
-      container.setAttribute(INSERTED_ICON_ATTR, '1');
-
-      const checkbox = document.createElement('input');
-      checkbox.type = 'checkbox';
-      checkbox.style.cssText = `cursor:pointer;width:16px;height:16px;margin:0;`;
-
-      const icon = document.createElement('span');
-      icon.className = 'rd-icon';
-      icon.textContent = 'RD';
-      icon.style.cssText = `cursor:pointer;display:inline-block;width:18px;height:18px;border-radius:3px;background:#3b82f6;color:white;text-align:center;line-height:18px;font-size:11px;font-weight:bold;`;
-      icon.title = 'Click to send magnet to Real-Debrid, Alt+click to send torrent file';
-
-      container.appendChild(checkbox);
-      container.appendChild(icon);
-
-      return container;
-    },
-
-    formatBytes(bytes) {
-      if (bytes === 0) return '0 B';
-      const kilobyte = 1024;
-      const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-      const index = Math.floor(Math.log(bytes) / Math.log(kilobyte));
-      return parseFloat((bytes / Math.pow(kilobyte, index)).toFixed(2)) + ' ' + sizes[index];
-    },
-  };
-
   class PageIntegrator {
     constructor(processor = null) {
       this.processor = processor;
@@ -1052,17 +1037,14 @@
         this._removeBatchButton();
         return;
       }
-
       const selectedCount = this.selectedLinks.size;
       if (selectedCount === 0) {
         this._removeBatchButton();
         return;
       }
-
       if (!this.batchButton) {
         this._createBatchButton();
       }
-
       this.batchButton.textContent = `Process ${selectedCount} Selected Link${selectedCount !== 1 ? 's' : ''}`;
     }
 
@@ -1086,17 +1068,9 @@
         boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
         transition: 'all 0.2s'
       });
-
-      this.batchButton.addEventListener('mouseenter', () => {
-        this.batchButton.style.backgroundColor = '#2563eb';
-      });
-
-      this.batchButton.addEventListener('mouseleave', () => {
-        this.batchButton.style.backgroundColor = '#3b82f6';
-      });
-
+      this.batchButton.addEventListener('mouseenter', () => { this.batchButton.style.backgroundColor = '#2563eb'; });
+      this.batchButton.addEventListener('mouseleave', () => { this.batchButton.style.backgroundColor = '#3b82f6'; });
       this.batchButton.addEventListener('click', () => this._processBatch());
-
       document.body.appendChild(this.batchButton);
     }
 
@@ -1116,6 +1090,8 @@
         UIManager.showToast('Real-Debrid API key not configured. Use the menu to set it.', 'info');
         return;
       }
+      // Re-fetch config synchronously to ensure we have the latest UI preferences
+      const config = ConfigManager.getConfigSync();
 
       let successCount = 0;
       let errorCount = 0;
@@ -1126,22 +1102,15 @@
         const icon = this.keyToIcon.get(key);
 
         UIManager.showToast(`Processing ${index + 1}/${selectedUrls.length} links...`, 'info');
-
-        if (icon) {
-          UIManager.setIconState(icon, 'processing');
-        }
+        if (icon) UIManager.setIconState(icon, 'processing', config.enableTorrentSupport);
 
         try {
           await this.processor.processMagnetLink(url);
           successCount++;
-          if (icon) {
-            UIManager.setIconState(icon, 'added');
-          }
+          if (icon) UIManager.setIconState(icon, 'added', config.enableTorrentSupport);
         } catch (error) {
           errorCount++;
-          if (icon) {
-            UIManager.setIconState(icon, 'default');
-          }
+          if (icon) UIManager.setIconState(icon, 'default', config.enableTorrentSupport);
           logger.error(`[Batch Processing] Failed to process ${url}`, error);
         }
       }
@@ -1150,24 +1119,15 @@
       this.selectedLinks.clear();
       this._updateBatchButton();
 
-      // Show final summary
-      if (errorCount === 0) {
-        UIManager.showToast(`Successfully processed ${successCount} link${successCount !== 1 ? 's' : ''}!`, 'success');
-      } else if (successCount === 0) {
-        UIManager.showToast(`Failed to process all ${errorCount} link${errorCount !== 1 ? 's' : ''}`, 'error');
-      } else {
-        UIManager.showToast(`Processed ${successCount} successfully, ${errorCount} failed`, 'info');
-      }
+      if (errorCount === 0) UIManager.showToast(`Successfully processed ${successCount} link${successCount !== 1 ? 's' : ''}!`, 'success');
+      else if (successCount === 0) UIManager.showToast(`Failed to process all ${errorCount} link${errorCount !== 1 ? 's' : ''}`, 'error');
+      else UIManager.showToast(`Processed ${successCount} successfully, ${errorCount} failed`, 'info');
     }
 
     _magnetKeyFor(href) {
       const hash = MagnetLinkProcessor.parseMagnetHash(href);
       if (hash) return `hash:${hash}`;
-      try {
-        return `href:${href.trim().toLowerCase()}`;
-      } catch {
-        return `href:${String(href).trim().toLowerCase()}`;
-      }
+      try { return `href:${href.trim().toLowerCase()}`; } catch { return `href:${String(href).trim().toLowerCase()}`; }
     }
 
     _attach(iconContainer, link) {
@@ -1176,18 +1136,22 @@
 
       const processLink = async (event) => {
         if (icon.textContent === '✓') return; // Already processed
+
+        // Fetch latest config for current operation
+        const config = ConfigManager.getConfigSync();
+        const torrentSupport = config.enableTorrentSupport;
+
         const isMagnet = link.href.startsWith('magnet:');
         let linkToProcess = link;
         if (isMagnet && event.altKey) {
-          if (!this.processor?.isTorrentSupportEnabled()) {
+          if (!torrentSupport) {
             UIManager.showToast('Torrent support not enabled. Enable it in settings.', 'info');
             return;
           }
           const container = link.closest('tr') || link.closest('div') || link.closest('li') || link.parentElement;
           const torrentLink = container?.querySelector('a[href$=".torrent"]');
-          if (torrentLink) {
-            linkToProcess = torrentLink;
-          } else {
+          if (torrentLink) linkToProcess = torrentLink;
+          else {
             UIManager.showToast('No torrent link found nearby', 'info');
             return;
           }
@@ -1203,20 +1167,20 @@
 
         if (isProcessingMagnet && key?.startsWith('hash:') && this.processor?.isTorrentExists(key.split(':')[1])) {
           UIManager.showToast('Torrent already exists on Real-Debrid', 'info');
-          UIManager.setIconState(icon, 'existing');
+          UIManager.setIconState(icon, 'existing', torrentSupport); // This sets text to checkmark
           return;
         }
 
-        UIManager.setIconState(icon, 'processing');
+        UIManager.setIconState(icon, 'processing', torrentSupport);
 
         try {
           const fileCount = isProcessingMagnet ?
             await this.processor.processMagnetLink(linkToProcess.href) :
             await this.processor.processTorrentLink(linkToProcess.href);
           UIManager.showToast(`Added to Real-Debrid — ${fileCount} file(s) selected`, 'success');
-          UIManager.setIconState(icon, 'added');
+          UIManager.setIconState(icon, 'added', torrentSupport);
         } catch (error) {
-          UIManager.setIconState(icon, 'default');
+          UIManager.setIconState(icon, 'default', torrentSupport);
           UIManager.showToast(error?.message || 'Failed to process link', 'error');
           logger.error('[Link Processor] Failed to process link', error);
         }
@@ -1232,17 +1196,11 @@
         checkbox.addEventListener('change', (event_) => {
           event_.stopPropagation();
           if (icon.textContent === '✓') return; // Already processed
-          if (checkbox.checked) {
-            this.selectedLinks.add(link.href);
-          } else {
-            this.selectedLinks.delete(link.href);
-          }
+          if (checkbox.checked) this.selectedLinks.add(link.href);
+          else this.selectedLinks.delete(link.href);
           this._updateBatchButton();
         });
-
-        checkbox.addEventListener('click', (event_) => {
-          event_.stopPropagation();
-        });
+        checkbox.addEventListener('click', (event_) => { event_.stopPropagation(); });
       }
     }
 
@@ -1256,15 +1214,16 @@
         const uniqueHashes = new Set();
         for (const link of links) {
           const hash = MagnetLinkProcessor.parseMagnetHash(link.href);
-          if (hash) {
-            uniqueHashes.add(hash);
-          }
+          if (hash) uniqueHashes.add(hash);
         }
         this.initialMagnetLinkCount = uniqueHashes.size;
       }
 
-      const newlyAddedKeys = [];
+      // Retrieve config synchronously to set correct initial tooltips
+      const config = ConfigManager.getConfigSync();
+      const torrentSupport = config.enableTorrentSupport;
 
+      const newlyAddedKeys = [];
       for (const link of links) {
         if (!link.parentNode) continue;
 
@@ -1274,9 +1233,7 @@
           if (key && !this.keyToIcon.has(key)) {
             // Find the icon - it might not be the immediate next sibling anymore
             const icon = link.parentNode.querySelector(`[${INSERTED_ICON_ATTR}]`);
-            if (icon) {
-              this.keyToIcon.set(key, icon);
-            }
+            if (icon) this.keyToIcon.set(key, icon);
           }
           continue;
         }
@@ -1285,8 +1242,8 @@
         if (key && this.keyToIcon.has(key)) continue;
 
         const iconContainer = this._shouldShowBatchUI() ?
-          UIManager.createMagnetIconWithCheckbox() :
-          UIManager.createMagnetIcon();
+           UIManager.createMagnetIconWithCheckbox(torrentSupport) :
+           UIManager.createMagnetIcon(torrentSupport);
 
         this._attach(iconContainer, link);
         link.parentNode.insertBefore(iconContainer, link.nextSibling);
@@ -1301,19 +1258,20 @@
           if (isInitialized) this.markExistingTorrents();
         });
       }
-
       this._updateBatchButton();
     }
 
     markExistingTorrents() {
       if (!this.processor) return;
+      // We need config here too to preserve tooltips if we update state
+      const config = ConfigManager.getConfigSync();
 
       for (const [key, iconContainer] of this.keyToIcon.entries()) {
         if (!key.startsWith('hash:')) continue;
         const hash = key.split(':')[1];
         if (this.processor.isTorrentExists(hash)) {
           const icon = iconContainer.querySelector('.rd-icon') || iconContainer;
-          UIManager.setIconState(icon, 'existing');
+          UIManager.setIconState(icon, 'existing', config.enableTorrentSupport);
         }
       }
     }
@@ -1321,7 +1279,6 @@
     // Watch for new magnet links added to the page dynamically
     startObserving() {
       if (this.observer) return;
-
       const debouncedHandler = debounce((mutations) => {
         let hasNewMagnetLinks = false;
         for (const mutation of mutations) {
@@ -1342,16 +1299,11 @@
             if (hasNewMagnetLinks) break;
           }
         }
-        if (hasNewMagnetLinks) {
-          this.addIconsTo(document);
-        }
+        if (hasNewMagnetLinks) this.addIconsTo(document);
       }, MUTATION_DEBOUNCE_MS);
 
       this.observer = new MutationObserver(debouncedHandler);
-      this.observer.observe(document.body, {
-        childList: true,
-        subtree: true
-      });
+      this.observer.observe(document.body, { childList: true, subtree: true });
     }
 
     stopObserving() {
@@ -1372,17 +1324,11 @@
     if (_apiInitPromise) return _apiInitPromise;
 
     try {
-      if (!document.querySelector || !document.querySelector('a[href^="magnet:"]')) {
-        return false;
-      }
-    } catch {
-      // Continue with init if DOM access fails
-    }
+      if (!document.querySelector || !document.querySelector('a[href^="magnet:"]')) return false;
+    } catch {}
 
     const config = await ConfigManager.getConfig();
-    if (!config.apiKey) {
-      return false;
-    }
+    if (!config.apiKey) return false;
 
     try {
       _realDebridService = new RealDebridService(config.apiKey);

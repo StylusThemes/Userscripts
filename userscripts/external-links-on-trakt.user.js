@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          External links on Trakt
-// @version       3.4.1
+// @version       3.5.0
 // @description   Adds more external links to Trakt.tv pages, including dub information for anime shows.
 // @author        Journey Over
 // @license       MIT
@@ -566,88 +566,79 @@
 
     addModalStyles() {
       const id = `${CONSTANTS.SCRIPT_ID}-config`;
-      const styles = `#${id}.theme-dark{--bg:#0f1720;--panel:#0b1220;--muted:#98a0ab;--accent:#5eead4;--accent-2:#60a5fa;--surface:#0c1220;--glass:rgba(255,255,255,0.03);--border:rgba(255,255,255,0.03);--text:#e6f3ef;--text-2:#eaf8f0}#${id}.theme-light{--bg:#f6f9fb;--panel:#fff;--muted:#6b7280;--accent:#0ea5a4;--accent-2:#3b82f6;--surface:#fff;--glass:rgba(0,0,0,0.04);--border:rgba(10,20,30,0.04);--text:#061426;--text-2:#0b2130}#${id}{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:99999;background:linear-gradient(180deg,rgba(4,6,8,.72),rgba(4,6,8,.9));font-family:Inter,Roboto,Arial,sans-serif}#${id} .ext-panel{width:920px;max-width:96%;max-height:92vh;border-radius:12px;overflow:hidden;display:flex;flex-direction:column;border:1px solid var(--border)}#${id}.theme-dark .ext-panel{background:linear-gradient(180deg,var(--panel),#071018);color:var(--text);box-shadow:0 10px 30px rgba(2,6,23,0.7)}#${id}.theme-light .ext-panel{background:linear-gradient(180deg,var(--panel),#f7fbff);color:var(--text);box-shadow:0 6px 18px rgba(10,15,30,0.06)}#${id} .ext-panel-header{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:20px 22px;border-bottom:1px solid var(--border)}#${id} .ext-panel-header h2{margin:0;font-size:1.25rem;color:var(--text-2)}#${id} .ext-panel-header .subtitle{margin:4px 0 0;font-size:.9rem;color:var(--muted)}#${id} .btn-icon{background:none;border:none;font-size:1.1rem;cursor:pointer;padding:6px 8px;border-radius:6px;color:var(--text)}#${id} .btn-icon:hover{background:var(--glass)}#${id} .ext-panel-body{padding:16px 18px;flex:1;overflow:auto}#${id} .settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}#${id} .settings-column{padding:12px;border-radius:10px;background:linear-gradient(180deg,var(--glass),transparent);border:1px solid var(--border)}#${id} .settings-column h3{margin:0 0 12px;font-size:1rem;color:var(--text-2)}#${id} .site-list{display:flex;flex-direction:column;gap:8px}#${id} .site-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px;border-radius:8px;transition:background .12s,transform .06s;cursor:default}#${id} .site-row:hover{background:var(--glass);transform:translateY(-1px)}#${id} .site-info{display:flex;flex-direction:column;gap:2px;flex:1;max-width:70%}#${id} .site-name{font-weight:600;color:var(--text-2)}#${id} .site-desc{font-size:.82rem;color:var(--muted)}#${id} .toggle-checkbox{position:absolute;opacity:0;pointer-events:none}#${id} .toggle-switch{width:44px;height:26px;flex-shrink:0;display:inline-block;border-radius:20px;position:relative;transition:background .18s;cursor:pointer}#${id}.theme-dark .toggle-switch{background:rgba(255,255,255,0.06);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.04)}#${id}.theme-light .toggle-switch{background:rgba(0,0,0,0.06);box-shadow:inset 0 0 0 1px rgba(0,0,0,0.04)}#${id} .toggle-switch::after{content:'';position:absolute;width:18px;height:18px;border-radius:50%;top:4px;left:4px;background:#fff;transition:all .18s;box-shadow:0 3px 6px rgba(2,6,23,0.6)}#${id} .toggle-checkbox:checked+.toggle-switch{background:linear-gradient(90deg,var(--accent),var(--accent-2))}#${id} .toggle-checkbox:checked+.toggle-switch::after{transform:translateX(18px);background:var(--surface)}#${id} .dubbed-panel{grid-column:1/-1;padding:16px;border-radius:10px;background:linear-gradient(180deg,var(--glass),transparent);border:1px solid var(--border)}#${id} .dubbed-section{display:flex;align-items:flex-start;gap:20px;margin-bottom:12px}#${id} .dubbed-toggle-wrapper{display:flex;align-items:center;gap:12px;min-width:220px}#${id} .dubbed-toggle-wrapper .toggle-switch{flex-shrink:0}#${id} .dubbed-toggle-label{display:flex;flex-direction:column;gap:2px;cursor:pointer}#${id} .dubbed-toggle-label .label-text{font-weight:600;font-size:.95rem;color:var(--text-2)}#${id} .dubbed-toggle-label .label-desc{font-size:.78rem;color:var(--muted)}#${id} .dubbed-lang-wrapper{display:flex;flex-direction:column;gap:6px;flex:1}#${id} .select-label{font-size:.85rem;font-weight:600;color:var(--text-2)}#${id} .select{padding:8px 10px;border-radius:8px;background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:.95rem;cursor:pointer;outline:none}#${id}.theme-dark .select{background:#08111a}#${id}.theme-light .select{background:#f3f7fb}#${id} .ext-panel-footer{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 18px;border-top:1px solid var(--border)}#${id} .footer-left{display:flex;gap:8px}#${id} .footer-right{display:flex;gap:8px}#${id} .btn{padding:10px 14px;border-radius:10px;background:transparent;border:1px solid var(--border);cursor:pointer;font-weight:600;font-size:.9rem;color:var(--text);transition:background .15s,transform .08s}#${id} .btn:hover{background:var(--glass);transform:translateY(-1px)}#${id} .btn.ghost{background:transparent}#${id} .btn.primary{background:linear-gradient(90deg,var(--accent),var(--accent-2));border:none}#${id}.theme-dark .btn.primary{color:#041014}#${id}.theme-light .btn.primary{color:#fff}@media (max-width:850px){#${id} .settings-grid{grid-template-columns:1fr}#${id} .site-info{max-width:58%}#${id} .dubbed-section{flex-direction:column;gap:12px}}`;
+      const styles = `#${id}{--tel-red:#ed1c24;--tel-red-hover:#c01219;--tel-bg:#f4f6f8;--tel-panel:#ffffff;--tel-border:#dcdfe6;--tel-text:#222;--tel-text-dim:#666;--tel-hover:#f0f2f5;--tel-input-bg:#e0e0e0;--tel-overlay:rgba(0,0,0,0.5)}body.dark-knight #${id}{--tel-bg:#1d1d1d;--tel-panel:#242424;--tel-border:#333;--tel-text:#eee;--tel-text-dim:#999;--tel-hover:#2f2f2f;--tel-input-bg:#444;--tel-overlay:rgba(0,0,0,0.85)}#${id}{position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;background:var(--tel-overlay);backdrop-filter:blur(5px);font-family:'Proxima Nova','Open Sans',Arial,sans-serif;opacity:0;animation:tel-fade-in 0.2s forwards}@keyframes tel-fade-in{to{opacity:1}}#${id} .tel-modal{width:800px;max-width:90%;height:600px;max-height:90vh;background:var(--tel-bg);border-radius:8px;box-shadow:0 20px 50px rgba(0,0,0,0.5);display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--tel-border)}#${id} .tel-header{padding:20px 25px;border-bottom:1px solid var(--tel-border);display:flex;justify-content:space-between;align-items:center;background:var(--tel-panel)}#${id} .tel-header h2{margin:0;font-size:20px;color:var(--tel-text);font-weight:600}#${id} .tel-close{background:none;border:none;color:var(--tel-text-dim);font-size:24px;cursor:pointer;line-height:1}#${id} .tel-close:hover{color:var(--tel-text)}#${id} .tel-body{flex:1;display:flex;overflow:hidden}#${id} .tel-sidebar{width:200px;background:var(--tel-bg);border-right:1px solid var(--tel-border);padding:15px 0;display:flex;flex-direction:column;gap:5px}#${id} .tel-nav-item{padding:12px 20px;cursor:pointer;color:var(--tel-text-dim);font-size:14px;font-weight:500;transition:0.2s;border-left:3px solid transparent}#${id} .tel-nav-item:hover{color:var(--tel-text);background:var(--tel-hover)}#${id} .tel-nav-item.active{color:var(--tel-text);background:rgba(237,28,36,0.1);border-left-color:var(--tel-red)}#${id} .tel-content{flex:1;padding:0;overflow-y:auto;position:relative}#${id} .tel-tab-pane{display:none;padding:25px}#${id} .tel-tab-pane.active{display:block;animation:tel-slide-up 0.3s ease}@keyframes tel-slide-up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}#${id} .tel-list-item{display:flex;align-items:center;justify-content:space-between;padding:12px 15px;margin-bottom:8px;background:var(--tel-panel);border-radius:6px;border:1px solid transparent;transition:0.2s}#${id} .tel-list-item:hover{border-color:var(--tel-border)}#${id} .tel-info h4{margin:0 0 4px;font-size:15px;color:var(--tel-text)}#${id} .tel-info p{margin:0;font-size:12px;color:var(--tel-text-dim)}#${id} .tel-toggle{position:relative;width:44px;height:24px;flex-shrink:0}#${id} .tel-toggle input{opacity:0;width:0;height:0}#${id} .tel-slider{position:absolute;cursor:pointer;inset:0;background-color:var(--tel-input-bg);border-radius:24px;transition:.3s}#${id} .tel-slider:before{position:absolute;content:"";height:18px;width:18px;left:3px;bottom:3px;background-color:#fff;border-radius:50%;transition:.3s;box-shadow:0 2px 4px rgba(0,0,0,0.2)}#${id} input:checked+.tel-slider{background-color:var(--tel-red)}#${id} input:checked+.tel-slider:before{transform:translateX(20px)}#${id} .tel-select-group{margin-top:20px}#${id} .tel-select-label{display:block;margin-bottom:8px;font-weight:600;color:var(--tel-text)}#${id} .tel-select{width:100%;padding:10px;border-radius:4px;background:var(--tel-panel);border:1px solid var(--tel-border);color:var(--tel-text);font-size:14px;outline:none}#${id} .tel-select:focus{border-color:var(--tel-red)}#${id} .tel-footer{padding:15px 25px;border-top:1px solid var(--tel-border);background:var(--tel-panel);display:flex;justify-content:space-between}#${id} .tel-btn{padding:8px 16px;border-radius:4px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:0.2s}#${id} .tel-btn-ghost{background:transparent;color:var(--tel-text-dim)}#${id} .tel-btn-ghost:hover{color:var(--tel-text);background:var(--tel-hover)}#${id} .tel-btn-primary{background:var(--tel-red);color:#fff}#${id} .tel-btn-primary:hover{background:var(--tel-red-hover)}#${id} ::-webkit-scrollbar{width:8px}#${id} ::-webkit-scrollbar-track{background:var(--tel-bg)}#${id} ::-webkit-scrollbar-thumb{background:var(--tel-input-bg);border-radius:4px}#${id} ::-webkit-scrollbar-thumb:hover{background:var(--tel-text-dim)}`;
       $('<style>').prop('type', 'text/css').html(styles).appendTo('head');
     }
 
     generateSettingsModalHTML() {
-      const isDark = $('body').hasClass('dark-knight');
-      const themeClass = isDark ? 'theme-dark' : 'theme-light';
+      // Helper to generate a toggle row
+      const createToggle = (site) => `
+        <div class="tel-list-item">
+          <div class="tel-info">
+            <h4>${site.name}</h4>
+            <p>${site.desc}</p>
+          </div>
+          <label class="tel-toggle">
+            <input type="checkbox" id="${site.name.toLowerCase().replace(/\s+/g, '_')}" ${this.config[site.name] ? 'checked' : ''}>
+            <span class="tel-slider"></span>
+          </label>
+        </div>
+      `;
 
       return `
-        <div id="${CONSTANTS.SCRIPT_ID}-config" class="${themeClass}">
-          <div class="ext-panel">
-            <div class="ext-panel-header">
-              <div>
-                <h2>${CONSTANTS.TITLE}</h2>
-                <div class="subtitle">Configure external links and dub detection</div>
-              </div>
-              <button class="btn-icon close" aria-label="Close">&times;</button>
+        <div id="${CONSTANTS.SCRIPT_ID}-config">
+          <div class="tel-modal">
+            <div class="tel-header">
+              <h2>External Links Settings</h2>
+              <button class="tel-close">&times;</button>
             </div>
 
-            <div class="ext-panel-body">
-              <div class="settings-grid">
-                <div class="settings-column">
-                  <h3>Metadata Sites</h3>
-                  <div class="site-list">
-                    ${CONSTANTS.METADATA_SITES.map(site => `
-                      <div class="site-row" data-site-name="${site.name.toLowerCase()}">
-                        <div class="site-info">
-                          <div class="site-name">${site.name}</div>
-                          <div class="site-desc">${site.desc}</div>
-                        </div>
-                        <input type="checkbox" class="toggle-checkbox" id="${site.name.toLowerCase().replace(/\s+/g, '_')}" ${this.config[site.name] ? 'checked' : ''}>
-                        <label class="toggle-switch" for="${site.name.toLowerCase().replace(/\s+/g, '_')}"></label>
-                      </div>
-                    `).join('')}
-                  </div>
+            <div class="tel-body">
+              <div class="tel-sidebar">
+                <div class="tel-nav-item active" data-tab="tab-metadata">Metadata Sites</div>
+                <div class="tel-nav-item" data-tab="tab-streaming">Streaming Sites</div>
+                <div class="tel-nav-item" data-tab="tab-dub">Dubbing</div>
+              </div>
+
+              <div class="tel-content">
+                <div id="tab-metadata" class="tel-tab-pane active">
+                  ${CONSTANTS.METADATA_SITES.map(createToggle).join('')}
                 </div>
 
-                <div class="settings-column">
-                  <h3>Streaming Sites</h3>
-                  <div class="site-list">
-                    ${CONSTANTS.STREAMING_SITES.map(site => `
-                      <div class="site-row" data-site-name="${site.name.toLowerCase()}">
-                        <div class="site-info">
-                          <div class="site-name">${site.name}</div>
-                          <div class="site-desc">${site.desc}</div>
-                        </div>
-                        <input type="checkbox" class="toggle-checkbox" id="${site.name.toLowerCase().replace(/\s+/g, '_')}" ${this.config[site.name] ? 'checked' : ''}>
-                        <label class="toggle-switch" for="${site.name.toLowerCase().replace(/\s+/g, '_')}"></label>
-                      </div>
-                    `).join('')}
-                  </div>
+                <div id="tab-streaming" class="tel-tab-pane">
+                  ${CONSTANTS.STREAMING_SITES.map(createToggle).join('')}
                 </div>
 
-                 <div class="dubbed-panel">
-                   <div class="dubbed-section">
-                     <div class="dubbed-toggle-wrapper">
-                       <input type="checkbox" class="toggle-checkbox" id="dub_information" ${this.config[CONSTANTS.DUB_INFO.name] ? 'checked' : ''}>
-                       <label class="toggle-switch" for="dub_information"></label>
-                       <label class="dubbed-toggle-label" for="dub_information">
-                         <span class="label-text">${CONSTANTS.DUB_INFO.name}</span>
-                         <span class="label-desc">${CONSTANTS.DUB_INFO.desc}</span>
-                       </label>
+                <div id="tab-dub" class="tel-tab-pane">
+                  <div class="tel-list-item">
+                     <div class="tel-info">
+                        <h4>${CONSTANTS.DUB_INFO.name}</h4>
+                        <p>${CONSTANTS.DUB_INFO.desc}</p>
                      </div>
-                     <div class="dubbed-lang-wrapper">
-                       <label class="select-label" for="dub_language">Dub Language</label>
-                       <select id="dub_language" class="select">
-                         ${CONSTANTS.DUB_LANGUAGES.map(lang => `<option value="${lang.value}" ${this.config['Dub Language'] === lang.value ? 'selected' : ''}>${lang.name}</option>`).join('')}
-                       </select>
-                     </div>
-                   </div>
-                 </div>
+                     <label class="tel-toggle">
+                        <input type="checkbox" id="dub_information" ${this.config[CONSTANTS.DUB_INFO.name] ? 'checked' : ''}>
+                        <span class="tel-slider"></span>
+                     </label>
+                  </div>
+
+                  <div class="tel-select-group">
+                    <label class="tel-select-label">Preferred Dub Language</label>
+                    <select id="dub_language" class="tel-select">
+                        ${CONSTANTS.DUB_LANGUAGES.map(lang =>
+                          `<option value="${lang.value}" ${this.config['Dub Language'] === lang.value ? 'selected' : ''}>${lang.name}</option>`
+                        ).join('')}
+                    </select>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div class="ext-panel-footer">
+            <div class="tel-footer">
               <div class="footer-left">
-                <button class="btn ghost" id="reset-defaults">Reset to Defaults</button>
-                <button class="btn ghost" id="clear-cache">Clear Cache</button>
+                <button class="tel-btn tel-btn-ghost" id="reset-defaults">Reset Defaults</button>
+                <button class="tel-btn tel-btn-ghost" id="clear-cache" style="margin-left: 10px;">Clear Cache</button>
               </div>
-              <div class="footer-right">
-                <button class="btn primary" id="save-reload">Save & Reload</button>
-              </div>
+              <button class="tel-btn tel-btn-primary" id="save-reload">Save & Reload</button>
             </div>
           </div>
         </div>
@@ -658,41 +649,62 @@
       const modalSelector = `#${CONSTANTS.SCRIPT_ID}-config`;
       const $modal = $(modalSelector);
 
-      $modal.find('button.close').on('click', () => this.closeModal());
+      // Close Button
+      $modal.find('.tel-close').on('click', () => this.closeModal());
 
-      $(document).on('keydown.extLinksSettings', (keyboardEvent) => {
-        if (keyboardEvent.key === 'Escape') this.closeModal();
+      // Close on Escape
+      $(document).on('keydown.extLinksSettings', (e) => {
+        if (e.key === 'Escape') this.closeModal();
       });
 
+      // Tab Switching Logic
+      $modal.find('.tel-nav-item').on('click', function() {
+        const target = $(this).data('tab');
+
+        // Update Sidebar
+        $modal.find('.tel-nav-item').removeClass('active');
+        $(this).addClass('active');
+
+        // Update Content
+        $modal.find('.tel-tab-pane').removeClass('active');
+        $modal.find(`#${target}`).addClass('active');
+      });
+
+      // Reset Defaults
       $modal.find('#reset-defaults').on('click', () => {
-        if (!confirm('Reset all settings to defaults?')) return;
+        if (!confirm('Are you sure you want to reset all settings to default?')) return;
         this.config = { ...DEFAULT_CONFIG };
         this.refreshModalValues();
       });
 
+      // Clear Cache
       $modal.find('#clear-cache').on('click', () => {
         try {
           const values = GM_listValues();
           for (const value of values) {
-            if (value !== CONSTANTS.CONFIG_KEY) {
-              GM_deleteValue(value);
-            }
+            if (value !== CONSTANTS.CONFIG_KEY) GM_deleteValue(value);
           }
-          alert('Cache cleared successfully.');
+          const btn = $modal.find('#clear-cache');
+          const originalText = btn.text();
+          btn.text('Cleared!').css('color', '#ed1c24');
+          setTimeout(() => btn.text(originalText).css('color', ''), 1500);
         } catch (error) {
           logger.error(`Failed to clear cache: ${error.message}`);
-          alert('Failed to clear cache. Check console for details.');
         }
       });
 
+      // Save & Reload
       $modal.find('#save-reload').on('click', () => {
         try {
           this.saveSettingsFromModal();
+          // Visual feedback before reload
+          const btn = $modal.find('#save-reload');
+          btn.text('Saving...');
+          setTimeout(() => window.location.reload(), 200);
           this.closeModal();
-          window.location.reload();
         } catch (error) {
           logger.error(`Failed to save settings: ${error.message}`);
-          alert('Failed to save settings. Check console for details.');
+          alert('Error saving settings');
         }
       });
     }
