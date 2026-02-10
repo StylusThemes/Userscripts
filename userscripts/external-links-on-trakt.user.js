@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          External links on Trakt
-// @version       3.5.0
+// @version       3.6.0
 // @description   Adds more external links to Trakt.tv pages, including dub information for anime shows.
 // @author        Journey Over
 // @license       MIT
@@ -30,34 +30,74 @@
 
   const logger = Logger('External links on Trakt', { debug: false });
 
+  // Define all custom sites here.
+  // group: 'streaming' or 'metadata' (determines which tab they appear in settings)
+  // movie/tv: URL templates. Use {tmdbId}, {imdbId}, {title}, {season}, {episode}, {type}
+  // set movie/tv to null if the site doesn't support that format.
+  const SITE_DEFINITIONS = {
+    'Rotten Tomatoes': { group: 'metadata', desc: 'Provides a direct link to Rotten Tomatoes.', builtIn: true },
+    'Metacritic': { group: 'metadata', desc: 'Provides a direct link to Metacritic.', builtIn: true },
+    'TVmaze': { group: 'metadata', desc: 'Provides a direct link to TVmaze.', builtIn: true },
+    'MyAnimeList': { group: 'metadata', desc: 'Provides a direct link to MyAnimeList.', builtIn: true },
+    'AniDB': { group: 'metadata', desc: 'Provides a direct link to AniDB.', builtIn: true },
+    'AniList': { group: 'metadata', desc: 'Provides a direct link to AniList.', builtIn: true },
+    'Kitsu': { group: 'metadata', desc: 'Provides a direct link to Kitsu.', builtIn: true },
+    'AniSearch': { group: 'metadata', desc: 'Provides a direct link to AniSearch.', builtIn: true },
+    'LiveChart': { group: 'metadata', desc: 'Provides a direct link to LiveChart.', builtIn: true },
+    'Letterboxd': {
+      group: 'metadata',
+      desc: 'Provides a direct link to Letterboxd.',
+      movie: 'https://letterboxd.com/tmdb/{tmdbId}',
+      tv: null // Letterboxd is primarily movies
+    },
+    'Mediux': {
+      group: 'metadata',
+      desc: 'Provides a direct link to the Mediux Poster site.',
+      movie: 'https://mediux.pro/movies/{tmdbId}',
+      tv: 'https://mediux.pro/shows/{tmdbId}'
+    },
+    'Bobmovies': {
+      group: 'streaming',
+      desc: 'Provides a direct link to the Bobmovies streaming page.',
+      movie: 'https://bobmovies.org/watch/movie/{tmdbId}',
+      tv: 'https://bobmovies.org/watch/tv/{tmdbId}?season={season}&episode={episode}'
+    },
+    'Cineby': {
+      group: 'streaming',
+      desc: 'Provides a direct link to the Cineby streaming page.',
+      movie: 'https://www.cineby.gd/movie/{tmdbId}',
+      tv: 'https://www.cineby.gd/tv/{tmdbId}/{season}/{episode}?play=true'
+    },
+    'P-Stream': {
+      group: 'streaming',
+      desc: 'Provides a direct link to the P-Stream streaming page.',
+      movie: 'https://pstream.mov/media/tmdb-movie-{tmdbId}',
+      tv: 'https://pstream.mov/media/tmdb-tv-{tmdbId}/{season}/{episode}'
+    },
+    'Rive': {
+      group: 'streaming',
+      desc: 'Provides a direct link to the Rive streaming page.',
+      movie: 'https://rivestream.org/watch?type=movie&id={tmdbId}',
+      tv: 'https://rivestream.org/watch?type=tv&id={tmdbId}&season={season}&episode={episode}'
+    }
+  };
+
   const CONSTANTS = {
     CACHE_DURATION: 24 * 60 * 60 * 1000,
     SCRIPT_ID: GM_info.script.name.toLowerCase().replace(/\s/g, '-'),
     CONFIG_KEY: 'external-trakt-links-config',
     TITLE: `${GM_info.script.name} Settings`,
     DUB_LANGUAGE_KEY: 'Dub Language',
-    METADATA_SITES: [
-      { name: 'Rotten Tomatoes', desc: 'Provides a direct link to Rotten Tomatoes for the selected title.' },
-      { name: 'Metacritic', desc: 'Provides a direct link to Metacritic for the selected title.' },
-      { name: 'Letterboxd', desc: 'Provides a direct link to Letterboxd for the selected title.' },
-      { name: 'TVmaze', desc: 'Provides a direct link to TVmaze for the selected title.' },
-      { name: 'Mediux', desc: 'Provides a direct link to the Mediux Poster site for the selected title.' },
-      { name: 'MyAnimeList', desc: 'Provides a direct link to MyAnimeList for the selected title.' },
-      { name: 'AniDB', desc: 'Provides a direct link to AniDB for the selected title.' },
-      { name: 'AniList', desc: 'Provides a direct link to AniList for the selected title.' },
-      { name: 'Kitsu', desc: 'Provides a direct link to Kitsu for the selected title.' },
-      { name: 'AniSearch', desc: 'Provides a direct link to AniSearch for the selected title.' },
-      { name: 'LiveChart', desc: 'Provides a direct link to LiveChart for the selected title.' }
-    ],
-    STREAMING_SITES: [
-      { name: 'BrocoFlix', desc: 'Provides a direct link to the BrocoFlix streaming page for the selected title.' },
-      { name: 'Cineby', desc: 'Provides a direct link to the Cineby streaming page for the selected title.' },
-      { name: 'Moviemaze', desc: 'Provides a direct link to the Moviemaze streaming page for the selected title.' },
-      { name: 'P-Stream', desc: 'Provides a direct link to the P-Stream streaming page for the selected title.' },
-      { name: 'Rive', desc: 'Provides a direct link to the Rive streaming page for the selected title.' },
-      { name: 'Wovie', desc: 'Provides a direct link to the Wovie streaming page for the selected title.' },
-      { name: 'XPrime', desc: 'Provides a direct link to the XPrime streaming page for the selected title.' }
-    ],
+
+    // Dynamic lists for settings menu
+    METADATA_SITES: Object.entries(SITE_DEFINITIONS)
+      .filter(([, def]) => def.group === 'metadata')
+      .map(([name, def]) => ({ name, desc: def.desc })),
+
+    STREAMING_SITES: Object.entries(SITE_DEFINITIONS)
+      .filter(([, def]) => def.group === 'streaming')
+      .map(([name, def]) => ({ name, desc: def.desc })),
+
     DUB_INFO: { name: 'Dub Information', desc: 'Show dub information for anime shows.' },
     DUB_LANGUAGES: [
       { name: 'English', value: 'ENGLISH' },
@@ -79,7 +119,7 @@
     LINK_ORDER: [
       'Official Site', 'IMDb', 'TMDB', 'TVDB', 'Rotten Tomatoes', 'Metacritic',
       'Letterboxd', 'TVmaze', 'MyAnimeList', 'AniDB', 'AniList', 'Kitsu',
-      'AniSearch', 'LiveChart', 'Fanart.tv', 'Mediux', 'BrocoFlix', 'Cineby',
+      'AniSearch', 'LiveChart', 'Fanart.tv', 'Mediux', 'Bobmovies', 'Cineby',
       'Moviemaze', 'P-Stream', 'Rive', 'Wovie', 'XPrime', 'JustWatch',
       'Wikipedia', 'Twitter', 'Facebook', 'Instagram'
     ]
@@ -155,6 +195,7 @@
         imdbId,
         tmdbId,
         title,
+        slug,
         season: season || '1',
         episode: episode || '1',
         isSeasonPage: !!season && !episode
@@ -416,85 +457,40 @@
       container.after(dubbedInfoHtml);
     }
 
+    // Resolves a URL template by replacing placeholders with actual values
+    resolveUrl(template) {
+      if (!template) return null;
+
+      // Simple regex to find {placeholders}
+      return template.replace(/{(\w+)}/g, (match, key) => {
+        // If the key is not in mediaInfo, or null, returns an empty string which might break the URL.
+        // In this specific context, we usually want to abort if a required ID is missing.
+        const val = this.mediaInfo[key];
+        return val !== undefined && val !== null ? val : '';
+      });
+    }
+
+    // Adds custom links to the media info sidebar
     addCustomLinks() {
-      const customLinks = [
-        {
-          name: 'Letterboxd',
-          url: () => `https://letterboxd.com/tmdb/${this.mediaInfo.tmdbId}`,
-          condition: () => this.mediaInfo.type === 'movie',
-          requiredData: 'tmdbId'
-        },
-        {
-          name: 'Mediux',
-          url: () => {
-            const path = this.mediaInfo.type === 'movie' ? 'movies' : 'shows';
-            return `https://mediux.pro/${path}/${this.mediaInfo.tmdbId}`;
-          },
-          requiredData: 'tmdbId'
-        },
-        {
-          name: 'BrocoFlix',
-          url: () => `https://brocoflix.com/pages/info?id=${this.mediaInfo.tmdbId}&type=${this.mediaInfo.type}`,
-          requiredData: 'tmdbId'
-        },
-        {
-          name: 'Cineby',
-          url: () => {
-            const show = this.mediaInfo.type === 'tv' ? `/${this.mediaInfo.season}/${this.mediaInfo.episode}` : '';
-            return `https://www.cineby.app/${this.mediaInfo.type}/${this.mediaInfo.tmdbId}${show}`;
-          },
-          requiredData: 'tmdbId'
-        },
-        {
-          name: 'Moviemaze',
-          url: () => {
-            const show = this.mediaInfo.type === 'tv' ? `?season=${this.mediaInfo.season}&ep=${this.mediaInfo.episode}` : '';
-            return `https://moviemaze.cc/watch/${this.mediaInfo.type}/${this.mediaInfo.tmdbId}${show}`;
-          },
-          requiredData: 'tmdbId'
-        },
-        {
-          name: 'P-Stream',
-          url: () => {
-            const show = this.mediaInfo.type === 'tv' ? `/${this.mediaInfo.season}/${this.mediaInfo.episode}` : '';
-            return `https://iframe.pstream.mov/embed/tmdb-${this.mediaInfo.type}-${this.mediaInfo.tmdbId}${show}`;
-          },
-          requiredData: 'tmdbId'
-        },
-        {
-          name: 'Rive',
-          url: () => {
-            const show = this.mediaInfo.type === 'tv' ? `&season=${this.mediaInfo.season}&episode=${this.mediaInfo.episode}` : '';
-            return `https://rivestream.org/watch?type=${this.mediaInfo.type}&id=${this.mediaInfo.tmdbId}${show}`;
-          },
-          requiredData: 'tmdbId'
-        },
-        {
-          name: 'Wovie',
-          url: () => {
-            const show = this.mediaInfo.type === 'tv' ? `?season=${this.mediaInfo.season}&episode=${this.mediaInfo.episode}` : '';
-            return `https://wovie.vercel.app/play/${this.mediaInfo.type}/${this.mediaInfo.tmdbId}/${this.mediaInfo.title}${show}`;
-          },
-          requiredData: 'tmdbId'
-        },
-        {
-          name: 'XPrime',
-          url: () => {
-            const show = this.mediaInfo.type === 'tv' ? `/${this.mediaInfo.season}/${this.mediaInfo.episode}` : '';
-            return `https://xprime.tv/watch/${this.mediaInfo.tmdbId}${show}`;
-          },
-          requiredData: 'tmdbId'
-        }
-      ];
+      for (const [siteName, siteDef] of Object.entries(SITE_DEFINITIONS)) {
+        // Skip built-in sites (handled by wikidata) or disabled sites
+        if (siteDef.builtIn || this.config[siteName] === false) continue;
 
-      for (const linkConfig of customLinks) {
-        const isEnabled = this.config[linkConfig.name] !== false;
-        const hasRequiredData = this.mediaInfo[linkConfig.requiredData];
-        const meetsCondition = !linkConfig.condition || linkConfig.condition();
-        const doesNotExist = !this.linkExists(linkConfig.name);
+        // Skip if link already exists
+        if (this.linkExists(siteName)) continue;
 
-        if (isEnabled && hasRequiredData && meetsCondition && doesNotExist) {
-          this.createLink(linkConfig.name, linkConfig.url());
+        const template = this.mediaInfo.type === 'movie' ? siteDef.movie : siteDef.tv;
+
+        // If no template for this type (e.g. Letterboxd for TV), skip
+        if (!template) continue;
+
+        // Check for required data (if template uses {tmdbId}, ensure we have it)
+        if (template.includes('{tmdbId}') && !this.mediaInfo.tmdbId) continue;
+        if (template.includes('{imdbId}') && !this.mediaInfo.imdbId) continue;
+
+        const url = this.resolveUrl(template);
+        if (url) {
+          this.createLink(siteName, url);
         }
       }
     }
@@ -649,35 +645,26 @@
       const modalSelector = `#${CONSTANTS.SCRIPT_ID}-config`;
       const $modal = $(modalSelector);
 
-      // Close Button
       $modal.find('.tel-close').on('click', () => this.closeModal());
 
-      // Close on Escape
       $(document).on('keydown.extLinksSettings', (e) => {
         if (e.key === 'Escape') this.closeModal();
       });
 
-      // Tab Switching Logic
       $modal.find('.tel-nav-item').on('click', function() {
         const target = $(this).data('tab');
-
-        // Update Sidebar
         $modal.find('.tel-nav-item').removeClass('active');
         $(this).addClass('active');
-
-        // Update Content
         $modal.find('.tel-tab-pane').removeClass('active');
         $modal.find(`#${target}`).addClass('active');
       });
 
-      // Reset Defaults
       $modal.find('#reset-defaults').on('click', () => {
         if (!confirm('Are you sure you want to reset all settings to default?')) return;
         this.config = { ...DEFAULT_CONFIG };
         this.refreshModalValues();
       });
 
-      // Clear Cache
       $modal.find('#clear-cache').on('click', () => {
         try {
           const values = GM_listValues();
@@ -693,11 +680,9 @@
         }
       });
 
-      // Save & Reload
       $modal.find('#save-reload').on('click', () => {
         try {
           this.saveSettingsFromModal();
-          // Visual feedback before reload
           const btn = $modal.find('#save-reload');
           btn.text('Saving...');
           setTimeout(() => window.location.reload(), 200);
@@ -719,12 +704,12 @@
     refreshModalValues() {
       const modalSelector = `#${CONSTANTS.SCRIPT_ID}-config`;
       const $modal = $(modalSelector);
-      const allSites = [...CONSTANTS.METADATA_SITES, ...CONSTANTS.STREAMING_SITES, CONSTANTS.DUB_INFO];
 
-      for (const site of allSites) {
-        const checkboxId = site.name.toLowerCase().replace(/\s+/g, '_');
-        $modal.find(`#${checkboxId}`).prop('checked', !!this.config[site.name]);
-      }
+      // Refresh values from the dynamic lists
+      [...CONSTANTS.METADATA_SITES, ...CONSTANTS.STREAMING_SITES, CONSTANTS.DUB_INFO].forEach(site => {
+         const checkboxId = site.name.toLowerCase().replace(/\s+/g, '_');
+         $modal.find(`#${checkboxId}`).prop('checked', !!this.config[site.name]);
+      });
 
       $modal.find('#dub_language').val(this.config['Dub Language']);
     }
@@ -732,12 +717,12 @@
     saveSettingsFromModal() {
       const modalSelector = `#${CONSTANTS.SCRIPT_ID}-config`;
       const $modal = $(modalSelector);
-      const allSites = [...CONSTANTS.METADATA_SITES, ...CONSTANTS.STREAMING_SITES, CONSTANTS.DUB_INFO];
 
-      for (const site of allSites) {
-        const checkboxId = site.name.toLowerCase().replace(/\s+/g, '_');
-        this.config[site.name] = $modal.find(`#${checkboxId}`).is(':checked');
-      }
+      // Save values from the dynamic lists
+      [...CONSTANTS.METADATA_SITES, ...CONSTANTS.STREAMING_SITES, CONSTANTS.DUB_INFO].forEach(site => {
+         const checkboxId = site.name.toLowerCase().replace(/\s+/g, '_');
+         this.config[site.name] = $modal.find(`#${checkboxId}`).is(':checked');
+      });
 
       this.config['Dub Language'] = $modal.find('#dub_language').val();
       GM_setValue(CONSTANTS.CONFIG_KEY, this.config);
