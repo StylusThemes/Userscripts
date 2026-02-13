@@ -216,7 +216,7 @@
                 // Filter out collection posters and sort alphabetically
                 const filteredFiles = files
                   .filter(file => !file.title.trim().endsWith('Collection'))
-                  .sort((a, b) => a.title.localeCompare(b.title));
+                  .sort((fileA, fileB) => fileA.title.localeCompare(fileB.title));
 
                 for (const file of filteredFiles) {
                   if (file.movie_id !== null) {

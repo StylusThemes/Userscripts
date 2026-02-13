@@ -38,7 +38,6 @@
   const API_JITTER_MAX = 200;
 
   const MUTATION_DEBOUNCE_MS = 150;
-  const TOAST_DURATION_MS = 5000;
   const TORRENTS_PAGE_LIMIT = 2500;
 
   const DEFAULTS = {
@@ -508,16 +507,16 @@
       const manualCheckbox = overlay.querySelector('#manualFileSelection');
       const filterTabNav = overlay.querySelector('.rd-nav-item[data-tab="tab-filtering"]');
       const apiKeyInput = overlay.querySelector('#apiKeyInput');
-      const toggleApiBtn = overlay.querySelector('#toggleApiVisibility');
+      const toggleApiButton = overlay.querySelector('#toggleApiVisibility');
 
       // 1. API Token Visibility Toggle
-      toggleApiBtn.onclick = () => {
+      toggleApiButton.onclick = () => {
         if (apiKeyInput.type === 'password') {
           apiKeyInput.type = 'text';
-          toggleApiBtn.style.color = '#fff'; // Highlight when visible
+          toggleApiButton.style.color = '#fff'; // Highlight when visible
         } else {
           apiKeyInput.type = 'password';
-          toggleApiBtn.style.color = '';
+          toggleApiButton.style.color = '';
         }
       };
 
@@ -527,7 +526,7 @@
           filterTabNav.style.display = 'none';
           // If the user was on the hidden tab, switch them back to General
           if (filterTabNav.classList.contains('active')) {
-             overlay.querySelector('[data-tab="tab-general"]').click();
+            overlay.querySelector('[data-tab="tab-general"]').click();
           }
         } else {
           filterTabNav.style.display = 'block';
@@ -541,8 +540,8 @@
         overlay.remove();
         document.removeEventListener('keydown', escHandler);
       };
-      const escHandler = (e) => {
-        if (e.key === 'Escape') close();
+      const escHandler = (event) => {
+        if (event.key === 'Escape') close();
       };
       document.addEventListener('keydown', escHandler);
 
@@ -551,20 +550,20 @@
 
       // Tab Switching
       const tabs = overlay.querySelectorAll('.rd-nav-item');
-      tabs.forEach(tab => {
+      for (const tab of tabs) {
         tab.onclick = () => {
-          overlay.querySelectorAll('.rd-nav-item').forEach(t => t.classList.remove('active'));
-          overlay.querySelectorAll('.rd-tab-pane').forEach(p => p.classList.remove('active'));
+          for (const tabElement of overlay.querySelectorAll('.rd-nav-item')) tabElement.classList.remove('active');
+          for (const paneElement of overlay.querySelectorAll('.rd-tab-pane')) paneElement.classList.remove('active');
 
           tab.classList.add('active');
           overlay.querySelector(`#${tab.dataset.tab}`).classList.add('active');
         };
-      });
+      }
 
       // Save Logic
       overlay.querySelector('#saveButton').onclick = async () => {
-        const btn = overlay.querySelector('#saveButton');
-        btn.textContent = 'Saving...';
+        const button = overlay.querySelector('#saveButton');
+        button.textContent = 'Saving...';
 
         try {
           const newConfig = {
@@ -572,8 +571,8 @@
             enableTorrentSupport: overlay.querySelector('#enableTorrentSupport').checked,
             debugEnabled: overlay.querySelector('#debugEnabled').checked,
             manualFileSelection: overlay.querySelector('#manualFileSelection').checked,
-            allowedExtensions: overlay.querySelector('#allowedExtensions').value.split(',').map(s => s.trim()).filter(Boolean),
-            filterKeywords: overlay.querySelector('#filterKeywords').value.split(',').map(s => s.trim()).filter(Boolean)
+            allowedExtensions: overlay.querySelector('#allowedExtensions').value.split(',').map(extension => extension.trim()).filter(Boolean),
+            filterKeywords: overlay.querySelector('#filterKeywords').value.split(',').map(keyword => keyword.trim()).filter(Boolean)
           };
 
           await ConfigManager.saveConfig(newConfig);
@@ -581,8 +580,8 @@
           this.showToast('Settings saved successfully', 'success');
           location.reload();
         } catch (error) {
-           this.showToast(error.message, 'error');
-           btn.textContent = 'Save Changes';
+          this.showToast(error.message, 'error');
+          button.textContent = 'Save Changes';
         }
       };
     },
@@ -591,7 +590,7 @@
       this.injectStyles();
       return new Promise((resolve) => {
         const fileTree = new FileTree(files);
-        const totalSizeAll = fileTree.getAllFiles().reduce((s, f) => s + (f.bytes || 0), 0);
+        const totalSizeAll = fileTree.getAllFiles().reduce((totalSize, file) => totalSize + (file.bytes || 0), 0);
 
         const overlay = document.createElement('div');
         overlay.className = 'rd-overlay';
@@ -622,25 +621,25 @@
 
         const treeRoot = overlay.querySelector('#treeRoot');
         const statsLabel = overlay.querySelector('#stats');
-        const toggleBtn = overlay.querySelector('#toggleAll');
+        const toggleButton = overlay.querySelector('#toggleAll');
 
         const updateUI = () => {
           const updateStates = (node) => {
-             if (node.type === 'file') return node.checked;
-             if (node.children) {
-                const states = node.children.map(updateStates);
-                node.checked = states.every(s => s);
-                node.indeterminate = !node.checked && states.some(s => s);
-                return states.some(s => s);
-             }
-             return false;
+            if (node.type === 'file') return node.checked;
+            if (node.children) {
+              const states = node.children.map(updateStates);
+              node.checked = states.every(state => state);
+              node.indeterminate = !node.checked && states.some(state => state);
+              return states.some(state => state);
+            }
+            return false;
           };
           updateStates(fileTree.root);
 
-          const selected = fileTree.getAllFiles().filter(f => f.checked);
-          const size = selected.reduce((s, f) => s + (f.bytes || 0), 0);
+          const selected = fileTree.getAllFiles().filter(file => file.checked);
+          const size = selected.reduce((totalSize, file) => totalSize + (file.bytes || 0), 0);
           statsLabel.textContent = `${selected.length} files (${this.formatBytes(size)} / ${this.formatBytes(totalSizeAll)})`;
-          toggleBtn.textContent = selected.length === fileTree.getAllFiles().length ? 'Select None' : 'Select All';
+          toggleButton.textContent = selected.length === fileTree.getAllFiles().length ? 'Select None' : 'Select All';
         };
 
         const renderNode = (node) => {
@@ -661,40 +660,41 @@
 
             const childrenContainer = div.querySelector('.rd-folder-children');
 
-            const toggleExpand = (e) => {
-               // PREVENT PROPAGATION HERE is redundant if we handle click on the container,
-               // but explicitly separating logic helps.
-               e.stopPropagation();
-               node.expanded = !node.expanded;
-               childrenContainer.style.display = node.expanded ? 'block' : 'none';
-               div.querySelector('span').textContent = node.expanded ? '▼' : '▶';
-               if(node.expanded && !childrenContainer.hasChildNodes()) {
-                  node.children.forEach(c => childrenContainer.appendChild(renderNode(c)));
-               }
+            const toggleExpand = (event) => {
+              // PREVENT PROPAGATION HERE is redundant if we handle click on the container,
+              // but explicitly separating logic helps.
+              event.stopPropagation();
+              node.expanded = !node.expanded;
+              childrenContainer.style.display = node.expanded ? 'block' : 'none';
+              div.querySelector('span').textContent = node.expanded ? '▼' : '▶';
+              if (node.expanded && !childrenContainer.hasChildNodes()) {
+                for (const child of node.children) childrenContainer.appendChild(renderNode(child));
+              }
             };
 
             // Explicitly handle checkbox clicks to PREVENT bubbling to the row click
-            div.querySelector('.rd-checkbox').onclick = (e) => {
-               e.stopPropagation(); // Stop bubbling so row doesn't toggle
+            div.querySelector('.rd-checkbox').onclick = (event) => {
+              event.stopPropagation(); // Stop bubbling so row doesn't toggle
             };
 
-            div.querySelector('.rd-checkbox').onchange = (e) => {
-               e.stopPropagation(); // Stop bubbling
-               const setAll = (n, v) => {
-                  n.checked = v;
-                  if(n.children) n.children.forEach(c => setAll(c, v));
-               };
-               setAll(node, e.target.checked);
-               updateUI();
-               if(node.expanded) {
-                  childrenContainer.innerHTML = '';
-                  node.children.forEach(c => childrenContainer.appendChild(renderNode(c)));
-               }
+            div.querySelector('.rd-checkbox').onchange = (event) => {
+              event.stopPropagation(); // Stop bubbling
+              const setAll = (nodeParameter, checkedValue) => {
+                nodeParameter.checked = checkedValue;
+                if (nodeParameter.children)
+                  for (const child of nodeParameter.children) setAll(child, checkedValue);
+              };
+              setAll(node, event.target.checked);
+              updateUI();
+              if (node.expanded) {
+                childrenContainer.innerHTML = '';
+                for (const child of node.children) childrenContainer.appendChild(renderNode(child));
+              }
             };
 
             div.querySelector('.rd-folder-header').onclick = toggleExpand;
-            if(node.expanded) {
-               node.children.forEach(c => childrenContainer.appendChild(renderNode(c)));
+            if (node.expanded) {
+              for (const child of node.children) childrenContainer.appendChild(renderNode(child));
             }
 
           } else {
@@ -705,41 +705,41 @@
                  <span style="font-size:11px; opacity:0.7">${this.formatBytes(node.bytes)}</span>
                </div>
             `;
-            div.onclick = (e) => {
-               e.stopPropagation();
-               if(e.target.type !== 'checkbox') {
-                  node.checked = !node.checked;
-                  div.querySelector('input').checked = node.checked;
-               } else {
-                  node.checked = e.target.checked;
-               }
-               updateUI();
+            div.onclick = (event) => {
+              event.stopPropagation();
+              if (event.target.type !== 'checkbox') {
+                node.checked = !node.checked;
+                div.querySelector('input').checked = node.checked;
+              } else {
+                node.checked = event.target.checked;
+              }
+              updateUI();
             };
           }
           return div;
         };
 
         // Render children directly, skipping the dummy root
-        fileTree.root.children.forEach(child => {
-           treeRoot.appendChild(renderNode(child));
-        });
+        for (const child of fileTree.root.children) {
+          treeRoot.appendChild(renderNode(child));
+        }
 
         updateUI();
 
-        toggleBtn.onclick = () => {
-           const all = fileTree.getAllFiles();
-           const val = all.some(f => !f.checked);
-           all.forEach(f => f.checked = val);
-           treeRoot.innerHTML = '';
-           fileTree.root.children.forEach(child => {
-             treeRoot.appendChild(renderNode(child));
-           });
-           updateUI();
+        toggleButton.onclick = () => {
+          const all = fileTree.getAllFiles();
+          const value = all.some(file => !file.checked);
+          for (const file of all) file.checked = value;
+          treeRoot.innerHTML = '';
+          for (const child of fileTree.root.children) {
+            treeRoot.appendChild(renderNode(child));
+          }
+          updateUI();
         };
 
-        const close = (val) => {
-           overlay.remove();
-           resolve(val);
+        const close = (value) => {
+          overlay.remove();
+          resolve(value);
         };
 
         overlay.querySelector('#confirm').onclick = () => close(fileTree.getSelectedFiles());
@@ -764,34 +764,28 @@
       // Common styles for transition
       icon.style.transition = 'all 0.2s';
 
-      if(state === 'processing') {
-         icon.style.opacity = '0.5';
-         icon.style.cursor = 'wait';
-         icon.title = 'Processing...';
-      }
-      else if(state === 'added') {
-         icon.textContent = '✓';
-         icon.style.background = '#64cc2e'; // Green
-         icon.style.opacity = '1';
-         icon.style.cursor = 'default';
-         icon.title = 'Torrent successfully added to Real-Debrid';
-      }
-      else if(state === 'existing') {
-         icon.textContent = '✓';
-         icon.style.background = '#64cc2e'; // Green
-         icon.style.opacity = '1';
-         icon.style.cursor = 'default';
-         icon.title = 'Torrent already exists on Real-Debrid';
+      if (state === 'processing') {
+        icon.style.opacity = '0.5';
+        icon.style.cursor = 'wait';
+        icon.title = 'Processing...';
+      } else if (state === 'added') {
+        icon.textContent = '✓';
+        icon.style.background = '#64cc2e'; // Green
+        icon.style.opacity = '1';
+        icon.style.cursor = 'default';
+        icon.title = 'Torrent successfully added to Real-Debrid';
+      } else if (state === 'existing') {
+        icon.textContent = '✓';
+        icon.style.background = '#64cc2e'; // Green
+        icon.style.opacity = '1';
+        icon.style.cursor = 'default';
+        icon.title = 'Torrent already exists on Real-Debrid';
       } else {
-         icon.textContent = 'RD';
-         icon.style.background = '#3b82f6'; // Blue
-         icon.style.opacity = '1';
-         icon.style.cursor = 'pointer';
-         if(torrentSupportEnabled) {
-            icon.title = 'Click to send magnet to Real-Debrid, Alt+click to send torrent file';
-         } else {
-            icon.title = 'Click to send magnet to Real-Debrid';
-         }
+        icon.textContent = 'RD';
+        icon.style.background = '#3b82f6'; // Blue
+        icon.style.opacity = '1';
+        icon.style.cursor = 'pointer';
+        icon.title = torrentSupportEnabled ? 'Click to send magnet to Real-Debrid, Alt+click to send torrent file' : 'Click to send magnet to Real-Debrid';
       }
     },
 
@@ -801,11 +795,7 @@
       icon.textContent = 'RD';
       icon.style.cssText = `cursor:pointer;display:inline-block;width:18px;height:18px;margin-left:6px;vertical-align:middle;border-radius:3px;background:#3b82f6;color:white;text-align:center;line-height:18px;font-size:11px;font-weight:bold;font-family:sans-serif;`;
       icon.setAttribute('data-rd-inserted', '1');
-      if(torrentSupportEnabled) {
-         icon.title = 'Click to send magnet to Real-Debrid, Alt+click to send torrent file';
-      } else {
-         icon.title = 'Click to send magnet to Real-Debrid';
-      }
+      icon.title = torrentSupportEnabled ? 'Click to send magnet to Real-Debrid, Alt+click to send torrent file' : 'Click to send magnet to Real-Debrid';
       return icon;
     },
 
@@ -829,10 +819,10 @@
 
     formatBytes(bytes) {
       if (bytes === 0) return '0 B';
-      const k = 1024;
+      const kilo = 1024;
       const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-      const i = Math.floor(Math.log(bytes) / Math.log(k));
-      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+      const index = Math.floor(Math.log(bytes) / Math.log(kilo));
+      return parseFloat((bytes / Math.pow(kilo, index)).toFixed(2)) + ' ' + sizes[index];
     },
   };
 
@@ -938,14 +928,14 @@
           }
         }
       } else {
-        selectedFileIds = this.filterFiles(files).map(f => f.id);
+        selectedFileIds = this.filterFiles(files).map(file => file.id);
         if (!selectedFileIds.length) {
           await this.#realDebridApi.deleteTorrent(torrentId);
           throw new RealDebridError('No matching files found after filtering');
         }
       }
 
-      logger.debug(`[Magnet Processor] Selected files: ${selectedFileIds.map(id => files.find(f => f.id === id)?.path || `ID:${id}`).join(', ')}`);
+      logger.debug(`[Magnet Processor] Selected files: ${selectedFileIds.map(id => files.find(file => file.id === id)?.path || `ID:${id}`).join(', ')}`);
       await this.#realDebridApi.selectFiles(torrentId, selectedFileIds.join(','));
       return selectedFileIds.length;
     }
@@ -978,14 +968,14 @@
           }
         }
       } else {
-        selectedFileIds = this.filterFiles(files).map(f => f.id);
+        selectedFileIds = this.filterFiles(files).map(file => file.id);
         if (!selectedFileIds.length) {
           await this.#realDebridApi.deleteTorrent(torrentId);
           throw new RealDebridError('No matching files found after filtering');
         }
       }
 
-      logger.debug(`[Torrent Processor] Selected files: ${selectedFileIds.map(id => files.find(f => f.id === id)?.path || `ID:${id}`).join(', ')}`);
+      logger.debug(`[Torrent Processor] Selected files: ${selectedFileIds.map(id => files.find(file => file.id === id)?.path || `ID:${id}`).join(', ')}`);
       await this.#realDebridApi.selectFiles(torrentId, selectedFileIds.join(','));
       return selectedFileIds.length;
     }
@@ -1242,8 +1232,8 @@
         if (key && this.keyToIcon.has(key)) continue;
 
         const iconContainer = this._shouldShowBatchUI() ?
-           UIManager.createMagnetIconWithCheckbox(torrentSupport) :
-           UIManager.createMagnetIcon(torrentSupport);
+          UIManager.createMagnetIconWithCheckbox(torrentSupport) :
+          UIManager.createMagnetIcon(torrentSupport);
 
         this._attach(iconContainer, link);
         link.parentNode.insertBefore(iconContainer, link.nextSibling);

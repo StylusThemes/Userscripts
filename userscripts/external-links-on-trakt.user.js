@@ -86,17 +86,16 @@
     CACHE_DURATION: 24 * 60 * 60 * 1000,
     SCRIPT_ID: GM_info.script.name.toLowerCase().replace(/\s/g, '-'),
     CONFIG_KEY: 'external-trakt-links-config',
-    TITLE: `${GM_info.script.name} Settings`,
     DUB_LANGUAGE_KEY: 'Dub Language',
 
     // Dynamic lists for settings menu
     METADATA_SITES: Object.entries(SITE_DEFINITIONS)
-      .filter(([, def]) => def.group === 'metadata')
-      .map(([name, def]) => ({ name, desc: def.desc })),
+      .filter(([, definition]) => definition.group === 'metadata')
+      .map(([name, definition]) => ({ name, desc: definition.desc })),
 
     STREAMING_SITES: Object.entries(SITE_DEFINITIONS)
-      .filter(([, def]) => def.group === 'streaming')
-      .map(([name, def]) => ({ name, desc: def.desc })),
+      .filter(([, definition]) => definition.group === 'streaming')
+      .map(([name, definition]) => ({ name, desc: definition.desc })),
 
     DUB_INFO: { name: 'Dub Information', desc: 'Show dub information for anime shows.' },
     DUB_LANGUAGES: [
@@ -241,9 +240,9 @@
         CONSTANTS.LINK_ORDER.map((name, index) => [name.toLowerCase(), index])
       );
 
-      const sorted = links.toArray().sort((a, b) => {
-        const aKey = getKey(a);
-        const bKey = getKey(b);
+      const sorted = links.toArray().sort((firstLink, secondLink) => {
+        const aKey = getKey(firstLink);
+        const bKey = getKey(secondLink);
         const aOrder = orderMap.get(aKey) ?? Infinity;
         const bOrder = orderMap.get(bKey) ?? Infinity;
 
@@ -465,21 +464,21 @@
       return template.replace(/{(\w+)}/g, (match, key) => {
         // If the key is not in mediaInfo, or null, returns an empty string which might break the URL.
         // In this specific context, we usually want to abort if a required ID is missing.
-        const val = this.mediaInfo[key];
-        return val !== undefined && val !== null ? val : '';
+        const value = this.mediaInfo[key];
+        return value !== undefined && value !== null ? value : '';
       });
     }
 
     // Adds custom links to the media info sidebar
     addCustomLinks() {
-      for (const [siteName, siteDef] of Object.entries(SITE_DEFINITIONS)) {
+      for (const [siteName, siteDefinition] of Object.entries(SITE_DEFINITIONS)) {
         // Skip built-in sites (handled by wikidata) or disabled sites
-        if (siteDef.builtIn || this.config[siteName] === false) continue;
+        if (siteDefinition.builtIn || this.config[siteName] === false) continue;
 
         // Skip if link already exists
         if (this.linkExists(siteName)) continue;
 
-        const template = this.mediaInfo.type === 'movie' ? siteDef.movie : siteDef.tv;
+        const template = this.mediaInfo.type === 'movie' ? siteDefinition.movie : siteDefinition.tv;
 
         // If no template for this type (e.g. Letterboxd for TV), skip
         if (!template) continue;
@@ -647,8 +646,8 @@
 
       $modal.find('.tel-close').on('click', () => this.closeModal());
 
-      $(document).on('keydown.extLinksSettings', (e) => {
-        if (e.key === 'Escape') this.closeModal();
+      $(document).on('keydown.extLinksSettings', (event) => {
+        if (event.key === 'Escape') this.closeModal();
       });
 
       $modal.find('.tel-nav-item').on('click', function() {
@@ -671,10 +670,10 @@
           for (const value of values) {
             if (value !== CONSTANTS.CONFIG_KEY) GM_deleteValue(value);
           }
-          const btn = $modal.find('#clear-cache');
-          const originalText = btn.text();
-          btn.text('Cleared!').css('color', '#ed1c24');
-          setTimeout(() => btn.text(originalText).css('color', ''), 1500);
+          const button = $modal.find('#clear-cache');
+          const originalText = button.text();
+          button.text('Cleared!').css('color', '#ed1c24');
+          setTimeout(() => button.text(originalText).css('color', ''), 1500);
         } catch (error) {
           logger.error(`Failed to clear cache: ${error.message}`);
         }
@@ -683,8 +682,8 @@
       $modal.find('#save-reload').on('click', () => {
         try {
           this.saveSettingsFromModal();
-          const btn = $modal.find('#save-reload');
-          btn.text('Saving...');
+          const button = $modal.find('#save-reload');
+          button.text('Saving...');
           setTimeout(() => window.location.reload(), 200);
           this.closeModal();
         } catch (error) {
@@ -706,10 +705,10 @@
       const $modal = $(modalSelector);
 
       // Refresh values from the dynamic lists
-      [...CONSTANTS.METADATA_SITES, ...CONSTANTS.STREAMING_SITES, CONSTANTS.DUB_INFO].forEach(site => {
-         const checkboxId = site.name.toLowerCase().replace(/\s+/g, '_');
-         $modal.find(`#${checkboxId}`).prop('checked', !!this.config[site.name]);
-      });
+      for (const site of [...CONSTANTS.METADATA_SITES, ...CONSTANTS.STREAMING_SITES, CONSTANTS.DUB_INFO]) {
+        const checkboxId = site.name.toLowerCase().replace(/\s+/g, '_');
+        $modal.find(`#${checkboxId}`).prop('checked', !!this.config[site.name]);
+      }
 
       $modal.find('#dub_language').val(this.config['Dub Language']);
     }
@@ -719,10 +718,10 @@
       const $modal = $(modalSelector);
 
       // Save values from the dynamic lists
-      [...CONSTANTS.METADATA_SITES, ...CONSTANTS.STREAMING_SITES, CONSTANTS.DUB_INFO].forEach(site => {
-         const checkboxId = site.name.toLowerCase().replace(/\s+/g, '_');
-         this.config[site.name] = $modal.find(`#${checkboxId}`).is(':checked');
-      });
+      for (const site of [...CONSTANTS.METADATA_SITES, ...CONSTANTS.STREAMING_SITES, CONSTANTS.DUB_INFO]) {
+        const checkboxId = site.name.toLowerCase().replace(/\s+/g, '_');
+        this.config[site.name] = $modal.find(`#${checkboxId}`).is(':checked');
+      }
 
       this.config['Dub Language'] = $modal.find('#dub_language').val();
       GM_setValue(CONSTANTS.CONFIG_KEY, this.config);

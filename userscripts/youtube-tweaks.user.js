@@ -246,15 +246,15 @@
       interval: null,
       handleNavigation: null,
       secondsToDHMS(value) {
-        const d = Math.floor(value / 86400);
-        const h = Math.floor((value % 86400) / 3600);
-        const m = Math.floor((value % 3600) / 60);
-        const s = Math.floor(value % 60);
-        const days = d > 0 ? d + ':' : '';
-        const hours = h.toString().padStart(2, '0');
-        const minutes = m.toString().padStart(2, '0');
-        const seconds = s.toString().padStart(2, '0');
-        return `${days}${hours}:${minutes}:${seconds}`;
+        const days = Math.floor(value / 86400);
+        const hours = Math.floor((value % 86400) / 3600);
+        const minutes = Math.floor((value % 3600) / 60);
+        const seconds = Math.floor(value % 60);
+        const daysString = days > 0 ? days + ':' : '';
+        const hoursString = hours.toString().padStart(2, '0');
+        const minutesString = minutes.toString().padStart(2, '0');
+        const secondsString = seconds.toString().padStart(2, '0');
+        return `${daysString}${hoursString}:${minutesString}:${secondsString}`;
       },
       updateTimeDisplay() {
         const video = this.video;
@@ -286,8 +286,16 @@
         finishTimeSpan.textContent = ` ends at ${finishText}`;
       },
       setupVideoListeners() {
-        this.video = document.querySelector('.video-stream.html5-main-video');
-        if (!this.video) return;
+        const newVideo = document.querySelector('.video-stream.html5-main-video');
+        if (!newVideo) return;
+
+        // Prevent duplicate listeners if the video element hasn't actually changed
+        if (this.video === newVideo) {
+          this.updateTimeDisplay(); // Force an update anyway just in case
+          return;
+        }
+
+        this.video = newVideo;
         for (const event of ['loadedmetadata', 'play', 'ratechange', 'seeked', 'timeupdate']) {
           this.video.addEventListener(event, () => this.updateTimeDisplay());
         }
@@ -296,6 +304,10 @@
       start() {
         this.handleNavigation = () => {
           if (location.pathname !== '/watch') return;
+
+          // Clear any existing interval to prevent overlapping checks
+          if (this.interval) clearInterval(this.interval);
+
           this.interval = setInterval(() => {
             if (document.querySelector('.video-stream.html5-main-video')) {
               clearInterval(this.interval);
@@ -304,17 +316,15 @@
             }
           }, 100);
         };
+
+        // Standard navigation event for Single Page App transitions
         window.addEventListener('yt-navigate-finish', this.handleNavigation);
-        if (document.readyState === 'complete') {
-          this.handleNavigation();
-        } else {
-          window.addEventListener('load', this.handleNavigation);
-        }
+
+        this.handleNavigation();
       },
       stop() {
         if (this.handleNavigation) {
           window.removeEventListener('yt-navigate-finish', this.handleNavigation);
-          window.removeEventListener('load', this.handleNavigation);
         }
         if (this.interval) {
           clearInterval(this.interval);

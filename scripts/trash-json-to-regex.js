@@ -5,7 +5,7 @@
 // doubles backslashes for output safety, and supports a --raw flag.
 
 const arguments_ = process.argv.slice(2);
-const url = arguments_.find(a => !a.startsWith('--'));
+const url = arguments_.find(argument => !argument.startsWith('--'));
 const rawOutput = arguments_.includes('--raw');
 
 if (!url) {
@@ -24,7 +24,7 @@ function extractRegexParts(value) {
 
     try {
         // Split on unescaped |, preserving everything else
-        const parts = value.split(/(?<!\\)\|/).map(v => v.trim()).filter(Boolean);
+        const parts = value.split(/(?<!\\)\|/).map(part => part.trim()).filter(Boolean);
         return parts;
     } catch {
         process.stderr.write('Skipping malformed regex value: ' + value + '\n');
