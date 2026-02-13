@@ -273,7 +273,7 @@
       }
 
       try {
-        let data = await this.wikidata.links(this.mediaInfo.imdbId, 'IMDb', this.mediaInfo.type);
+        const data = await this.wikidata.links(this.mediaInfo.imdbId, 'IMDb', this.mediaInfo.type);
 
         // ArmHaglund provides better anime ID coverage than Wikidata
         if (this.needsExtraIds(data.links)) {
@@ -419,11 +419,11 @@
         .catch(error => {
           logger.error(`Failed fetching AniList dub info: ${error.message}`);
           // Cache the failure to avoid repeated API calls
-          const cache = GM_getValue(cacheKey);
+          const currentCache = GM_getValue(cacheKey);
           const updatedCache = {
-            ...cache,
+            ...currentCache,
             dubStatus: {
-              ...cache?.dubStatus,
+              ...currentCache?.dubStatus,
               [selectedLanguage]: false
             }
           };

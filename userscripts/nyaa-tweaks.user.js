@@ -35,7 +35,9 @@
   // --------------------------------------------------------
   function convertTo12Hour(timestampString) {
     const [datePart, timePart] = timestampString.split(' ');
-    let [hourValue, minuteValue] = timePart.split(':').map(Number);
+    const parts = timePart.split(':').map(Number);
+    let hourValue = parts[0];
+    const minuteValue = parts[1];
 
     const amPmPeriod = hourValue >= 12 ? 'PM' : 'AM';
     hourValue = hourValue % 12 || 12;

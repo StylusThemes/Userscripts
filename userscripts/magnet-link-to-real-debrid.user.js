@@ -182,7 +182,7 @@
         return new Promise((resolve, reject) => {
           const url = `${API_BASE}${endpoint}`;
           let payload = null;
-          let headers = {
+          const headers = {
             Authorization: `Bearer ${this.#apiKey}`,
             Accept: 'application/json'
           };

@@ -1,6 +1,6 @@
 import globals from 'globals';
-//import regexp from 'eslint-plugin-regexp';
 import unicorn from 'eslint-plugin-unicorn';
+import userscripts from 'eslint-plugin-userscripts';
 
 export default [
   {
@@ -39,11 +39,20 @@ export default [
       },
     },
     plugins: {
-      //regexp,
       unicorn,
+      userscripts,
     },
     rules: {
-      //...regexp.configs['flat/recommended'].rules,
+      'userscripts/no-invalid-headers': 'error',
+      'userscripts/no-invalid-grant': 'error',
+      'userscripts/compat-grant': 'warn',
+      'userscripts/compat-headers': 'warn',
+      'userscripts/require-version': 'warn',
+      'userscripts/use-homepage-and-url': 'off',
+      'no-var': 'error',
+      'prefer-const': 'warn',
+      'no-shadow': 'warn',
+      'no-global-assign': 'error',
       'no-unused-vars': [
         'warn',
         { vars: 'all', args: 'after-used', ignoreRestSiblings: true },
@@ -55,7 +64,7 @@ export default [
       quotes: ['error', 'single', { allowTemplateLiterals: true }],
       'id-length': ['warn', {
         'min': 2,
-        'exceptions': ['i', 'j', 'x', 'y', '_'],
+        'exceptions': ['i', 'j', 'x', 'y', '_', '$'],
         'properties': 'never'
       }],
       'unicorn/no-unused-properties': 'warn',

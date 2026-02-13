@@ -14,11 +14,12 @@
     "trash-regex": "bun ./scripts/trash-json-to-regex.js"
   },
   "dependencies": {
-    "terser": "^5.44.1",
-    "js-beautify": "^1.15.4"
   },
   "devDependencies": {
+    "js-beautify": "^1.15.4",
+    "terser": "^5.44.1",
     "eslint": "^9.39.1",
-    "eslint-plugin-unicorn": "^62.0.0"
+    "eslint-plugin-unicorn": "^62.0.0",
+    "eslint-plugin-userscripts": "^0.5.6"
   }
 }

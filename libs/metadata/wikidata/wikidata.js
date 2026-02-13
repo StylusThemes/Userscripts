@@ -240,7 +240,7 @@ this.Wikidata = class {
           try {
             const results = JSON.parse(response.responseText)
               .results.bindings
-              .find((item) => item[idSource] && item[idSource].value === id);
+              .find((binding) => binding[idSource] && binding[idSource].value === id);
 
             if (
               results &&

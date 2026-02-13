@@ -185,7 +185,7 @@
         const creator = GM_getValue('creator');
         const startTime = Date.now();
         let elapsedTime = 0;
-        let processedMovieTitles = [];
+        const processedMovieTitles = [];
 
         codeblock.innerText = 'Processing... 0 seconds';
 
@@ -275,7 +275,7 @@
 
         const seasonPosters = posters.filter(poster => poster.title.includes('Season'));
 
-        for (let seasonIndex in seasonPosters) {
+        for (const seasonIndex in seasonPosters) {
           const matchingSeasonPosters = seasonPosters.filter(season => season.title.includes(`Season ${seasonIndex}`));
           if (matchingSeasonPosters.length > 0) {
             yamlContent += `      ${seasonIndex}:\n        url_poster: https://api.mediux.pro/assets/${matchingSeasonPosters[0].id}\n`;
@@ -455,19 +455,18 @@
     bWaitOnce,
     iframeSelector
   ) {
-    var targetElements, targetsFound;
-
-    targetElements = typeof iframeSelector == 'undefined' ? jQuery(selectorTxt) : jQuery(iframeSelector).contents()
+    const targetElements = typeof iframeSelector == 'undefined' ? jQuery(selectorTxt) : jQuery(iframeSelector).contents()
       .find(selectorTxt);
+    let targetsFound;
 
     if (targetElements && targetElements.length > 0) {
       targetsFound = true;
       targetElements.each(function() {
-        var $currentElement = jQuery(this);
-        var alreadyProcessed = $currentElement.data('alreadyFound') || false;
+        const $currentElement = jQuery(this);
+        const alreadyProcessed = $currentElement.data('alreadyFound') || false;
 
         if (!alreadyProcessed) {
-          var shouldCancel = actionFunction($currentElement);
+          const shouldCancel = actionFunction($currentElement);
           if (shouldCancel)
             targetsFound = false;
           else
@@ -478,9 +477,9 @@
       targetsFound = false;
     }
 
-    var controlObject = waitForKeyElements.controlObj || {};
-    var controlKey = selectorTxt.replace(/[^\w]/g, '_');
-    var intervalId = controlObject[controlKey];
+    const controlObject = waitForKeyElements.controlObj || {};
+    const controlKey = selectorTxt.replace(/[^\w]/g, '_');
+    let intervalId = controlObject[controlKey];
 
     if (targetsFound && bWaitOnce && intervalId) {
       clearInterval(intervalId);

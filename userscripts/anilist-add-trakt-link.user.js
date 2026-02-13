@@ -206,10 +206,10 @@
         }
 
         const observer = new MutationObserver(() => {
-          const element = document.querySelector(selector);
-          if (element) {
+          const foundElement = document.querySelector(selector);
+          if (foundElement) {
             observer.disconnect();
-            resolve(element);
+            resolve(foundElement);
           }
         });
 
