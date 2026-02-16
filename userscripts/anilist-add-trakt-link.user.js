@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          AniList - Add Trakt link
-// @version       1.2.0
+// @version       1.2.1
 // @description   Add trakt and MyAnimeList links to AniList anime pages
 // @author        Journey Over
 // @license       MIT
@@ -43,18 +43,14 @@
     init() {
       this.clearExpiredCache();
       this.setupSPAWatcher();
-      this.handleCurrentPage();
+      this.handlePageChange();
     }
 
+    // Watches for DOM changes to handle AniList's SPA navigation.
+    // Re-runs the check whenever the body changes to ensure links are present.
     setupSPAWatcher() {
-      const mutationObserver = new MutationObserver(mutations => {
-        for (const mutation of mutations) {
-          for (const node of mutation.addedNodes) {
-            if (this.isExternalLinksContainer(node)) {
-              this.handlePageChange();
-            }
-          }
-        }
+      const mutationObserver = new MutationObserver(() => {
+        this.handlePageChange();
       });
 
       mutationObserver.observe(document.body, {
@@ -63,45 +59,40 @@
       });
     }
 
-    // Check both direct matches and child elements because SPA might insert wrapper elements
-    // around the external links container during page transitions
-    isExternalLinksContainer(node) {
-      return node.nodeType === Node.ELEMENT_NODE &&
-        (node.matches('.external-links-wrap') ||
-          node.querySelector('.external-links-wrap'));
-    }
-
-    handleCurrentPage() {
-      if (this.isAnimePage()) {
-        this.handlePageChange();
-      }
-    }
-
+    // Validates if we are on an anime page and if links need to be added.
     handlePageChange() {
-      const anilistId = this.getAniListId();
-      if (!anilistId || anilistId === this.lastProcessedAnimeId) {
+      if (!this.isAnimePage()) {
+        this.lastProcessedAnimeId = null;
         return;
       }
 
-      this.lastProcessedAnimeId = anilistId;
-      this.processPage(anilistId);
+      const anilistId = this.getAniListId();
+      if (!anilistId) return;
+
+      const container = document.querySelector('.external-links-wrap');
+
+      if (container) {
+        const hasTrakt = this.hasTraktLink(container);
+        const hasMal = this.hasMyAnimeListLink(container);
+
+        // Process if links are missing, even if the ID is the same as the last check.
+        // This solves the issue where SPA navigation wipes the container.
+        if (!hasTrakt || !hasMal) {
+          logger.debug(`Processing page for AniList ID: ${anilistId}`);
+          this.processPage(anilistId, container);
+        }
+      }
     }
 
-    async processPage(anilistId) {
+    async processPage(anilistId, container) {
       try {
-        const externalLinksContainer = await this.waitForElement('.external-links-wrap');
-        if (!externalLinksContainer) {
-          logger.error('External links container not found');
-          return;
-        }
-
         const traktData = await this.getTraktData(anilistId);
         if (traktData) {
-          if (traktData.trakt && traktData.trakt_type && !this.hasTraktLink(externalLinksContainer)) {
-            this.addTraktLink(traktData, externalLinksContainer);
+          if (traktData.trakt && traktData.trakt_type && !this.hasTraktLink(container)) {
+            this.addExternalLink('trakt', traktData, container);
           }
-          if (traktData.myanimelist && !this.hasMyAnimeListLink(externalLinksContainer)) {
-            this.addMyAnimeListLink(traktData, externalLinksContainer);
+          if (traktData.myanimelist && !this.hasMyAnimeListLink(container)) {
+            this.addExternalLink('mal', traktData, container);
           }
         }
       } catch (error) {
@@ -124,7 +115,6 @@
         });
         logger.debug(`Cached Trakt data for AniList ID ${anilistId}`);
       }
-
       return traktData;
     }
 
@@ -132,34 +122,38 @@
       try {
         const data = await animeApi.fetch('anilist', anilistId);
         if (data?.trakt && data?.trakt_type) {
-          logger.debug(`Fetched Trakt data for AniList ID ${anilistId}`);
           return data;
         }
         logger.warn(`No Trakt data in response for AniList ID ${anilistId}`);
         return null;
       } catch (error) {
-        // Handle 404s differently - they mean no mapping exists, not an actual error
         if (error.message.includes('404')) {
           logger.warn(`No mapping data found for AniList ID ${anilistId} (404)`);
-          return null; // No data available for this anime
+          return null;
         }
         logger.error(`Failed to fetch Trakt data: ${error.message}`);
-        throw error; // Network or server errors should be thrown for retry
+        throw error;
       }
     }
 
-    addTraktLink(data, container) {
-      const traktUrl = `https://trakt.tv/${data.trakt_type}/${data.trakt}`;
-      const linkElement = this.createExternalLinkElement(traktUrl, 'Trakt', CONFIG.TRAKT_COLOR, CONFIG.ICON_URL_TRAKT);
+    addExternalLink(type, data, container) {
+      let url, name, color, iconUrl;
+      if (type === 'trakt') {
+        url = `https://trakt.tv/${data.trakt_type}/${data.trakt}`;
+        name = 'Trakt';
+        color = CONFIG.TRAKT_COLOR;
+        iconUrl = CONFIG.ICON_URL_TRAKT;
+      } else if (type === 'mal') {
+        url = `https://myanimelist.net/anime/${data.myanimelist}`;
+        name = 'MyAnimeList';
+        color = CONFIG.MAL_COLOR;
+        iconUrl = CONFIG.ICON_URL_MAL;
+      } else {
+        return;
+      }
+      const linkElement = this.createExternalLinkElement(url, name, color, iconUrl);
       container.appendChild(linkElement);
-      logger(`Added Trakt link: ${traktUrl}`);
-    }
-
-    addMyAnimeListLink(data, container) {
-      const malUrl = `https://myanimelist.net/anime/${data.myanimelist}`;
-      const linkElement = this.createExternalLinkElement(malUrl, 'MyAnimeList', CONFIG.MAL_COLOR, CONFIG.ICON_URL_MAL);
-      container.appendChild(linkElement);
-      logger(`Added MyAnimeList link: ${malUrl}`);
+      logger(`Added ${name} link: ${url}`);
     }
 
     createExternalLinkElement(url, name, color, iconUrl) {
@@ -168,13 +162,11 @@
       linkElement.href = url;
       linkElement.target = '_blank';
       linkElement.className = 'external-link';
-      // Use CSS custom property to match AniList's theming system
       linkElement.style.cssText = `--link-color: ${color};`;
 
       const iconWrapper = document.createElement('div');
       iconWrapper.setAttribute('data-v-c1b7ee7c', '');
       iconWrapper.className = 'icon-wrap';
-      // Transparent background to inherit container styles while avoiding visual conflicts
       iconWrapper.style.cssText = 'background: rgba(0, 0, 0, 0);';
 
       const iconImage = document.createElement('img');
@@ -195,35 +187,11 @@
       return linkElement;
     }
 
-    // Wait for element to appear in DOM with MutationObserver fallback
-    // for dynamically loaded content in single-page applications
-    waitForElement(selector) {
-      return new Promise(resolve => {
-        const element = document.querySelector(selector);
-        if (element) {
-          resolve(element);
-          return;
-        }
-
-        const observer = new MutationObserver(() => {
-          const foundElement = document.querySelector(selector);
-          if (foundElement) {
-            observer.disconnect();
-            resolve(foundElement);
-          }
-        });
-
-        observer.observe(document.body, {
-          childList: true,
-          subtree: true
-        });
-      });
-    }
-
-    // Extract AniList ID from URL path: /anime/{id}/{slug} - assumes standard AniList URL structure
+    /**
+     * Extract AniList ID from URL path.
+     */
     getAniListId() {
-      const pathParts = window.location.pathname.split('/');
-      const animeId = pathParts[2];
+      const [, , animeId] = window.location.pathname.split('/');
       return animeId && !isNaN(animeId) ? animeId : null;
     }
 
@@ -239,12 +207,10 @@
       return !!container.querySelector('a[href*="myanimelist.net"]');
     }
 
-    // Validates cache has timestamp and is within duration
     isCacheValid(cachedEntry) {
       return cachedEntry.timestamp && (Date.now() - cachedEntry.timestamp < CONFIG.CACHE_DURATION);
     }
 
-    // clear expired cache entries
     clearExpiredCache() {
       try {
         const values = GM_listValues();
