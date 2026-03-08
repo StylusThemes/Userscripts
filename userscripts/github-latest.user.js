@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          GitHub - Latest
-// @version       1.9.5
+// @version       1.9.6
 // @description   Always keep an eye on the latest activity of your favorite projects
 // @author        Journey Over
 // @license       MIT
@@ -31,14 +31,14 @@
   };
 
   const findTemplateTab = (navigationBody) => {
-    const issuesAnchor = navigationBody.querySelector('a[href*="/issues"]');
-    if (issuesAnchor) {
-      return issuesAnchor.closest('li') || issuesAnchor.closest(':scope > *') || issuesAnchor;
+    // Search for either the issues OR the pulls anchor
+    const anchor = navigationBody.querySelector('a[href*="/issues"], a[href*="/pulls"]');
+
+    if (anchor) {
+      return anchor.closest('li') || anchor.closest(':scope > *') || anchor;
     }
 
-    const fallback = [...navigationBody.children].find(child => child.querySelector('a'));
-    if (fallback) logger.debug('Fallback tab found as template');
-    return fallback || null;
+    return null;
   };
 
   const createLatestIssuesTab = (templateTab) => {
