@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          YouTube - Resumer
-// @version       2.2.0
+// @version       2.2.1
 // @description   Automatically saves and resumes YouTube videos from where you left off, with playlist, Shorts, and preview handling, plus automatic cleanup.
 // @author        Journey Over
 // @license       MIT
@@ -67,6 +67,8 @@
     if (!player || !videoElement || isNaN(time)) return;
     if (Math.abs(player.getCurrentTime() - time) < MIN_SEEK_DIFFERENCE) return;
 
+    logger.debug('Seeking video', { currentTime: player.getCurrentTime(), targetTime: time });
+
     const releaseLock = () => {
       if (videoElement._ytAutoResumeSeekPending) videoElement._ytAutoResumeSeekPending = false;
     };
@@ -89,6 +91,8 @@
 
   async function resumePlayback(player, videoId, videoElement, inPlaylist = false, playlistId = '', previousPlaylistId = null) {
     try {
+      logger.debug('Attempting to resume playback', { videoId, inPlaylist, playlistId, previousPlaylistId });
+
       const playerSize = player.getPlayerSize();
       if (playerSize.width === 0 || playerSize.height === 0) return;
 
@@ -109,6 +113,8 @@
       }
 
       if (resumeTime) {
+        logger('Resuming playback', { videoId: targetVideoId, resumeTime, inPlaylist });
+
         if (inPlaylist && videoId !== targetVideoId) {
           const playlistVideos = await waitForPlaylist(player);
           const videoIndex = playlistVideos.indexOf(targetVideoId);
@@ -132,6 +138,8 @@
 
       const currentTime = videoElement.currentTime;
       if (isNaN(currentTime) || currentTime === 0) return;
+
+      logger.debug('Updating status', { videoId, currentTime, type, playlistId });
 
       const storage = await getStorage();
       if (playlistId) {
@@ -157,6 +165,8 @@
   }
 
   async function handleVideo(playerContainer, player, videoElement, skipResume = false) {
+    logger.debug('Handling video load', { videoId: player.getVideoData()?.video_id, skipResume });
+
     // Cancel any existing listeners from the previous video
     if (currentAbortController) currentAbortController.abort();
     currentAbortController = new AbortController();
@@ -185,8 +195,11 @@
     let lastSaveTime = 0; // Track the last storage write
 
     const onTimeUpdate = () => {
-      const isAdShowing = player.classList.contains('ad-showing') || player.classList.contains('ad-interrupting');
-      if (isAdShowing) return; // Do not save progress while an ad is playing!
+      const isAdShowing = playerContainer.classList.contains('ad-showing') || playerContainer.classList.contains('ad-interrupting');
+      if (isAdShowing) {
+        logger.debug('Ad detected, skipping progress save');
+        return; // Do not save progress while an ad is playing!
+      }
 
       if (!hasResumed && !skipResume) {
         hasResumed = true;
@@ -201,7 +214,7 @@
     };
 
     const onRemoteUpdate = async (event_) => {
-      logger(`Remote update received`);
+      logger.debug('Remote update received', { time: event_.detail.time });
       await seekVideo(player, videoElement, event_.detail.time);
     };
 
@@ -212,9 +225,14 @@
   }
 
   function waitForPlaylist(player) {
+    logger.debug('Waiting for playlist data');
+
     return new Promise((resolve, reject) => {
       const existingPlaylist = player.getPlaylist();
-      if (existingPlaylist?.length) return resolve(existingPlaylist);
+      if (existingPlaylist?.length) {
+        logger.debug('Playlist already available', { length: existingPlaylist.length });
+        return resolve(existingPlaylist);
+      }
 
       let hasResolved = false;
       let checkInterval = null;
@@ -228,6 +246,7 @@
         if (hasResolved) return;
         const playlist = player.getPlaylist();
         if (playlist?.length) {
+          logger.debug('Playlist data received', { length: playlist.length });
           hasResolved = true;
           cleanup();
           resolve(playlist);
@@ -252,6 +271,8 @@
 
   function onStorageChange(storageKey, newStorageValue, isRemoteChange) {
     if (!isRemoteChange || !newStorageValue) return;
+
+    logger.debug('Storage change detected', { storageKey, isRemoteChange });
     // Sync playback position across tabs for current video
     let resumeTime;
     if (storageKey === currentVideoContext.playlistId && newStorageValue.videos) {
@@ -266,6 +287,8 @@
 
   async function cleanupOldData() {
     try {
+      logger.debug('Starting cleanup of old data');
+
       const storage = await getStorage();
       const videoCleanup = async () => {
         for (const videoId in storage.videos) {
@@ -294,6 +317,8 @@
   }
 
   async function periodicCleanup() {
+    logger.debug('Checking if periodic cleanup is needed');
+
     const storage = await getStorage();
     const lastCleanupTime = storage.meta.lastCleanup || 0;
     if (Date.now() - lastCleanupTime < CLEANUP_INTERVAL_MS) return;
@@ -304,6 +329,8 @@
   }
 
   function interceptTimestampLinks() {
+    logger.debug('Setting up timestamp link interception');
+
     document.documentElement.addEventListener('click', (event) => {
       const anchor = event.target.closest('a');
       if (!anchor || !anchor.href || !/[?&]t=/.test(anchor.href)) return;
@@ -314,6 +341,7 @@
       try {
         const url = new URL(anchor.href);
         if (url.searchParams.has('t')) {
+          logger.debug('Intercepting timestamp link', { originalUrl: anchor.href });
           url.searchParams.delete('t');
           const newUrl = url.toString();
           anchor.href = newUrl;
@@ -331,6 +359,8 @@
 
   async function init() {
     try {
+      logger('Initializing YouTube Resumer');
+
       window.addEventListener('pagehide', () => currentAbortController?.abort(), true);
 
       await periodicCleanup();
@@ -355,6 +385,8 @@
   }
 
   function initVideoLoad() {
+    logger.debug('Initializing video load');
+
     const player = document.querySelector('#movie_player');
     if (!player) return;
     const videoElement = player.querySelector('video');
@@ -362,6 +394,8 @@
   }
 
   function onVideoContainerLoad(event_) {
+    logger.debug('Video container updated');
+
     const videoContainer = event_.target;
     const playerInstance = videoContainer?.player_;
     const videoElement = videoContainer?.querySelector('video');
