@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          YouTube - Resumer
-// @version       2.2.1
+// @version       2.2.2
 // @description   Automatically saves and resumes YouTube videos from where you left off, with playlist, Shorts, and preview handling, plus automatic cleanup.
 // @author        Journey Over
 // @license       MIT
@@ -28,8 +28,6 @@
   const DAYS_TO_KEEP_SHORTS = 1;
   const DAYS_TO_KEEP_PREVIEWS = 10 / (24 * 60);
   const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
-
-  const TAB_ID = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
 
   let currentAbortController = null;
   let currentVideoContext = { videoId: null, playlistId: null };
@@ -92,9 +90,6 @@
     try {
       logger.debug('Attempting to resume playback', { videoId, inPlaylist, playlistId, previousPlaylistId });
 
-      const playerSize = player.getPlayerSize();
-      if (playerSize.width === 0 || playerSize.height === 0) return;
-
       const storage = await getStorage();
       const storedData = inPlaylist ? storage.playlists[playlistId] : storage.videos[videoId];
       if (!storedData) return;
@@ -128,9 +123,6 @@
   }
 
   async function updateStatus(player, videoElement, type, playlistId = '') {
-    const currentLock = GM_getValue('yt_resumer_focus_lock');
-    if (currentLock && currentLock !== TAB_ID) return; // Do not write if backgrounded
-
     try {
       const videoId = player.getVideoData()?.video_id;
       if (!videoId) return;
@@ -191,19 +183,25 @@
 
     const videoType = window.location.pathname.startsWith('/shorts/') ? 'short' : isPreviewVideo ? 'preview' : 'regular';
     let hasResumed = false;
-    let lastSaveTime = 0; // Track the last storage write
+    let isResuming = false;
+    let lastSaveTime = Date.now();
 
     const onTimeUpdate = () => {
       const isAdShowing = playerContainer.classList.contains('ad-showing') || playerContainer.classList.contains('ad-interrupting');
-      if (isAdShowing) {
-        logger.debug('Ad detected, skipping progress save');
-        return; // Do not save progress while an ad is playing!
-      }
+
+      // Do not save progress while an ad is playing, while waiting for the resume jump, or while seeking natively!
+      if (isAdShowing || isResuming || videoElement._ytAutoResumeSeekPending) return;
 
       if (!hasResumed && !skipResume) {
-        hasResumed = true;
-        resumePlayback(player, videoId, videoElement, !!playlistId, playlistId, lastPlaylistId);
-      } else {
+        isResuming = true;
+
+        // Wait for the async resume process to completely finish before unlocking
+        resumePlayback(player, videoId, videoElement, !!playlistId, playlistId, lastPlaylistId).then(() => {
+          hasResumed = true;
+          isResuming = false;
+          lastSaveTime = Date.now();
+        });
+      } else if (hasResumed) {
         const now = Date.now();
         if (now - lastSaveTime > 1000) {
           updateStatus(player, videoElement, videoType, playlistId);
@@ -369,15 +367,12 @@
 
       interceptTimestampLinks();
 
-      GM_setValue('yt_resumer_focus_lock', TAB_ID);
-      window.addEventListener('focus', () => GM_setValue('yt_resumer_focus_lock', TAB_ID));
-
       logger('This tab is handling the initial load');
       window.addEventListener('pageshow', () => {
         logger('This tab is handling the video load');
         initVideoLoad();
         window.addEventListener('yt-player-updated', onVideoContainerLoad, true);
-        window.addEventListener('yt-autonav-pause-player-ended', () => currentAbortController?.abort(), true);
+        // window.addEventListener('yt-autonav-pause-player-ended', () => currentAbortController?.abort(), true);
       }, { once: true });
 
     } catch (error) { logger.error('Initialization failed', error); }
