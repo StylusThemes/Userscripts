@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          YouTube - Resumer
-// @version       2.1.1
+// @version       2.2.0
 // @description   Automatically saves and resumes YouTube videos from where you left off, with playlist, Shorts, and preview handling, plus automatic cleanup.
 // @author        Journey Over
 // @license       MIT
@@ -29,7 +29,9 @@
   const DAYS_TO_KEEP_PREVIEWS = 10 / (24 * 60);
   const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
 
-  let cleanupFunction = null;
+  const TAB_ID = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
+
+  let currentAbortController = null;
   let currentVideoContext = { videoId: null, playlistId: null };
   let lastPlaylistId = null;
 
@@ -63,20 +65,26 @@
 
   async function seekVideo(player, videoElement, time) {
     if (!player || !videoElement || isNaN(time)) return;
-    if (Math.abs(player.getCurrentTime() - time) > MIN_SEEK_DIFFERENCE) {
-      await new Promise(resolve => {
-        const onSeeked = () => {
-          clearTimeout(timeout);
-          videoElement.removeEventListener('seeked', onSeeked);
-          resolve();
-        };
-        const timeout = setTimeout(onSeeked, 1500);
-        videoElement.addEventListener('seeked', onSeeked, { once: true });
-        // Skip buffering check on homepage to handle preview videos
-        player.seekTo(time, true, { skipBufferingCheck: window.location.pathname === '/' });
-        logger(`Seeking to ${Math.round(time)}s`);
-      });
+    if (Math.abs(player.getCurrentTime() - time) < MIN_SEEK_DIFFERENCE) return;
+
+    const releaseLock = () => {
+      if (videoElement._ytAutoResumeSeekPending) videoElement._ytAutoResumeSeekPending = false;
+    };
+
+    // If the browser is busy seeking, wait for it to finish then try again
+    if (videoElement.seeking && !videoElement._ytAutoResumeSeekPending) {
+      const retrySeek = () => {
+        setTimeout(() => seekVideo(player, videoElement, time), 0);
+      };
+      videoElement.addEventListener('seeked', retrySeek, { once: true });
+      return;
     }
+
+    videoElement.addEventListener('seeked', releaseLock, { once: true });
+    videoElement._ytAutoResumeSeekPending = true;
+
+    // Your existing seek logic
+    player.seekTo(time, true, { skipBufferingCheck: window.location.pathname === '/' });
   }
 
   async function resumePlayback(player, videoId, videoElement, inPlaylist = false, playlistId = '', previousPlaylistId = null) {
@@ -115,6 +123,9 @@
   }
 
   async function updateStatus(player, videoElement, type, playlistId = '') {
+    const currentLock = GM_getValue('yt_resumer_focus_lock');
+    if (currentLock && currentLock !== TAB_ID) return; // Do not write if backgrounded
+
     try {
       const videoId = player.getVideoData()?.video_id;
       if (!videoId) return;
@@ -146,7 +157,10 @@
   }
 
   async function handleVideo(playerContainer, player, videoElement, skipResume = false) {
-    if (cleanupFunction) cleanupFunction();
+    // Cancel any existing listeners from the previous video
+    if (currentAbortController) currentAbortController.abort();
+    currentAbortController = new AbortController();
+    const signal = currentAbortController.signal;
 
     const urlSearchParameters = new URLSearchParams(window.location.search);
     const videoId = urlSearchParameters.get('v') || player.getVideoData()?.video_id;
@@ -168,13 +182,21 @@
 
     const videoType = window.location.pathname.startsWith('/shorts/') ? 'short' : isPreviewVideo ? 'preview' : 'regular';
     let hasResumed = false;
+    let lastSaveTime = 0; // Track the last storage write
 
     const onTimeUpdate = () => {
+      const isAdShowing = player.classList.contains('ad-showing') || player.classList.contains('ad-interrupting');
+      if (isAdShowing) return; // Do not save progress while an ad is playing!
+
       if (!hasResumed && !skipResume) {
         hasResumed = true;
         resumePlayback(player, videoId, videoElement, !!playlistId, playlistId, lastPlaylistId);
       } else {
-        updateStatus(player, videoElement, videoType, playlistId);
+        const now = Date.now();
+        if (now - lastSaveTime > 1000) {
+          updateStatus(player, videoElement, videoType, playlistId);
+          lastSaveTime = now;
+        }
       }
     };
 
@@ -183,14 +205,8 @@
       await seekVideo(player, videoElement, event_.detail.time);
     };
 
-    videoElement.addEventListener('timeupdate', onTimeUpdate, true);
-    window.addEventListener('yt-resumer-remote-update', onRemoteUpdate, true);
-
-    cleanupFunction = () => {
-      videoElement.removeEventListener('timeupdate', onTimeUpdate, true);
-      window.removeEventListener('yt-resumer-remote-update', onRemoteUpdate, true);
-      currentVideoContext = { videoId: null, playlistId: null };
-    };
+    videoElement.addEventListener('timeupdate', onTimeUpdate, { signal });
+    window.addEventListener('yt-resumer-remote-update', onRemoteUpdate, { signal });
 
     lastPlaylistId = playlistId;
   }
@@ -200,15 +216,35 @@
       const existingPlaylist = player.getPlaylist();
       if (existingPlaylist?.length) return resolve(existingPlaylist);
 
-      let attempts = 0;
-      const checkInterval = setInterval(() => {
+      let hasResolved = false;
+      let checkInterval = null;
+
+      const cleanup = () => {
+        document.removeEventListener('yt-playlist-data-updated', checkPlaylist);
+        if (checkInterval) clearInterval(checkInterval);
+      };
+
+      const checkPlaylist = () => {
+        if (hasResolved) return;
         const playlist = player.getPlaylist();
         if (playlist?.length) {
-          clearInterval(checkInterval);
+          hasResolved = true;
+          cleanup();
           resolve(playlist);
-        } else if (++attempts > 50) {
-          clearInterval(checkInterval);
-          reject('Playlist not found');
+        }
+      };
+
+      // Listen for YouTube's native event
+      document.addEventListener('yt-playlist-data-updated', checkPlaylist, { once: true });
+
+      // Fallback polling just in case the event fired before we started listening
+      let attempts = 0;
+      checkInterval = setInterval(() => {
+        checkPlaylist();
+        if (!hasResolved && ++attempts > 50) {
+          hasResolved = true;
+          cleanup();
+          reject(new Error('Playlist not found'));
         }
       }, 100);
     });
@@ -231,21 +267,26 @@
   async function cleanupOldData() {
     try {
       const storage = await getStorage();
-      for (const videoId in storage.videos) {
-        if (isExpired(storage.videos[videoId])) delete storage.videos[videoId];
-      }
-      for (const playlistId in storage.playlists) {
-        let hasChanged = false;
-        const playlist = storage.playlists[playlistId];
-        for (const videoId in playlist.videos) {
-          if (isExpired(playlist.videos[videoId])) {
-            delete playlist.videos[videoId];
-            hasChanged = true;
-          }
+      const videoCleanup = async () => {
+        for (const videoId in storage.videos) {
+          if (isExpired(storage.videos[videoId])) delete storage.videos[videoId];
         }
-        if (Object.keys(playlist.videos).length === 0) delete storage.playlists[playlistId];
-        else if (hasChanged) storage.playlists[playlistId] = playlist;
-      }
+      };
+      const playlistCleanup = async () => {
+        for (const playlistId in storage.playlists) {
+          let hasChanged = false;
+          const playlist = storage.playlists[playlistId];
+          for (const videoId in playlist.videos) {
+            if (isExpired(playlist.videos[videoId])) {
+              delete playlist.videos[videoId];
+              hasChanged = true;
+            }
+          }
+          if (Object.keys(playlist.videos).length === 0) delete storage.playlists[playlistId];
+          else if (hasChanged) storage.playlists[playlistId] = playlist;
+        }
+      };
+      await Promise.all([videoCleanup(), playlistCleanup()]);
       await setStorage(storage);
     } catch (error) {
       logger.error(`Failed to clean up stored playback statuses: ${error}`);
@@ -262,21 +303,52 @@
     await cleanupOldData();
   }
 
+  function interceptTimestampLinks() {
+    document.documentElement.addEventListener('click', (event) => {
+      const anchor = event.target.closest('a');
+      if (!anchor || !anchor.href || !/[?&]t=/.test(anchor.href)) return;
+
+      const isNewTabClick = event.button !== 0 || event.ctrlKey || event.metaKey;
+      if (isNewTabClick) return;
+
+      try {
+        const url = new URL(anchor.href);
+        if (url.searchParams.has('t')) {
+          url.searchParams.delete('t');
+          const newUrl = url.toString();
+          anchor.href = newUrl;
+
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          history.pushState(null, '', newUrl);
+          window.dispatchEvent(new PopStateEvent('popstate', { state: null }));
+        }
+      } catch (error) {
+        logger('Could not modify link href:', error);
+      }
+    }, true);
+  }
+
   async function init() {
     try {
-      window.addEventListener('pagehide', () => cleanupFunction?.(), true);
+      window.addEventListener('pagehide', () => currentAbortController?.abort(), true);
 
       await periodicCleanup();
       setInterval(periodicCleanup, CLEANUP_INTERVAL_MS);
 
       GM_addValueChangeListener(onStorageChange);
 
+      interceptTimestampLinks();
+
+      GM_setValue('yt_resumer_focus_lock', TAB_ID);
+      window.addEventListener('focus', () => GM_setValue('yt_resumer_focus_lock', TAB_ID));
+
       logger('This tab is handling the initial load');
       window.addEventListener('pageshow', () => {
         logger('This tab is handling the video load');
         initVideoLoad();
         window.addEventListener('yt-player-updated', onVideoContainerLoad, true);
-        window.addEventListener('yt-autonav-pause-player-ended', () => cleanupFunction?.(), true);
+        window.addEventListener('yt-autonav-pause-player-ended', () => currentAbortController?.abort(), true);
       }, { once: true });
 
     } catch (error) { logger.error('Initialization failed', error); }
