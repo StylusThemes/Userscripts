@@ -1,6 +1,6 @@
 // ==UserScript==
-// @name          Reddit highlight new comments
-// @version       1.0.0
+// @name          Reddit - Highlight New Comments
+// @version       1.1.0
 // @description   Highlights new comments since your last visit
 // @author        Journey Over
 // @license       MIT
@@ -49,6 +49,7 @@ const HNC = {
     if (!document.getElementById('noresults')) {
       if (this.config.history[thread].length > 1) {
         this.highlight(this.config.history[thread][1]);
+        this.setupResStyles();
         this.ui.create_comment_highlighter(this.config.history[thread]);
         this.ui.create_config_dialog();
         GM_addStyle(this.data.config_style);
@@ -98,6 +99,11 @@ const HNC = {
 
         if (elements[this.config.apply_on]) {
           elements[this.config.apply_on].setAttribute('style', this.generate_comment_style(time, since));
+          if (this.config.apply_on === 'comment') {
+            const color = this.get_color(Date.now() - time, Date.now() - since);
+            comment.style.setProperty('--hnc-color', color);
+            comment.style.setProperty('--hnc-color-selected', tinycolor(color).darken(2).toHslString());
+          }
         }
       }
     }
@@ -168,6 +174,28 @@ const HNC = {
     });
 
     return color_final.toHslString();
+  },
+
+  setupResStyles() {
+    const existing = document.getElementById('hnc-res-styles');
+    if (existing) existing.remove();
+
+    if (this.config.apply_on !== 'comment') return;
+
+    const style = document.createElement('style');
+    style.id = 'hnc-res-styles';
+    style.textContent = [
+      '.res-nightmode .hnc_new .entry.res-selected,',
+      '.res-nightmode .hnc_new .entry.res-selected .md-container {',
+      '  background-color: var(--hnc-color-selected) !important;',
+      '}',
+      '.res .commentarea .hnc_new .RES-keyNav-activeElement,',
+      '.res .commentarea .hnc_new .RES-keyNav-activeElement .md,',
+      '.res .commentarea .hnc_new .RES-keyNav-activeElement.entry .noncollapsed {',
+      '  background-color: var(--hnc-color-selected) !important;',
+      '}',
+    ].join('\n');
+    document.head.appendChild(style);
   },
 };
 
@@ -402,6 +430,8 @@ HNC.ui = {
       HNC.config[name] = event.target.value;
     }
 
+    if (name === 'apply_on') HNC.setupResStyles();
+
     this.update_preview();
   },
 
@@ -418,6 +448,7 @@ HNC.ui = {
       toolbar.classList.toggle('hnc-light-mode', !HNC.config.dark_mode);
     }
 
+    HNC.setupResStyles();
     this.load_config_values();
   },
 
@@ -752,16 +783,6 @@ HNC.data = {
         }
 
         #hnc_config_icon:hover { opacity: 1 !important; background-color: rgba(128,128,128,0.2); }
-
-        /*.thing.hnc_new.res-selected,
-        .thing.hnc_new .entry.res-selected,
-        .thing.hnc_new .RES-keyNav-activeElement,
-        .res-nightmode .thing.hnc_new.res-selected,
-        .res-nightmode .thing.hnc_new .entry.res-selected,
-        .res-nightmode .thing.hnc_new .RES-keyNav-activeElement,
-        .res-nightmode .entry.res-selected, .res-nightmode .entry.res-selected .md-container {
-            background-color: transparent !important;
-        }*/
     `
 };
 

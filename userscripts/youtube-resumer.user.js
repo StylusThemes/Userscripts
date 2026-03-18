@@ -85,7 +85,6 @@
     videoElement.addEventListener('seeked', releaseLock, { once: true });
     videoElement._ytAutoResumeSeekPending = true;
 
-    // Your existing seek logic
     player.seekTo(time, true, { skipBufferingCheck: window.location.pathname === '/' });
   }
 
