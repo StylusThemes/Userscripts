@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          YouTube - Filters
-// @version       2.4.0
+// @version       2.4.1
 // @description   Filter out unwanted content on YouTube to enhance your browsing experience. (Currently is able to filter videos based on age and members-only status)
 // @author        Journey Over
 // @license       MIT
@@ -111,17 +111,32 @@
   function getVideoAgeTextAndYears(videoElement) {
     for (const ageElement of queryAll(videoElement, AGE_SELECTORS)) {
       const ageText = (ageElement.textContent || '').trim();
+
       if (/\bago\b/i.test(ageText)) {
-        const ageMatch = ageText.match(/(\d+)\s+(minute|hour|day|week|month|year)s?\s+ago/i);
+        // Matches both classic ("2 days ago", "1 month ago") and new abbreviated ("2d ago", "1mo ago") formats
+        const ageMatch = ageText.match(/(\d+)\s*(minute|hour|day|week|month|year|mo|m|h|d|w|y)s?\s+ago/i);
+
         if (ageMatch) {
           const ageValue = parseInt(ageMatch[1], 10);
-          const ageUnit = ageMatch[2].toLowerCase();
-          const ageInYears = convertToYears(ageValue, ageUnit.includes('minute') ? 'minutes' :
-            ageUnit.includes('hour') ? 'hours' :
-            ageUnit.includes('day') ? 'days' :
-            ageUnit.includes('week') ? 'weeks' :
-            ageUnit.includes('month') ? 'months' :
-            'years');
+          const rawUnit = ageMatch[2].toLowerCase();
+
+          const unitMapping = {
+            m: 'minutes',
+            minute: 'minutes',
+            h: 'hours',
+            hour: 'hours',
+            d: 'days',
+            day: 'days',
+            w: 'weeks',
+            week: 'weeks',
+            mo: 'months',
+            month: 'months',
+            y: 'years',
+            year: 'years'
+          };
+
+          const ageUnit = unitMapping[rawUnit] || 'years';
+          const ageInYears = convertToYears(ageValue, ageUnit);
           return { text: ageText, years: ageInYears };
         }
         return { text: ageText, years: 0 };
@@ -225,6 +240,8 @@
   }
 
   function observeMembersOnly() {
+    // Use MutationObserver to detect newly added members-only badges and remove them
+    // Also listen to YouTube's custom events for page changes to rescan content
     const observer = new MutationObserver(mutations => {
       for (const mutation of mutations) {
         if (mutation.type === 'childList') {
@@ -309,7 +326,6 @@
   function openSettingsMenu() {
     if (document.getElementById(UI.overlayId)) return;
 
-    // Temporary variables to hold unsaved changes
     let temporaryAgeFilteringEnabled = AGE_FILTERING_ENABLED;
     let temporaryAgeThreshold = { ...AGE_THRESHOLD };
     let temporaryMembersOnlyEnabled = MEMBERS_ONLY_ENABLED;
@@ -336,7 +352,6 @@
 
     const body = createElement('div', 'ytf-body');
 
-    // Build rows utilizing temporary variables
     body.appendChild(createToggleRow('Enable Age Filtering', temporaryAgeFilteringEnabled, (checked) => {
       temporaryAgeFilteringEnabled = checked;
     }));
@@ -353,7 +368,6 @@
       temporaryDebugEnabled = checked;
     }));
 
-    // Build the footer with Save & Cancel buttons
     const footer = createElement('div', 'ytf-footer');
 
     const cancelButton = createElement('button', 'ytf-btn ytf-btn-secondary', 'Cancel');
