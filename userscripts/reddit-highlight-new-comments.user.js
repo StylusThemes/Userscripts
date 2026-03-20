@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          Reddit - Highlight New Comments
-// @version       1.1.0
+// @version       1.1.1
 // @description   Highlights new comments since your last visit
 // @author        Journey Over
 // @license       MIT
@@ -59,16 +59,33 @@ const HNC = {
     this.cfg.save();
   },
 
+  _getLoggedInUsername() {
+    if (!document.body.classList.contains('loggedin')) return null;
+    const userElement = document.getElementsByClassName('user')[0];
+    return userElement?.firstElementChild?.textContent || null;
+  },
+
+  _applyHighlightStyle(comment, tagline, time, since) {
+    const elements = {
+      'comment': comment,
+      'text': comment.getElementsByClassName('usertext-body')[0]?.firstElementChild,
+      'time': comment.getElementsByClassName('live-timestamp')[0] || tagline.getElementsByTagName('time')[0],
+    };
+
+    const targetElement = elements[this.config.apply_on];
+    if (!targetElement) return;
+
+    targetElement.setAttribute('style', this.generate_comment_style(time, since));
+    if (this.config.apply_on === 'comment') {
+      const color = this.get_color(Date.now() - time, Date.now() - since);
+      comment.style.setProperty('--hnc-color', color);
+      comment.style.setProperty('--hnc-color-selected', tinycolor(color).darken(2).toHslString());
+    }
+  },
+
   highlight(since) {
     const comments = document.getElementsByClassName('comment');
-    let username;
-
-    if (document.body.classList.contains('loggedin')) {
-      const userElement = document.getElementsByClassName('user')[0];
-      if (userElement && userElement.firstElementChild) {
-        username = userElement.firstElementChild.textContent;
-      }
-    }
+    const username = this._getLoggedInUsername();
 
     for (const comment of comments) {
       if (comment.classList.contains('deleted') || comment.classList.contains('spam')) continue;
@@ -76,8 +93,7 @@ const HNC = {
       const authorElement = comment.getElementsByClassName('author')[0];
       if (!authorElement) continue;
 
-      const author = authorElement.textContent;
-      if (username && username === author) continue;
+      if (username && username === authorElement.textContent) continue;
 
       const tagline = comment.getElementsByClassName('tagline')[0];
       if (!tagline) continue;
@@ -90,21 +106,7 @@ const HNC = {
 
       if (time > since) {
         comment.classList.add('hnc_new');
-
-        const elements = {
-          'comment': comment,
-          'text': comment.getElementsByClassName('usertext-body')[0]?.firstElementChild,
-          'time': comment.getElementsByClassName('live-timestamp')[0] || times[0],
-        };
-
-        if (elements[this.config.apply_on]) {
-          elements[this.config.apply_on].setAttribute('style', this.generate_comment_style(time, since));
-          if (this.config.apply_on === 'comment') {
-            const color = this.get_color(Date.now() - time, Date.now() - since);
-            comment.style.setProperty('--hnc-color', color);
-            comment.style.setProperty('--hnc-color-selected', tinycolor(color).darken(2).toHslString());
-          }
-        }
+        this._applyHighlightStyle(comment, tagline, time, since);
       }
     }
   },

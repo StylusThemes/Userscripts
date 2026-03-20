@@ -5,7 +5,7 @@
 // @name         @journeyover/wikidata
 // @description  Wikidata API client for fetching external IDs
 // @license      MIT
-// @version      1.2.0
+// @version      1.2.1
 // @homepageURL  https://github.com/StylusThemes/Userscripts
 // ==/UserLibrary==
 // @connect      query.wikidata.org
@@ -178,6 +178,42 @@ this.Wikidata = class {
   }
 
   /**
+   * Builds the links object from Wikidata SPARQL query results.
+   * @param {Object} results - A single binding result from the SPARQL query.
+   * @returns {Object} An object mapping link display names to their URL objects.
+   */
+  _buildLinks(results) {
+    const simpleMappings = [
+      ['IMDB', 'IMDb', 'IMDb'],
+      ['Trakt', 'Trakt', 'Trakt'],
+      ['Rotten Tomatoes', 'RottenTomatoes', 'Rotten Tomatoes'],
+      ['Metacritic', 'Metacritic', 'Metacritic'],
+      ['Letterboxd', 'Letterboxd', 'Letterboxd'],
+      ['TVmaze', 'TVmaze', 'TVmaze'],
+      ['MyAnimeList', 'MyAnimeList', 'MyAnimeList'],
+      ['AniDB', 'AniDB', 'AniDB'],
+      ['AniList', 'AniList', 'AniList'],
+      ['Kitsu', 'Kitsu', 'Kitsu'],
+      ['AniSearch', 'AniSearch', 'AniSearch'],
+      ['LiveChart', 'LiveChart', 'LiveChart'],
+    ];
+
+    const links = {};
+
+    for (const [linkKey, resultKey, linkSource] of simpleMappings) {
+      links[linkKey] = results[resultKey] ? this._link(linkSource, results[resultKey].value) : void 0;
+    }
+
+    // TMDB and TVDB have movie/tv type variants with movie taking priority
+    links.TMDB = results.TMDb_movie ? this._link('TMDb_movie', results.TMDb_movie.value) :
+      results.TMDb_tv ? this._link('TMDb_tv', results.TMDb_tv.value) : void 0;
+    links.TVDB = results.TVDb_movie ? this._link('TVDb_movie', results.TVDb_movie.value) :
+      results.TVDb_tv ? this._link('TVDb_tv', results.TVDb_tv.value) : void 0;
+
+    return links;
+  }
+
+  /**
    * Fetches external links and metadata for a given ID from Wikidata.
    * @param {string} id - The ID value (e.g., IMDB ID like "tt0111161").
    * @param {string} idSource - The source of the ID (e.g., "IMDb").
@@ -248,28 +284,7 @@ this.Wikidata = class {
             ) {
               const data = {
                 title: results.itemLabel ? results.itemLabel.value : void 0,
-                links: {
-                  IMDB: results.IMDb ? this._link('IMDb', results.IMDb.value) : void 0,
-                  TMDB: results.TMDb_movie || results.TMDb_tv ?
-                    results.TMDb_movie ?
-                    this._link('TMDb_movie', results.TMDb_movie.value) :
-                    this._link('TMDb_tv', results.TMDb_tv.value) : void 0,
-                  TVDB: results.TVDb_movie || results.TVDb_tv ?
-                    results.TVDb_movie ?
-                    this._link('TVDb_movie', results.TVDb_movie.value) :
-                    this._link('TVDb_tv', results.TVDb_tv.value) : void 0,
-                  Trakt: results.Trakt ? this._link('Trakt', results.Trakt.value) : void 0,
-                  'Rotten Tomatoes': results.RottenTomatoes ? this._link('Rotten Tomatoes', results.RottenTomatoes.value) : void 0,
-                  Metacritic: results.Metacritic ? this._link('Metacritic', results.Metacritic.value) : void 0,
-                  Letterboxd: results.Letterboxd ? this._link('Letterboxd', results.Letterboxd.value) : void 0,
-                  TVmaze: results.TVmaze ? this._link('TVmaze', results.TVmaze.value) : void 0,
-                  MyAnimeList: results.MyAnimeList ? this._link('MyAnimeList', results.MyAnimeList.value) : void 0,
-                  AniDB: results.AniDB ? this._link('AniDB', results.AniDB.value) : void 0,
-                  AniList: results.AniList ? this._link('AniList', results.AniList.value) : void 0,
-                  Kitsu: results.Kitsu ? this._link('Kitsu', results.Kitsu.value) : void 0,
-                  AniSearch: results.AniSearch ? this._link('AniSearch', results.AniSearch.value) : void 0,
-                  LiveChart: results.LiveChart ? this._link('LiveChart', results.LiveChart.value) : void 0,
-                },
+                links: this._buildLinks(results),
                 item: results.item ? results.item.value : void 0,
               };
 
