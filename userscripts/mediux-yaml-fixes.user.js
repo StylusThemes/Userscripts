@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          Mediux - Yaml Fixes
-// @version       2.2.2
+// @version       2.2.3
 // @description   Adds fixes and functions to Mediux
 // @author        Journey Over
 // @license       MIT
@@ -173,76 +173,49 @@
             }
           });
         });
+      },
+
+      parseFilesFromResponse(response) {
+        const responseWithoutEscapes = response.replaceAll('\\', '');
+        const regexFiles = /"files":(\[{"id":.*?}]),"boxset":/s;
+        const fileMatch = responseWithoutEscapes.match(regexFiles);
+
+        if (!fileMatch || !fileMatch[1]) return null;
+
+        try {
+          const files = JSON.parse(fileMatch[1]);
+          return files
+            .filter(file => !file.title.trim().endsWith('Collection'))
+            .sort((fileA, fileB) => fileA.title.localeCompare(fileB.title));
+        } catch (error) {
+          logger.error('Error parsing filesArray:', error);
+          return null;
+        }
       }
     },
 
     yaml: {
-      // Process entire boxset by fetching each set and generating YAML for all items
-      async loadBoxset(codeblock) {
-        const button = document.querySelector('#bsetbutton');
-        let yamlOutput = codeblock.textContent + '\n';
-        const sets = MediuxFixes.data.getSets();
-        const creator = GM_getValue('creator');
-        const startTime = Date.now();
-        let elapsedTime = 0;
-        const processedMovieTitles = [];
-
-        codeblock.innerText = 'Processing... 0 seconds';
-
-        const timerInterval = setInterval(() => {
-          elapsedTime = Math.floor((Date.now() - startTime) / 1000);
-          const latestMovies = processedMovieTitles.slice(-3).join(', ');
-          codeblock.innerText = `Processing... ${elapsedTime} seconds\nRecent processed: ${latestMovies}`;
-        }, 1000);
-
-        try {
-          for (const set of sets) {
-            try {
-              const response = await MediuxFixes.data.getSet(set.id);
-              const responseWithoutEscapes = response.replaceAll('\\', '');
-
-              const regexFiles = /"files":(\[{"id":.*?}]),"boxset":/s;
-              const fileMatch = responseWithoutEscapes.match(regexFiles);
-
-              if (fileMatch && fileMatch[1]) {
-                let files;
-                try {
-                  files = JSON.parse(fileMatch[1]);
-                } catch (error) {
-                  logger.error('Error parsing filesArray:', error);
-                  continue;
-                }
-
-                // Filter out collection posters and sort alphabetically
-                const filteredFiles = files
-                  .filter(file => !file.title.trim().endsWith('Collection'))
-                  .sort((fileA, fileB) => fileA.title.localeCompare(fileB.title));
-
-                for (const file of filteredFiles) {
-                  if (file.movie_id !== null) {
-                    const posterId = file.fileType === 'poster' && file.id.length > 0 ? file.id : 'N/A';
-                    const movieId = MediuxFixes.utils.isNonEmptyObject(file.movie_id) ? file.movie_id.id : 'N/A';
-                    const movieTitle = MediuxFixes.utils.isString(file.title) && file.title.length > 0 ? file.title.trimEnd() : 'N/A';
-
-                    yamlOutput += `  ${movieId}: # ${movieTitle} Poster by ${creator} on MediUX.  https://mediux.pro/sets/${set.id}\n    url_poster: https://api.mediux.pro/assets/${posterId}\n    `;
-                    processedMovieTitles.push(movieTitle);
-                    logger(`Title: ${movieTitle}\nPoster: ${posterId}`);
-                  } else if (file.movie_id_backdrop !== null) {
-                    const backdropId = file.fileType === 'backdrop' && file.id.length > 0 ? file.id : 'N/A';
-                    const movieId = MediuxFixes.utils.isNonEmptyObject(file.movie_id_backdrop) ? file.movie_id_backdrop.id : 'N/A';
-                    yamlOutput += `url_background: https://api.mediux.pro/assets/${backdropId}\n\n`;
-                    logger(`Backdrop: ${backdropId}\nMovie id: ${movieId}`);
-                  }
-                }
-              }
-            } catch (error) {
-              logger.error(`Error processing set ${set.id}:`, error);
-            }
-          }
-        } finally {
-          clearInterval(timerInterval);
+      _generateFileYaml(file, creator, setId) {
+        if (file.movie_id !== null) {
+          const posterId = file.fileType === 'poster' && file.id.length > 0 ? file.id : 'N/A';
+          const movieId = MediuxFixes.utils.isNonEmptyObject(file.movie_id) ? file.movie_id.id : 'N/A';
+          const movieTitle = MediuxFixes.utils.isString(file.title) && file.title.length > 0 ? file.title.trimEnd() : 'N/A';
+          const yaml = `  ${movieId}: # ${movieTitle} Poster by ${creator} on MediUX.  https://mediux.pro/sets/${setId}\n    url_poster: https://api.mediux.pro/assets/${posterId}\n    `;
+          logger(`Title: ${movieTitle}\nPoster: ${posterId}`);
+          return { yaml, title: movieTitle };
         }
 
+        if (file.movie_id_backdrop !== null) {
+          const backdropId = file.fileType === 'backdrop' && file.id.length > 0 ? file.id : 'N/A';
+          const movieId = MediuxFixes.utils.isNonEmptyObject(file.movie_id_backdrop) ? file.movie_id_backdrop.id : 'N/A';
+          logger(`Backdrop: ${backdropId}\nMovie id: ${movieId}`);
+          return { yaml: `url_background: https://api.mediux.pro/assets/${backdropId}\n\n`, title: null };
+        }
+
+        return { yaml: '', title: null };
+      },
+
+      _showCompletionLink(codeblock, button, yamlOutput) {
         codeblock.innerText = 'Processing complete!';
         const copyLink = document.createElement('a');
         copyLink.href = '#';
@@ -263,6 +236,45 @@
         });
 
         codeblock.appendChild(copyLink);
+      },
+
+      async loadBoxset(codeblock) {
+        const button = document.querySelector('#bsetbutton');
+        let yamlOutput = codeblock.textContent + '\n';
+        const sets = MediuxFixes.data.getSets();
+        const creator = GM_getValue('creator');
+        const startTime = Date.now();
+        const processedMovieTitles = [];
+
+        codeblock.innerText = 'Processing... 0 seconds';
+
+        const timerInterval = setInterval(() => {
+          const elapsedTime = Math.floor((Date.now() - startTime) / 1000);
+          const latestMovies = processedMovieTitles.slice(-3).join(', ');
+          codeblock.innerText = `Processing... ${elapsedTime} seconds\nRecent processed: ${latestMovies}`;
+        }, 1000);
+
+        try {
+          for (const set of sets) {
+            try {
+              const response = await MediuxFixes.data.getSet(set.id);
+              const files = MediuxFixes.data.parseFilesFromResponse(response);
+              if (!files) continue;
+
+              for (const file of files) {
+                const { yaml, title } = MediuxFixes.yaml._generateFileYaml(file, creator, set.id);
+                yamlOutput += yaml;
+                if (title) processedMovieTitles.push(title);
+              }
+            } catch (error) {
+              logger.error(`Error processing set ${set.id}:`, error);
+            }
+          }
+        } finally {
+          clearInterval(timerInterval);
+        }
+
+        MediuxFixes.yaml._showCompletionLink(codeblock, button, yamlOutput);
         const totalTime = Math.floor((Date.now() - startTime) / 1000);
         logger(`Total time taken: ${totalTime} seconds`);
       },
