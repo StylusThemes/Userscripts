@@ -5,7 +5,7 @@
 // @name         @journeyover/wikidata
 // @description  Wikidata API client for fetching external IDs
 // @license      MIT
-// @version      1.2.1
+// @version      1.2.2
 // @homepageURL  https://github.com/StylusThemes/Userscripts
 // ==/UserLibrary==
 // @connect      query.wikidata.org
@@ -201,14 +201,23 @@ this.Wikidata = class {
     const links = {};
 
     for (const [linkKey, resultKey, linkSource] of simpleMappings) {
-      links[linkKey] = results[resultKey] ? this._link(linkSource, results[resultKey].value) : void 0;
+      if (results[resultKey]) {
+        links[linkKey] = this._link(linkSource, results[resultKey].value);
+      }
     }
 
     // TMDB and TVDB have movie/tv type variants with movie taking priority
-    links.TMDB = results.TMDb_movie ? this._link('TMDb_movie', results.TMDb_movie.value) :
-      results.TMDb_tv ? this._link('TMDb_tv', results.TMDb_tv.value) : void 0;
-    links.TVDB = results.TVDb_movie ? this._link('TVDb_movie', results.TVDb_movie.value) :
-      results.TVDb_tv ? this._link('TVDb_tv', results.TVDb_tv.value) : void 0;
+    if (results.TMDb_movie) {
+      links.TMDB = this._link('TMDb_movie', results.TMDb_movie.value);
+    } else if (results.TMDb_tv) {
+      links.TMDB = this._link('TMDb_tv', results.TMDb_tv.value);
+    }
+
+    if (results.TVDb_movie) {
+      links.TVDB = this._link('TVDb_movie', results.TVDb_movie.value);
+    } else if (results.TVDb_tv) {
+      links.TVDB = this._link('TVDb_tv', results.TVDb_tv.value);
+    }
 
     return links;
   }
@@ -223,6 +232,7 @@ this.Wikidata = class {
    */
   links(id, idSource, itemType) {
     if (!id) throw new Error('An ID is required');
+    if (!/^[\w/.-]+$/.test(id)) throw new Error('ID contains invalid characters');
     if (!idSource) throw new Error('An ID source is required');
     if (!itemType || (itemType !== 'movie' && itemType !== 'tv')) throw new Error('Item type must be \'movie\' or \'tv\'');
     const property = this._property(idSource);

@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          YouTube - Resumer
-// @version       2.2.2
+// @version       2.2.3
 // @description   Automatically saves and resumes YouTube videos from where you left off, with playlist, Shorts, and preview handling, plus automatic cleanup.
 // @author        Journey Over
 // @license       MIT
@@ -69,6 +69,10 @@
 
     const releaseLock = () => {
       if (videoElement._ytAutoResumeSeekPending) videoElement._ytAutoResumeSeekPending = false;
+      clearTimeout(seekTimeout);
+      for (const event of ['seeked', 'abort', 'emptied', 'error']) {
+        videoElement.removeEventListener(event, releaseLock);
+      }
     };
 
     // If the browser is busy seeking, wait for it to finish then try again
@@ -80,7 +84,10 @@
       return;
     }
 
-    videoElement.addEventListener('seeked', releaseLock, { once: true });
+    for (const event of ['seeked', 'abort', 'emptied', 'error']) {
+      videoElement.addEventListener(event, releaseLock, { once: true });
+    }
+    const seekTimeout = setTimeout(releaseLock, 2000);
     videoElement._ytAutoResumeSeekPending = true;
 
     player.seekTo(time, true, { skipBufferingCheck: window.location.pathname === '/' });
@@ -160,6 +167,7 @@
 
     // Cancel any existing listeners from the previous video
     if (currentAbortController) currentAbortController.abort();
+    currentVideoContext = { videoId: null, playlistId: null };
     currentAbortController = new AbortController();
     const signal = currentAbortController.signal;
 
@@ -192,7 +200,9 @@
       // Do not save progress while an ad is playing, while waiting for the resume jump, or while seeking natively!
       if (isAdShowing || isResuming || videoElement._ytAutoResumeSeekPending) return;
 
-      if (!hasResumed && !skipResume) {
+      if (!hasResumed && skipResume) {
+        hasResumed = true;
+      } else if (!hasResumed) {
         isResuming = true;
 
         // Wait for the async resume process to completely finish before unlocking
@@ -266,16 +276,16 @@
     });
   }
 
-  function onStorageChange(storageKey, newStorageValue, isRemoteChange) {
+  function onStorageChange(storageKey, oldStorageValue, newStorageValue, isRemoteChange) {
     if (!isRemoteChange || !newStorageValue) return;
 
     logger.debug('Storage change detected', { storageKey, isRemoteChange });
     // Sync playback position across tabs for current video
     let resumeTime;
-    if (storageKey === currentVideoContext.playlistId && newStorageValue.videos) {
-      resumeTime = newStorageValue.videos[currentVideoContext.videoId]?.timestamp;
-    } else if (storageKey === currentVideoContext.videoId) {
-      resumeTime = newStorageValue.timestamp;
+    if (currentVideoContext.playlistId && newStorageValue.playlists?.[currentVideoContext.playlistId]?.videos) {
+      resumeTime = newStorageValue.playlists[currentVideoContext.playlistId].videos[currentVideoContext.videoId]?.timestamp;
+    } else if (currentVideoContext.videoId && newStorageValue.videos?.[currentVideoContext.videoId]) {
+      resumeTime = newStorageValue.videos[currentVideoContext.videoId].timestamp;
     }
     if (resumeTime) {
       window.dispatchEvent(new CustomEvent('yt-resumer-remote-update', { detail: { time: resumeTime } }));
@@ -329,10 +339,14 @@
     logger.debug('Setting up timestamp link interception');
 
     document.documentElement.addEventListener('click', (event) => {
+      if (!(event.target instanceof Element)) return;
       const anchor = event.target.closest('a');
       if (!anchor || !anchor.href || !/[?&]t=/.test(anchor.href)) return;
 
-      const isNewTabClick = event.button !== 0 || event.ctrlKey || event.metaKey;
+      // Allow native timestamp clicks inside comments and descriptions
+      if (anchor.closest('ytd-comments, ytd-text-inline-expander, #description, #content-text')) return;
+
+      const isNewTabClick = event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey;
       if (isNewTabClick) return;
 
       try {
@@ -358,12 +372,15 @@
     try {
       logger('Initializing YouTube Resumer');
 
-      window.addEventListener('pagehide', () => currentAbortController?.abort(), true);
+      window.addEventListener('pagehide', () => {
+        currentAbortController?.abort();
+        currentVideoContext = { videoId: null, playlistId: null };
+      }, true);
 
       await periodicCleanup();
       setInterval(periodicCleanup, CLEANUP_INTERVAL_MS);
 
-      GM_addValueChangeListener(onStorageChange);
+      GM_addValueChangeListener('yt_resumer_storage', onStorageChange);
 
       interceptTimestampLinks();
 

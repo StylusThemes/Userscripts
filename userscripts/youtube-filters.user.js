@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          YouTube - Filters
-// @version       2.4.1
+// @version       2.5.0
 // @description   Filter out unwanted content on YouTube to enhance your browsing experience. (Currently is able to filter videos based on age and members-only status)
 // @author        Journey Over
 // @license       MIT
@@ -220,23 +220,44 @@
   }
 
   // ---------- Observers ----------
-  async function observeNewVideos() {
-    while (true) {
-      try {
-        const unprocessedVideos = [...document.querySelectorAll(
-          VIDEO_SELECTORS.map(selector => `${selector}:not([data-processed])`).join(',')
-        )];
-        for (const videoElement of unprocessedVideos) {
-          if (AGE_FILTERING_ENABLED && !window.location.href.includes('@')) {
-            filterVideoByAge(videoElement);
+  function processUnfilteredVideos() {
+    try {
+      const unprocessedVideos = document.querySelectorAll(
+        VIDEO_SELECTORS.map(selector => `${selector}:not([data-processed])`).join(',')
+      );
+      for (const videoElement of unprocessedVideos) {
+        if (AGE_FILTERING_ENABLED && !window.location.href.includes('@')) {
+          filterVideoByAge(videoElement);
+        }
+      }
+      if (MEMBERS_ONLY_ENABLED) pruneMembersShelf();
+    } catch (error) {
+      logger.error(error);
+    }
+  }
+
+  function observeNewVideos() {
+    const unprocessedSelector = VIDEO_SELECTORS.map(selector => `${selector}:not([data-processed])`).join(',');
+
+    const observer = new MutationObserver(mutations => {
+      for (const mutation of mutations) {
+        if (mutation.type !== 'childList') continue;
+        for (const node of mutation.addedNodes) {
+          if (!(node instanceof Element)) continue;
+          if (node.matches(unprocessedSelector) || node.querySelector(unprocessedSelector)) {
+            processUnfilteredVideos();
+            return;
           }
         }
-        if (MEMBERS_ONLY_ENABLED) pruneMembersShelf();
-      } catch (error) {
-        logger.error(error);
       }
-      await new Promise(resolve => setTimeout(resolve, 50));
-    }
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+
+    const rescan = () => setTimeout(processUnfilteredVideos, 50);
+    window.addEventListener('yt-navigate-finish', rescan);
+    window.addEventListener('yt-page-data-updated', rescan);
+
+    processUnfilteredVideos();
   }
 
   function observeMembersOnly() {
@@ -272,12 +293,15 @@
   }
 
   function createToggleRow(labelText, initialState, onChangeCallback) {
+    const inputId = `ytf-toggle-${labelText.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
     const row = createElement('div', 'ytf-row');
-    const label = createElement('span', 'ytf-label', labelText);
+    const label = createElement('label', 'ytf-label', labelText);
+    label.setAttribute('for', inputId);
     const switchLabel = createElement('label', 'ytf-switch');
 
     const input = createElement('input');
     input.type = 'checkbox';
+    input.id = inputId;
     input.checked = initialState;
     input.addEventListener('change', () => onChangeCallback(input.checked));
 
@@ -292,15 +316,19 @@
 
   function createThresholdRow(initialState, onChangeCallback) {
     const row = createElement('div', 'ytf-row');
-    const label = createElement('span', 'ytf-label', 'Age Threshold');
+    const label = createElement('label', 'ytf-label', 'Age Threshold');
+    label.setAttribute('for', 'ytf-threshold-value');
     const group = createElement('div', 'ytf-input-group');
 
     const input = createElement('input', 'ytf-input');
     input.type = 'number';
+    input.id = 'ytf-threshold-value';
     input.min = '0';
     input.value = initialState.value;
 
     const select = createElement('select', 'ytf-select');
+    select.id = 'ytf-threshold-unit';
+    select.setAttribute('aria-label', 'Age Threshold Unit');
     for (const unit of ['minutes', 'hours', 'days', 'weeks', 'months', 'years']) {
       const opt = createElement('option');
       opt.value = unit;
@@ -339,12 +367,15 @@
 
     const modal = createElement('div');
     modal.id = UI.modalId;
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
 
     const header = createElement('div', 'ytf-header');
     const title = createElement('div', 'ytf-title', 'YouTube Filters');
     const closeButton = createElement('button', 'ytf-close', '×');
     closeButton.id = UI.closeButtonId;
     closeButton.type = 'button';
+    closeButton.setAttribute('aria-label', 'Close');
     closeButton.addEventListener('click', removeSettingsModal);
 
     header.appendChild(title);
