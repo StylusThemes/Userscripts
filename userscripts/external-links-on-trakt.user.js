@@ -1,12 +1,12 @@
 // ==UserScript==
 // @name          External links on Trakt
-// @version       3.6.1
+// @version       3.6.2
 // @description   Adds more external links to Trakt.tv pages, including dub information for anime shows.
 // @author        Journey Over
 // @license       MIT
 // @match         *://trakt.tv/*
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@0171b6b6f24caea737beafbc2a8dacd220b729d8/libs/utils/utils.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@bdb89f0006484468a4c3b3684dc63ee1bc7838ba/libs/metadata/wikidata/wikidata.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@91adf90f04633ea2c077f8a25fc08f9d75cbb7a4/libs/metadata/wikidata/wikidata.min.js
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@644b86d55bf5816a4fa2a165bdb011ef7c22dfe1/libs/metadata/armhaglund/armhaglund.min.js
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@644b86d55bf5816a4fa2a165bdb011ef7c22dfe1/libs/metadata/anilist/anilist.min.js
 // @require       https://cdn.jsdelivr.net/npm/node-creation-observer@1.2.0/release/node-creation-observer-latest.min.js
