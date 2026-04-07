@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          Magnet Link to Real-Debrid
-// @version       2.10.0
+// @version       2.11.0
 // @description   Automatically send magnet links to Real-Debrid
 // @author        Journey Over
 // @license       MIT
@@ -332,7 +332,6 @@
       this.buildTree(files);
     }
 
-    // Convert flat file list with paths into hierarchical tree structure
     buildTree(files) {
       for (const file of files) {
         const pathParts = file.path.split('/').filter(part => part.trim() !== '');
@@ -368,30 +367,14 @@
       }
     }
 
-    countFiles(node = this.root) {
-      if (node.type === 'file') return 1;
-      let count = 0;
-      if (node.children) {
-        for (const child of node.children) {
-          count += this.countFiles(child);
-        }
-      }
-      return count;
-    }
-
-    getAllFiles() {
+    getAllFiles(node = this.root) {
       const files = [];
-      const traverse = (node) => {
-        if (node.type === 'file') {
-          files.push(node);
-        }
-        if (node.children) {
-          for (const child of node.children) {
-            traverse(child);
-          }
-        }
+      const traverse = current => {
+        if (current.type === 'file') files.push(current);
+        if (current.children)
+          for (const child of current.children) traverse(child);
       };
-      traverse(this.root);
+      traverse(node);
       return files;
     }
 
@@ -405,7 +388,7 @@
       const id = 'rd-modern-styles';
       if (document.getElementById(id)) return;
 
-      const styles = `:root{--rd-green:#64cc2e;--rd-green-hover:#52a825;--rd-bg:#1d1d1d;--rd-panel:#242424;--rd-border:#333;--rd-text:#eee;--rd-text-dim:#999;--rd-input-bg:#161616;--rd-overlay:rgba(0,0,0,0.85)}.rd-overlay{position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;background:var(--rd-overlay);backdrop-filter:blur(5px);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;opacity:0;animation:rd-fade-in .2s forwards}@keyframes rd-fade-in{to{opacity:1}}.rd-dialog{width:800px;max-width:90%;height:600px;max-height:90vh;background:var(--rd-bg);border-radius:8px;box-shadow:0 20px 50px rgba(0,0,0,0.5);display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--rd-border)}.rd-header{padding:20px 25px;border-bottom:1px solid var(--rd-border);display:flex;justify-content:space-between;align-items:center;background:var(--rd-panel)}.rd-title{margin:0;font-size:20px;color:#fff;font-weight:600}.rd-close{background:0 0;border:none;color:var(--rd-text-dim);font-size:24px;cursor:pointer;line-height:1;padding:5px}.rd-close:hover{color:#fff}.rd-body{flex:1;display:flex;overflow:hidden}.rd-sidebar{width:200px;background:#181818;border-right:1px solid var(--rd-border);padding:15px 0;display:flex;flex-direction:column;gap:5px}.rd-nav-item{padding:12px 20px;cursor:pointer;color:var(--rd-text-dim);font-size:14px;font-weight:500;transition:.2s;border-left:3px solid transparent}.rd-nav-item:hover{color:#fff;background:rgba(255,255,255,.03)}.rd-nav-item.active{color:#fff;background:rgba(100,204,46,.1);border-left-color:var(--rd-green)}.rd-content{flex:1;padding:0;overflow-y:auto;position:relative}.rd-tab-pane{display:none;padding:25px}.rd-tab-pane.active{display:block;animation:rd-slide-up .3s ease}@keyframes rd-slide-up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}.rd-group{margin-bottom:20px}.rd-label{display:block;margin-bottom:8px;font-weight:600;color:var(--rd-text);font-size:14px}.rd-sub-label{font-size:12px;color:var(--rd-text-dim);margin-top:4px}.rd-input,.rd-textarea{width:100%;padding:12px;border-radius:6px;background:var(--rd-input-bg);border:1px solid var(--rd-border);color:#fff;font-size:14px;outline:0;transition:.2s;box-sizing:border-box}.rd-input:focus,.rd-textarea:focus{border-color:var(--rd-green)}.rd-textarea{min-height:100px;line-height:1.5;font-family:monospace}.rd-list-item{display:flex;align-items:center;justify-content:space-between;padding:15px;margin-bottom:10px;background:var(--rd-panel);border-radius:6px;border:1px solid transparent;transition:.2s}.rd-list-item:hover{border-color:#444}.rd-info h4{margin:0 0 4px;font-size:15px;color:#fff}.rd-info p{margin:0;font-size:12px;color:var(--rd-text-dim)}.rd-toggle{position:relative;width:44px;height:24px;flex-shrink:0}.rd-toggle input{opacity:0;width:0;height:0}.rd-slider{position:absolute;cursor:pointer;inset:0;background-color:#444;border-radius:24px;transition:.3s}.rd-slider:before{position:absolute;content:"";height:18px;width:18px;left:3px;bottom:3px;background-color:#fff;border-radius:50%;transition:.3s;box-shadow:0 2px 4px rgba(0,0,0,.2)}input:checked+.rd-slider{background-color:var(--rd-green)}input:checked+.rd-slider:before{transform:translateX(20px)}.rd-footer{padding:15px 25px;border-top:1px solid var(--rd-border);background:var(--rd-panel);display:flex;justify-content:flex-end;gap:10px}.rd-btn{padding:8px 16px;border-radius:4px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:.2s}.rd-btn-ghost{background:0 0;color:var(--rd-text-dim)}.rd-btn-ghost:hover{color:#fff;background:rgba(255,255,255,.05)}.rd-btn-primary{background:var(--rd-green);color:#fff}.rd-btn-primary:hover{background:var(--rd-green-hover)}.rd-file-dialog .rd-content{display:flex;flex-direction:column;height:100%}.rd-file-toolbar{display:flex;align-items:center;justify-content:space-between;padding:15px 25px;border-bottom:1px solid var(--rd-border);background:var(--rd-panel)}.rd-file-stats{font-size:13px;color:var(--rd-text-dim)}.rd-file-tree{flex:1;overflow-y:auto;padding:10px}.rd-tree-item{margin:1px 0}.rd-folder-header,.rd-file{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:4px;cursor:pointer;color:var(--rd-text-dim);font-size:13px}.rd-folder-header:hover,.rd-file:hover{background:var(--rd-panel);color:#fff}.rd-folder-name,.rd-file-name{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.rd-checkbox{accent-color:var(--rd-green);cursor:pointer}.rd-badge{background:#333;padding:2px 6px;border-radius:4px;font-size:11px}.rd-folder-children{margin-left:22px;border-left:1px solid #333}.rd-toast{position:fixed;bottom:20px;left:20px;background:var(--rd-panel);color:#fff;padding:12px 16px;border-radius:6px;z-index:10001;font-size:14px;box-shadow:0 5px 15px rgba(0,0,0,.3);border-left:4px solid var(--rd-green);animation:rd-slide-up .2s ease-out}.rd-input-wrapper{position:relative;width:100%}.rd-eye-btn{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:0 0;border:none;color:var(--rd-text-dim);cursor:pointer;font-size:16px;padding:0}.rd-eye-btn:hover{color:#fff}`;
+      const styles = `:root{--rd-green:#64cc2e;--rd-green-hover:#52a825;--rd-bg:#1d1d1d;--rd-panel:#242424;--rd-border:#333;--rd-text:#eee;--rd-text-dim:#999;--rd-input-bg:#161616;--rd-overlay:rgba(0,0,0,0.85);--rd-shadow:0 20px 50px rgba(0,0,0,0.5);--rd-radius:8px;--rd-transition:all 0.2s ease}.rd-overlay{position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;background:var(--rd-overlay);backdrop-filter:blur(5px);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;opacity:0;animation:rd-fade-in 0.2s forwards}@keyframes rd-fade-in{to{opacity:1}}.rd-dialog{width:800px;max-width:90%;height:600px;max-height:90vh;background:var(--rd-bg);border-radius:var(--rd-radius);box-shadow:var(--rd-shadow);display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--rd-border)}.rd-header{padding:20px 25px;border-bottom:1px solid var(--rd-border);display:flex;justify-content:space-between;align-items:center;background:var(--rd-panel)}.rd-title{margin:0;font-size:20px;color:#fff;font-weight:600}.rd-close{background:none;border:none;color:var(--rd-text-dim);font-size:24px;cursor:pointer;line-height:1;padding:5px;border-radius:4px;transition:var(--rd-transition)}.rd-close:hover{color:#fff;background:rgba(255,255,255,0.1)}.rd-body{flex:1;display:flex;overflow:hidden}.rd-sidebar{width:200px;background:#181818;border-right:1px solid var(--rd-border);padding:15px 0;display:flex;flex-direction:column;gap:5px}.rd-nav-item{padding:12px 20px;cursor:pointer;color:var(--rd-text-dim);font-size:14px;font-weight:500;transition:var(--rd-transition);border-left:3px solid transparent;background:none;border-top:none;border-right:none;border-bottom:none;text-align:left;font-family:inherit}.rd-nav-item:hover{color:#fff;background:rgba(255,255,255,0.03)}.rd-nav-item.active{color:#fff;background:rgba(100,204,46,0.1);border-left-color:var(--rd-green)}.rd-content{flex:1;padding:0;overflow-y:auto;position:relative}.rd-tab-pane{display:none;padding:20px}.rd-tab-pane.active{display:block}.rd-group{margin-bottom:20px}.rd-label{display:block;margin-bottom:8px;font-weight:500;color:var(--rd-text)}.rd-input-wrapper{position:relative;display:flex;align-items:center}.rd-input{width:100%;padding:12px 16px;background:var(--rd-input-bg);border:1px solid var(--rd-border);border-radius:6px;color:var(--rd-text);font-size:14px;transition:var(--rd-transition)}.rd-input:focus{outline:none;border-color:var(--rd-green);box-shadow:0 0 0 3px rgba(100,204,46,0.1)}.rd-input.invalid{border-color:#ef4444}.rd-eye-btn{position:absolute;right:12px;background:none;border:none;color:var(--rd-text-dim);cursor:pointer;padding:4px;border-radius:4px;transition:var(--rd-transition);display:flex;align-items:center;justify-content:center}.rd-eye-btn:hover{color:var(--rd-text);background:rgba(255,255,255,0.1)}.rd-eye-btn.active{color:var(--rd-green)}.rd-sub-label{display:block;margin-top:6px;font-size:12px;color:var(--rd-text-dim);line-height:1.4}.rd-sub-label a{color:var(--rd-green);text-decoration:none}.rd-sub-label a:hover{text-decoration:underline}.rd-list-item{display:flex;align-items:center;justify-content:space-between;padding:16px 0;border-bottom:1px solid var(--rd-border)}.rd-list-item:last-child{border-bottom:none}.rd-info{flex:1}.rd-info h4{margin:0 0 4px 0;font-size:16px;font-weight:600;color:var(--rd-text)}.rd-info p{margin:0;font-size:14px;color:var(--rd-text-dim);line-height:1.4}.rd-toggle{position:relative;display:inline-block;width:44px;height:24px;flex-shrink:0}.rd-toggle input{opacity:0;width:0;height:0}.rd-slider{position:absolute;cursor:pointer;inset:0;background:var(--rd-input-bg);border:1px solid var(--rd-border);border-radius:24px;transition:var(--rd-transition)}.rd-slider:before{position:absolute;content:"";height:18px;width:18px;left:2px;bottom:2px;background:#fff;border-radius:50%;transition:var(--rd-transition)}input:checked+.rd-slider{background:var(--rd-green);border-color:var(--rd-green)}input:checked+.rd-slider:before{transform:translateX(20px)}.rd-textarea{width:100%;min-height:80px;padding:12px 16px;background:var(--rd-input-bg);border:1px solid var(--rd-border);border-radius:6px;color:var(--rd-text);font-size:14px;font-family:inherit;resize:vertical;transition:var(--rd-transition)}.rd-textarea:focus{outline:none;border-color:var(--rd-green);box-shadow:0 0 0 3px rgba(100,204,46,0.1)}.rd-textarea.invalid{border-color:#ef4444}.rd-footer{padding:20px 25px;border-top:1px solid var(--rd-border);display:flex;justify-content:flex-end;gap:12px;background:var(--rd-panel)}.rd-btn{padding:10px 20px;border-radius:6px;font-size:14px;font-weight:500;cursor:pointer;transition:var(--rd-transition);border:1px solid transparent;display:inline-flex;align-items:center;gap:8px;font-family:inherit}.rd-btn:disabled{opacity:0.6;cursor:not-allowed}.rd-btn-primary{background:var(--rd-green);color:#fff;border-color:var(--rd-green)}.rd-btn-primary:hover:not(:disabled){background:var(--rd-green-hover);border-color:var(--rd-green-hover)}.rd-btn-ghost{background:transparent;color:var(--rd-text);border-color:var(--rd-border)}.rd-btn-ghost:hover:not(:disabled){background:rgba(255,255,255,0.1)}.rd-field-error{display:none;margin-top:6px;font-size:12px;color:#ef4444;animation:rd-shake 0.3s ease}.rd-field-error.show{display:block}@keyframes rd-shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-2px)}75%{transform:translateX(2px)}}@keyframes rd-spin{to{transform:rotate(360deg)}}.rd-spinner{animation:rd-spin 1s linear infinite}.rd-toast{position:fixed;bottom:20px;left:20px;padding:12px 16px;background:var(--rd-bg);border:1px solid var(--rd-border);border-radius:6px;color:var(--rd-text);font-size:14px;box-shadow:var(--rd-shadow);z-index:10001;max-width:300px;animation:rd-toast-in 0.3s ease}.rd-toast.error{border-left:4px solid #ef4444}.rd-toast.success{border-left:4px solid var(--rd-green)}@keyframes rd-toast-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}@keyframes rd-toast-out{to{opacity:0;transform:translateY(-10px) scale(0.95)}}.rd-file-dialog .rd-file-toolbar{display:flex;justify-content:space-between;align-items:center;padding:12px 20px;border-bottom:1px solid var(--rd-border);background:#1a1a1a}.rd-file-stats{font-size:13px;color:var(--rd-text-dim);font-weight:500}.rd-file-tree{padding:16px 20px;flex:1;overflow-y:auto}.rd-tree-item{margin-bottom:4px;border-radius:6px;transition:var(--rd-transition)}.rd-tree-item:hover{background:rgba(255,255,255,0.02)}.rd-folder-header,.rd-file{display:flex;align-items:center;padding:10px 14px;border-radius:6px;cursor:pointer;gap:10px}.rd-folder-header:hover,.rd-file:hover{background:rgba(100,204,46,0.08)}.rd-folder-name,.rd-file-name{flex:1;font-size:14px;color:var(--rd-text);font-weight:500}.rd-badge{background:#3b82f6;color:#fff;font-size:11px;padding:3px 8px;border-radius:12px;margin-left:auto;font-weight:500}.rd-checkbox{appearance:none;width:18px;height:18px;border:2px solid #555;border-radius:4px;background:#252525;cursor:pointer;position:relative;transition:var(--rd-transition);flex-shrink:0}.rd-checkbox:hover{border-color:#888}.rd-checkbox:checked{background:var(--rd-green);border-color:var(--rd-green)}.rd-checkbox:checked::after{content:'✓';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#fff;font-size:12px;font-weight:bold}.rd-checkbox:indeterminate{background:var(--rd-green);border-color:var(--rd-green)}.rd-checkbox:indeterminate::after{content:'−';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#fff;font-size:14px;font-weight:bold}.rd-file{padding-left:48px}.rd-file .rd-file-name{font-weight:400;font-size:13px}.rd-file .rd-file-name,.rd-file .rd-file-size{color:var(--rd-text-dim)}.rd-file-size{text-align:right;font-size:12px;color:var(--rd-text-dim);min-width:70px;flex-shrink:0}.rd-folder-children{margin-left:24px;padding-left:12px;border-left:1px solid #2a2a2a}.rd-folder-children .rd-tree-item:first-child{margin-top:8px}.rd-folder-children .rd-tree-item:last-child{margin-bottom:8px}.rd-folder-icon,.rd-file-icon{width:16px;height:16px;flex-shrink:0;opacity:0.7}.rd-file.selected{background:rgba(100,204,46,0.12);border:1px solid rgba(100,204,46,0.3)}.rd-folder-header.selected{background:rgba(100,204,46,0.08)}@media(max-width:768px){.rd-dialog{width:95%;height:90vh}.rd-sidebar{width:100%;border-right:none;border-bottom:1px solid var(--rd-border);flex-direction:row;overflow-x:auto}.rd-nav-item{padding:12px 16px;white-space:nowrap;border-left:none;border-bottom:3px solid transparent}.rd-nav-item.active{border-bottom-color:var(--rd-green);background:rgba(100,204,46,0.05)}}@media(max-width:480px){.rd-header{padding:16px 20px}.rd-title{font-size:18px}.rd-tab-pane{padding:20px}.rd-footer{padding:16px 20px;flex-direction:column}.rd-btn{width:100%;justify-content:center}.rd-list-item{flex-direction:column;align-items:flex-start;gap:12px}.rd-toggle{align-self:flex-end}}@media(prefers-reduced-motion:reduce){*{animation-duration:0.01ms!important;animation-iteration-count:1!important;transition-duration:0.01ms!important}}`;
 
       const styleSheet = document.createElement('style');
       styleSheet.id = id;
@@ -413,129 +396,83 @@
       document.head.appendChild(styleSheet);
     },
 
+    escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    },
+
+    announceToScreenReader(message) {
+      const announcement = document.createElement('div');
+      announcement.setAttribute('aria-live', 'polite');
+      announcement.setAttribute('aria-atomic', 'true');
+      announcement.style.cssText = 'position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden;';
+      announcement.textContent = message;
+      document.body.appendChild(announcement);
+      setTimeout(() => announcement.remove(), 1000);
+    },
+
     createConfigDialog(currentConfig) {
       this.injectStyles();
 
-      const html = `
-        <div class="rd-dialog">
-          <div class="rd-header">
-            <h2 class="rd-title">Real-Debrid Settings</h2>
-            <button class="rd-close">&times;</button>
-          </div>
-
-          <div class="rd-body">
-            <div class="rd-sidebar">
-              <div class="rd-nav-item active" data-tab="tab-general">General</div>
-              <div class="rd-nav-item" data-tab="tab-filtering">Filters</div>
-            </div>
-
-            <div class="rd-content">
-              <div id="tab-general" class="rd-tab-pane active">
-                <div class="rd-group">
-                  <label class="rd-label">API Token</label>
-                  <div class="rd-input-wrapper">
-                    <input type="password" id="apiKeyInput" class="rd-input" value="${currentConfig.apiKey || ''}" placeholder="Paste your Real-Debrid API Token here" style="padding-right: 40px;">
-                    <button id="toggleApiVisibility" class="rd-eye-btn" title="Show/Hide Token">👁️</button>
-                  </div>
-                  <div class="rd-sub-label">Find this at real-debrid.com/apitoken</div>
-                </div>
-
-                <div class="rd-list-item">
-                  <div class="rd-info">
-                    <h4>Manual File Selection</h4>
-                    <p>Always show the file selection dialog before adding <br><span style="color:var(--rd-text-dim); font-size:11px">(Enabling this hides the Filters tab)</span></p>
-                  </div>
-                  <label class="rd-toggle">
-                    <input type="checkbox" id="manualFileSelection" ${currentConfig.manualFileSelection ? 'checked' : ''}>
-                    <span class="rd-slider"></span>
-                  </label>
-                </div>
-
-                <div class="rd-list-item">
-                  <div class="rd-info">
-                    <h4>Torrent Support</h4>
-                    <p>Alt+Click magnet links to process .torrent files instead</p>
-                  </div>
-                  <label class="rd-toggle">
-                    <input type="checkbox" id="enableTorrentSupport" ${currentConfig.enableTorrentSupport ? 'checked' : ''}>
-                    <span class="rd-slider"></span>
-                  </label>
-                </div>
-
-                 <div class="rd-list-item">
-                  <div class="rd-info">
-                    <h4>Debug Mode</h4>
-                    <p>Log detailed information to the browser console</p>
-                  </div>
-                  <label class="rd-toggle">
-                    <input type="checkbox" id="debugEnabled" ${currentConfig.debugEnabled ? 'checked' : ''}>
-                    <span class="rd-slider"></span>
-                  </label>
-                </div>
-              </div>
-
-              <div id="tab-filtering" class="rd-tab-pane">
-                <div class="rd-group">
-                  <label class="rd-label">Allowed Extensions</label>
-                  <textarea id="allowedExtensions" class="rd-textarea" placeholder="mkv, mp4, avi">${currentConfig.allowedExtensions.join(', ')}</textarea>
-                  <div class="rd-sub-label">Comma separated list of file extensions to auto-select</div>
-                </div>
-
-                <div class="rd-group">
-                  <label class="rd-label">Filter Keywords</label>
-                  <textarea id="filterKeywords" class="rd-textarea" placeholder="sample, trailer">${currentConfig.filterKeywords.join(', ')}</textarea>
-                  <div class="rd-sub-label">Files containing these words (or Regex /.../) will be skipped</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="rd-footer">
-            <button class="rd-btn rd-btn-ghost" id="cancelButton">Cancel</button>
-            <button class="rd-btn rd-btn-primary" id="saveButton">Save Changes</button>
-          </div>
-        </div>
-      `;
+      const html = `<div class="rd-dialog" role="dialog" aria-labelledby="rd-dialog-title" aria-modal="true"><div class="rd-header"><h2 id="rd-dialog-title" class="rd-title">Real-Debrid Settings</h2><button class="rd-close" aria-label="Close settings dialog">&times;</button></div><div class="rd-body"><nav class="rd-sidebar" role="tablist" aria-label="Settings sections"><button class="rd-nav-item active" data-tab="tab-general" role="tab" aria-selected="true" id="tab-general-btn">General</button><button class="rd-nav-item" data-tab="tab-filtering" role="tab" aria-selected="false" id="tab-filtering-btn">Filters</button></nav><div class="rd-content"><div id="tab-general" class="rd-tab-pane active" role="tabpanel" aria-labelledby="tab-general-btn"><div class="rd-group"><label for="apiKeyInput" class="rd-label">API Token</label><div class="rd-input-wrapper"><input type="password" id="apiKeyInput" class="rd-input" value="${this.escapeHtml(currentConfig.apiKey||'')}" placeholder="Paste your Real-Debrid API Token here" style="padding-right:40px" aria-describedby="api-key-help" required><button id="toggleApiVisibility" class="rd-eye-btn" type="button" aria-label="Toggle API key visibility" title="Show/Hide Token"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></button></div><div id="api-key-help" class="rd-sub-label">Find this at <a href="https://real-debrid.com/apitoken" target="_blank" rel="noopener">real-debrid.com/apitoken</a></div><div id="api-key-error" class="rd-field-error">API key is required</div></div><div class="rd-list-item"><div class="rd-info"><h4>Manual File Selection</h4><p>Always show the file selection dialog before adding<br><span style="color:var(--rd-text-dim);font-size:11px">(Enabling this hides the Filters tab)</span></p></div><label class="rd-toggle"><input type="checkbox" id="manualFileSelection" ${currentConfig.manualFileSelection?'checked':''}><span class="rd-slider"></span></label></div><div class="rd-list-item"><div class="rd-info"><h4>Torrent Support</h4><p>Alt+Click magnet links to process .torrent files instead</p></div><label class="rd-toggle"><input type="checkbox" id="enableTorrentSupport" ${currentConfig.enableTorrentSupport?'checked':''}><span class="rd-slider"></span></label></div><div class="rd-list-item"><div class="rd-info"><h4>Debug Mode</h4><p>Log detailed information to the browser console</p></div><label class="rd-toggle"><input type="checkbox" id="debugEnabled" ${currentConfig.debugEnabled?'checked':''}><span class="rd-slider"></span></label></div></div><div id="tab-filtering" class="rd-tab-pane" role="tabpanel" aria-labelledby="tab-filtering-btn"><div class="rd-group"><label for="allowedExtensions" class="rd-label">Allowed Extensions</label><textarea id="allowedExtensions" class="rd-textarea" placeholder="mkv, mp4, avi" aria-describedby="extensions-help">${this.escapeHtml(currentConfig.allowedExtensions.join(', '))}</textarea><div id="extensions-help" class="rd-sub-label">Comma separated list of file extensions to auto-select</div><div id="extensions-error" class="rd-field-error">Please enter at least one file extension</div></div><div class="rd-group"><label for="filterKeywords" class="rd-label">Filter Keywords</label><textarea id="filterKeywords" class="rd-textarea" placeholder="sample, trailer" aria-describedby="keywords-help">${this.escapeHtml(currentConfig.filterKeywords.join(', '))}</textarea><div id="keywords-help" class="rd-sub-label">Files containing these words (or Regex /.../) will be skipped</div></div></div></div></div><div class="rd-footer"><button class="rd-btn rd-btn-ghost" id="cancelButton" type="button">Cancel</button><button class="rd-btn rd-btn-primary" id="saveButton" type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"></path><polyline points="17,21 17,13 7,13 7,21"></polyline><polyline points="7,3 7,8 15,8"></polyline></svg>Save Changes</button></div></div>`;
 
       const overlay = document.createElement('div');
       overlay.className = 'rd-overlay';
       overlay.innerHTML = html;
       document.body.appendChild(overlay);
 
-      // --- Logic for Tabs and Toggles ---
-
       const manualCheckbox = overlay.querySelector('#manualFileSelection');
       const filterTabNav = overlay.querySelector('.rd-nav-item[data-tab="tab-filtering"]');
       const apiKeyInput = overlay.querySelector('#apiKeyInput');
       const toggleApiButton = overlay.querySelector('#toggleApiVisibility');
+      const saveButton = overlay.querySelector('#saveButton');
+      const apiKeyError = overlay.querySelector('#api-key-error');
+      const extensionsError = overlay.querySelector('#extensions-error');
 
-      // 1. API Token Visibility Toggle
-      toggleApiButton.onclick = () => {
-        if (apiKeyInput.type === 'password') {
-          apiKeyInput.type = 'text';
-          toggleApiButton.style.color = '#fff'; // Highlight when visible
-        } else {
-          apiKeyInput.type = 'password';
-          toggleApiButton.style.color = '';
-        }
-      };
+      // API Token visibility toggle with SVG icons
+      const eyeOpenSvg = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
+      const eyeClosedSvg = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
 
-      // 2. Hide "Filters" tab if Manual Selection is enabled
+      toggleApiButton.addEventListener('click', () => {
+        const isVisible = apiKeyInput.type === 'text';
+        apiKeyInput.type = isVisible ? 'password' : 'text';
+        toggleApiButton.innerHTML = isVisible ? eyeOpenSvg : eyeClosedSvg;
+        toggleApiButton.classList.toggle('active', !isVisible);
+        apiKeyInput.focus();
+      });
+
+      // Hide Filters tab when Manual Selection enabled
       const updateFilterTabVisibility = () => {
         if (manualCheckbox.checked) {
           filterTabNav.style.display = 'none';
-          // If the user was on the hidden tab, switch them back to General
           if (filterTabNav.classList.contains('active')) {
             overlay.querySelector('[data-tab="tab-general"]').click();
           }
         } else {
-          filterTabNav.style.display = 'block';
+          filterTabNav.style.display = '';
         }
       };
       manualCheckbox.addEventListener('change', updateFilterTabVisibility);
-      updateFilterTabVisibility(); // Run on init
+      updateFilterTabVisibility();
 
-      // Event Listeners for Closing
+      // Real-time validation clearing
+      apiKeyInput.addEventListener('input', () => {
+        if (apiKeyInput.value.trim()) {
+          apiKeyError.classList.remove('show');
+          apiKeyInput.classList.remove('invalid');
+        }
+      });
+
+      const extensionsTextarea = overlay.querySelector('#allowedExtensions');
+      extensionsTextarea.addEventListener('input', () => {
+        if (extensionsTextarea.value.trim()) {
+          extensionsError.classList.remove('show');
+          extensionsTextarea.classList.remove('invalid');
+        }
+      });
+
+      // Close dialog
       const close = () => {
         overlay.remove();
         document.removeEventListener('keydown', escHandler);
@@ -545,33 +482,73 @@
       };
       document.addEventListener('keydown', escHandler);
 
-      overlay.querySelector('.rd-close').onclick = close;
-      overlay.querySelector('#cancelButton').onclick = close;
+      overlay.querySelector('.rd-close').addEventListener('click', close);
+      overlay.querySelector('#cancelButton').addEventListener('click', close);
 
-      // Tab Switching
+      // Tab switching
       const tabs = overlay.querySelectorAll('.rd-nav-item');
       for (const tab of tabs) {
-        tab.onclick = () => {
-          for (const tabElement of overlay.querySelectorAll('.rd-nav-item')) tabElement.classList.remove('active');
-          for (const paneElement of overlay.querySelectorAll('.rd-tab-pane')) paneElement.classList.remove('active');
-
+        tab.addEventListener('click', () => {
+          for (const tabElement of overlay.querySelectorAll('.rd-nav-item')) {
+            tabElement.classList.remove('active');
+            tabElement.setAttribute('aria-selected', 'false');
+          }
+          for (const paneElement of overlay.querySelectorAll('.rd-tab-pane')) {
+            paneElement.classList.remove('active');
+          }
           tab.classList.add('active');
-          overlay.querySelector(`#${tab.dataset.tab}`).classList.add('active');
-        };
+          tab.setAttribute('aria-selected', 'true');
+          const targetPane = overlay.querySelector(`#${tab.dataset.tab}`);
+          if (targetPane) targetPane.classList.add('active');
+          this.announceToScreenReader(`Switched to ${tab.textContent.trim()} tab`);
+        });
       }
 
-      // Save Logic
-      overlay.querySelector('#saveButton').onclick = async () => {
-        const button = overlay.querySelector('#saveButton');
-        button.textContent = 'Saving...';
+      // Save with validation and loading state
+      saveButton.addEventListener('click', async () => {
+        const originalHtml = saveButton.innerHTML;
+        let hasError = false;
+
+        // Validate API key
+        const apiKeyValue = apiKeyInput.value.trim();
+        if (!apiKeyValue) {
+          apiKeyError.classList.add('show');
+          apiKeyInput.classList.add('invalid');
+          hasError = true;
+        } else {
+          apiKeyError.classList.remove('show');
+          apiKeyInput.classList.remove('invalid');
+        }
+
+        // Validate extensions
+        const extensionsValue = extensionsTextarea.value.trim();
+        if (!extensionsValue) {
+          extensionsError.classList.add('show');
+          extensionsTextarea.classList.add('invalid');
+          hasError = true;
+        } else {
+          extensionsError.classList.remove('show');
+          extensionsTextarea.classList.remove('invalid');
+        }
+
+        if (hasError) {
+          this.showToast('Please correct the errors below', 'error');
+          const firstInvalid = overlay.querySelector('.invalid');
+          if (firstInvalid) firstInvalid.focus();
+          return;
+        }
+
+        // Show loading state
+        saveButton.disabled = true;
+        saveButton.innerHTML = '<svg class="rd-spinner" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-opacity="0.25" stroke-width="4"></circle><path stroke="currentColor" stroke-opacity="0.75" stroke-width="4" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Saving...';
 
         try {
           const newConfig = {
-            apiKey: overlay.querySelector('#apiKeyInput').value.trim(),
+            apiKey: apiKeyValue,
             enableTorrentSupport: overlay.querySelector('#enableTorrentSupport').checked,
             debugEnabled: overlay.querySelector('#debugEnabled').checked,
-            manualFileSelection: overlay.querySelector('#manualFileSelection').checked,
-            allowedExtensions: overlay.querySelector('#allowedExtensions').value.split(',').map(extension => extension.trim()).filter(Boolean),
+            manualFileSelection: manualCheckbox.checked,
+            allowedExtensions: extensionsTextarea.value.split(',').map(extension => extension.trim()).filter(Boolean),
             filterKeywords: overlay.querySelector('#filterKeywords').value.split(',').map(keyword => keyword.trim()).filter(Boolean)
           };
 
@@ -580,42 +557,23 @@
           this.showToast('Settings saved successfully', 'success');
           location.reload();
         } catch (error) {
+          saveButton.disabled = false;
+          saveButton.innerHTML = originalHtml;
           this.showToast(error.message, 'error');
-          button.textContent = 'Save Changes';
         }
-      };
+      });
     },
 
     createFileSelectionDialog(files) {
       this.injectStyles();
       return new Promise((resolve) => {
         const fileTree = new FileTree(files);
-        const totalSizeAll = fileTree.getAllFiles().reduce((totalSize, file) => totalSize + (file.bytes || 0), 0);
+        const allFiles = fileTree.getAllFiles();
+        const totalSizeAll = allFiles.reduce((totalSize, file) => totalSize + (file.bytes || 0), 0);
 
         const overlay = document.createElement('div');
         overlay.className = 'rd-overlay';
-        overlay.innerHTML = `
-          <div class="rd-dialog rd-file-dialog">
-            <div class="rd-header">
-              <h2 class="rd-title">Select Files</h2>
-              <button class="rd-close">&times;</button>
-            </div>
-
-            <div class="rd-file-toolbar">
-               <button class="rd-btn rd-btn-ghost" id="toggleAll" style="padding:4px 8px; font-size:12px; border:1px solid #444">Select All</button>
-               <span class="rd-file-stats" id="stats">0 files selected</span>
-            </div>
-
-            <div class="rd-content">
-               <div class="rd-file-tree" id="treeRoot"></div>
-            </div>
-
-            <div class="rd-footer">
-              <button class="rd-btn rd-btn-ghost" id="cancel">Cancel</button>
-              <button class="rd-btn rd-btn-primary" id="confirm">Add Selected</button>
-            </div>
-          </div>
-        `;
+        overlay.innerHTML = `<div class="rd-dialog rd-file-dialog"><div class="rd-header"><h2 class="rd-title">Select Files</h2><button class="rd-close">&times;</button></div><div class="rd-file-toolbar"><button class="rd-btn rd-btn-ghost" id="toggleAll" style="padding:4px 8px;font-size:12px;border:1px solid #444">Select All</button><span class="rd-file-stats" id="stats">0 files selected</span></div><div class="rd-content"><div class="rd-file-tree" id="treeRoot"></div></div><div class="rd-footer"><button class="rd-btn rd-btn-ghost" id="cancel">Cancel</button><button class="rd-btn rd-btn-primary" id="confirm">Add Selected</button></div></div>`;
 
         document.body.appendChild(overlay);
 
@@ -636,10 +594,31 @@
           };
           updateStates(fileTree.root);
 
-          const selected = fileTree.getAllFiles().filter(file => file.checked);
+          // Sync folder checkboxes in DOM
+          const syncCheckboxes = (node, element) => {
+            if (node.type === 'folder') {
+              const checkbox = element.querySelector('.rd-checkbox');
+              if (checkbox) {
+                checkbox.checked = node.checked;
+                checkbox.indeterminate = node.indeterminate;
+              }
+              const childrenDiv = element.querySelector('.rd-folder-children');
+              if (childrenDiv && node.children) {
+                const childElements = childrenDiv.children;
+                for (let index = 0; index < node.children.length; index++) {
+                  if (childElements[index]) syncCheckboxes(node.children[index], childElements[index]);
+                }
+              }
+            }
+          };
+          for (let index = 0; index < treeRoot.children.length; index++) {
+            syncCheckboxes(fileTree.root.children[index], treeRoot.children[index]);
+          }
+
+          const selected = allFiles.filter(file => file.checked);
           const size = selected.reduce((totalSize, file) => totalSize + (file.bytes || 0), 0);
           statsLabel.textContent = `${selected.length} files (${this.formatBytes(size)} / ${this.formatBytes(totalSizeAll)})`;
-          toggleButton.textContent = selected.length === fileTree.getAllFiles().length ? 'Select None' : 'Select All';
+          toggleButton.textContent = selected.length === allFiles.length ? 'Select None' : 'Select All';
         };
 
         const renderNode = (node) => {
@@ -647,16 +626,13 @@
           div.className = 'rd-tree-item';
 
           if (node.type === 'folder') {
-            const fileCount = fileTree.countFiles(node);
-            div.innerHTML = `
-              <div class="rd-folder-header">
-                 <span style="font-size:10px; width:12px">${node.expanded ? '▼' : '▶'}</span>
-                 <input type="checkbox" class="rd-checkbox" ${node.checked ? 'checked' : ''}>
-                 <span class="rd-folder-name">${node.name}</span>
-                 <span class="rd-badge">${fileCount}</span>
-              </div>
-              <div class="rd-folder-children" style="display:${node.expanded ? 'block' : 'none'}"></div>
-            `;
+            const fileCount = fileTree.getAllFiles(node).length;
+            div.innerHTML = `<div class="rd-folder-header${node.checked?' selected':''}" data-path="${node.path}"><svg class="rd-folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"></path></svg><span style="font-size:11px;width:16px">${node.expanded?'▼':'▶'}</span><input type="checkbox" class="rd-checkbox"${node.checked?' checked':''}${node.indeterminate?' style="indeterminate"':''}><span class="rd-folder-name">${node.name}</span><span class="rd-badge">${fileCount}</span></div><div class="rd-folder-children" style="display:${node.expanded?'block':'none'}"></div>`;
+
+            if (node.indeterminate) {
+              const checkbox = div.querySelector('.rd-checkbox');
+              if (checkbox) checkbox.indeterminate = true;
+            }
 
             const childrenContainer = div.querySelector('.rd-folder-children');
 
@@ -698,13 +674,7 @@
             }
 
           } else {
-            div.innerHTML = `
-               <div class="rd-file">
-                 <input type="checkbox" class="rd-checkbox" ${node.checked ? 'checked' : ''}>
-                 <span class="rd-file-name">${node.name}</span>
-                 <span style="font-size:11px; opacity:0.7">${this.formatBytes(node.bytes)}</span>
-               </div>
-            `;
+            div.innerHTML = `<div class="rd-file${node.checked?' selected':''}"><svg class="rd-file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg><input type="checkbox" class="rd-checkbox"${node.checked?' checked':''}><span class="rd-file-name">${node.name}</span><span class="rd-file-size">${this.formatBytes(node.bytes)}</span></div>`;
             div.onclick = (event) => {
               event.stopPropagation();
               if (event.target.type !== 'checkbox') {
@@ -727,14 +697,14 @@
         updateUI();
 
         toggleButton.onclick = () => {
-          const all = fileTree.getAllFiles();
+          const all = allFiles;
           const value = all.some(file => !file.checked);
           for (const file of all) file.checked = value;
+          updateUI();
           treeRoot.innerHTML = '';
           for (const child of fileTree.root.children) {
             treeRoot.appendChild(renderNode(child));
           }
-          updateUI();
         };
 
         const close = (value) => {
@@ -750,43 +720,32 @@
 
     showToast(message, type = 'info') {
       this.injectStyles();
+
+      const existingToasts = document.querySelectorAll('.rd-toast');
+      for (const toast of existingToasts) {
+        toast.remove();
+      }
+
       const toast = document.createElement('div');
-      toast.className = 'rd-toast';
-      toast.textContent = message;
-      if (type === 'error') toast.style.borderLeftColor = '#ef4444';
-      if (type === 'success') toast.style.borderLeftColor = '#64cc2e';
+      toast.className = `rd-toast ${type}`;
+
+      const iconSvg = type === 'success' ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:2px"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>' : type === 'error' ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:2px"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>' : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:2px"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>';
+
+      toast.innerHTML = `<div style="display:flex;align-items:flex-start;gap:8px">${iconSvg}<div>${this.escapeHtml(message)}</div></div>`;
 
       document.body.appendChild(toast);
-      setTimeout(() => toast.remove(), 4000);
+      setTimeout(() => {
+        toast.style.animation = 'rd-toast-out 0.3s ease forwards';
+        setTimeout(() => toast.remove(), 300);
+      }, 4000);
     },
 
     setIconState(icon, state, torrentSupportEnabled = false) {
-      // Common styles for transition
+      const configs = { processing: { opacity: '0.5', cursor: 'wait', title: 'Processing...' }, added: { textContent: '✓', background: '#64cc2e', opacity: '1', cursor: 'default', title: 'Torrent successfully added to Real-Debrid' }, existing: { textContent: '✓', background: '#64cc2e', opacity: '1', cursor: 'default', title: 'Torrent already exists on Real-Debrid' }, default: { textContent: 'RD', background: '#3b82f6', opacity: '1', cursor: 'pointer', title: torrentSupportEnabled ? 'Click to send magnet to Real-Debrid, Alt+click to send torrent file' : 'Click to send magnet to Real-Debrid' } };
       icon.style.transition = 'all 0.2s';
-
-      if (state === 'processing') {
-        icon.style.opacity = '0.5';
-        icon.style.cursor = 'wait';
-        icon.title = 'Processing...';
-      } else if (state === 'added') {
-        icon.textContent = '✓';
-        icon.style.background = '#64cc2e'; // Green
-        icon.style.opacity = '1';
-        icon.style.cursor = 'default';
-        icon.title = 'Torrent successfully added to Real-Debrid';
-      } else if (state === 'existing') {
-        icon.textContent = '✓';
-        icon.style.background = '#64cc2e'; // Green
-        icon.style.opacity = '1';
-        icon.style.cursor = 'default';
-        icon.title = 'Torrent already exists on Real-Debrid';
-      } else {
-        icon.textContent = 'RD';
-        icon.style.background = '#3b82f6'; // Blue
-        icon.style.opacity = '1';
-        icon.style.cursor = 'pointer';
-        icon.title = torrentSupportEnabled ? 'Click to send magnet to Real-Debrid, Alt+click to send torrent file' : 'Click to send magnet to Real-Debrid';
-      }
+      const config = configs[state] || configs.default;
+      Object.assign(icon.style, config);
+      if (state === 'processing') icon.style.opacity = '0.5';
     },
 
     createMagnetIcon(torrentSupportEnabled = false) {
@@ -897,87 +856,38 @@
       });
     }
 
-    async processMagnetLink(magnetLink) {
-      const hash = MagnetLinkProcessor.parseMagnetHash(magnetLink);
-      if (!hash) throw new RealDebridError('Invalid magnet link');
-
-      if (this.isTorrentExists(hash)) throw new RealDebridError('Torrent already exists on Real-Debrid');
-
-      const addResult = await this.#realDebridApi.addMagnet(magnetLink);
-      if (!addResult || typeof addResult.id === 'undefined') {
-        throw new RealDebridError(`Failed to add magnet: ${JSON.stringify(addResult)}`);
-      }
-      const torrentId = addResult.id;
-
-      const info = await this.#realDebridApi.getTorrentInfo(torrentId);
-      const files = Array.isArray(info.files) ? info.files : [];
-
+    async _selectFiles(torrentId, files) {
       let selectedFileIds;
       if (this.#config.manualFileSelection) {
-        if (files.length === 1) {
-          selectedFileIds = [files[0].id];
-        } else {
+        if (files.length === 1) selectedFileIds = [files[0].id];
+        else {
           selectedFileIds = await UIManager.createFileSelectionDialog(files);
-          if (selectedFileIds === null) {
-            await this.#realDebridApi.deleteTorrent(torrentId);
-            throw new RealDebridError('File selection cancelled');
-          }
-          if (!selectedFileIds.length) {
-            await this.#realDebridApi.deleteTorrent(torrentId);
-            throw new RealDebridError('No files selected');
-          }
+          if (selectedFileIds === null) { await this.#realDebridApi.deleteTorrent(torrentId); throw new RealDebridError('File selection cancelled'); }
+          if (!selectedFileIds.length) { await this.#realDebridApi.deleteTorrent(torrentId); throw new RealDebridError('No files selected'); }
         }
       } else {
         selectedFileIds = this.filterFiles(files).map(file => file.id);
-        if (!selectedFileIds.length) {
-          await this.#realDebridApi.deleteTorrent(torrentId);
-          throw new RealDebridError('No matching files found after filtering');
-        }
+        if (!selectedFileIds.length) { await this.#realDebridApi.deleteTorrent(torrentId); throw new RealDebridError('No matching files found after filtering'); }
       }
-
-      logger.debug(`[Magnet Processor] Selected files: ${selectedFileIds.map(id => files.find(file => file.id === id)?.path || `ID:${id}`).join(', ')}`);
+      logger.debug(`[File Selection] Selected files: ${selectedFileIds.map(id=>files.find(file=>file.id===id)?.path||`ID:${id}`).join(', ')}`);
       await this.#realDebridApi.selectFiles(torrentId, selectedFileIds.join(','));
       return selectedFileIds.length;
     }
 
+    async processMagnetLink(magnetLink) {
+      const hash = MagnetLinkProcessor.parseMagnetHash(magnetLink);
+      if (!hash) throw new RealDebridError('Invalid magnet link');
+      if (this.isTorrentExists(hash)) throw new RealDebridError('Torrent already exists on Real-Debrid');
+      const addResult = await this.#realDebridApi.addMagnet(magnetLink);
+      if (!addResult || typeof addResult.id === 'undefined') throw new RealDebridError(`Failed to add magnet: ${JSON.stringify(addResult)}`);
+      return this._selectFiles(addResult.id, Array.isArray((await this.#realDebridApi.getTorrentInfo(addResult.id)).files) ? (await this.#realDebridApi.getTorrentInfo(addResult.id)).files : []);
+    }
+
     async processTorrentLink(torrentUrl) {
       const torrentBlob = await this.fetchTorrentFile(torrentUrl);
-
       const addResult = await this.#realDebridApi.addTorrent(torrentBlob);
-      if (!addResult || typeof addResult.id === 'undefined') {
-        throw new RealDebridError('Failed to add torrent');
-      }
-      const torrentId = addResult.id;
-
-      const info = await this.#realDebridApi.getTorrentInfo(torrentId);
-      const files = Array.isArray(info.files) ? info.files : [];
-
-      let selectedFileIds;
-      if (this.#config.manualFileSelection) {
-        if (files.length === 1) {
-          selectedFileIds = [files[0].id];
-        } else {
-          selectedFileIds = await UIManager.createFileSelectionDialog(files);
-          if (selectedFileIds === null) {
-            await this.#realDebridApi.deleteTorrent(torrentId);
-            throw new RealDebridError('File selection cancelled');
-          }
-          if (!selectedFileIds.length) {
-            await this.#realDebridApi.deleteTorrent(torrentId);
-            throw new RealDebridError('No files selected');
-          }
-        }
-      } else {
-        selectedFileIds = this.filterFiles(files).map(file => file.id);
-        if (!selectedFileIds.length) {
-          await this.#realDebridApi.deleteTorrent(torrentId);
-          throw new RealDebridError('No matching files found after filtering');
-        }
-      }
-
-      logger.debug(`[Torrent Processor] Selected files: ${selectedFileIds.map(id => files.find(file => file.id === id)?.path || `ID:${id}`).join(', ')}`);
-      await this.#realDebridApi.selectFiles(torrentId, selectedFileIds.join(','));
-      return selectedFileIds.length;
+      if (!addResult || typeof addResult.id === 'undefined') throw new RealDebridError('Failed to add torrent');
+      return this._selectFiles(addResult.id, Array.isArray((await this.#realDebridApi.getTorrentInfo(addResult.id)).files) ? (await this.#realDebridApi.getTorrentInfo(addResult.id)).files : []);
     }
 
     async fetchTorrentFile(url) {
