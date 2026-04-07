@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          Magnet Link to Real-Debrid
-// @version       2.11.0
+// @version       2.12.0
 // @description   Automatically send magnet links to Real-Debrid
 // @author        Journey Over
 // @license       MIT
@@ -71,12 +71,11 @@
       try {
         return typeof value === 'string' ? JSON.parse(value) : value;
       } catch (error) {
-        logger.error('[Config] Failed to parse stored configuration, resetting to defaults.', error);
+        logger?.error('[Config] Failed to parse stored configuration, resetting to defaults.', error);
         return null;
       }
     },
 
-    // Synchronous retrieval since GM_getValue is synchronous
     getConfigSync() {
       const stored = GM_getValue(STORAGE_KEY);
       const parsed = this._safeParse(stored) || {};
@@ -84,10 +83,6 @@
         ...DEFAULTS,
         ...parsed
       };
-    },
-
-    async getConfig() {
-      return this.getConfigSync();
     },
 
     async saveConfig(config) {
@@ -131,7 +126,6 @@
           rateLimitData = null;
         }
 
-        // Reset window if expired or invalid
         if (!rateLimitData || typeof rateLimitData !== 'object' || !rateLimitData.windowStart || (now - rateLimitData.windowStart) >= windowMs) {
           const fresh = { windowStart: now, count: 1 };
           try {
@@ -156,7 +150,6 @@
           }
         }
 
-        // Wait for current window to expire before retrying
         const earliest = rateLimitData.windowStart;
         const waitFor = Math.max(50, windowMs - (now - earliest) + 50);
         logger.warn(`[Real-Debrid API] Rate limit window full (${rateLimitData.count}/${RATE_LIMIT_MAX}), waiting ${Math.round(waitFor)}ms`);
@@ -430,7 +423,6 @@
       const apiKeyError = overlay.querySelector('#api-key-error');
       const extensionsError = overlay.querySelector('#extensions-error');
 
-      // API Token visibility toggle with SVG icons
       const eyeOpenSvg = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
       const eyeClosedSvg = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
 
@@ -442,7 +434,6 @@
         apiKeyInput.focus();
       });
 
-      // Hide Filters tab when Manual Selection enabled
       const updateFilterTabVisibility = () => {
         if (manualCheckbox.checked) {
           filterTabNav.style.display = 'none';
@@ -456,7 +447,6 @@
       manualCheckbox.addEventListener('change', updateFilterTabVisibility);
       updateFilterTabVisibility();
 
-      // Real-time validation clearing
       apiKeyInput.addEventListener('input', () => {
         if (apiKeyInput.value.trim()) {
           apiKeyError.classList.remove('show');
@@ -472,7 +462,6 @@
         }
       });
 
-      // Close dialog
       const close = () => {
         overlay.remove();
         document.removeEventListener('keydown', escHandler);
@@ -504,12 +493,10 @@
         });
       }
 
-      // Save with validation and loading state
       saveButton.addEventListener('click', async () => {
         const originalHtml = saveButton.innerHTML;
         let hasError = false;
 
-        // Validate API key
         const apiKeyValue = apiKeyInput.value.trim();
         if (!apiKeyValue) {
           apiKeyError.classList.add('show');
@@ -520,7 +507,6 @@
           apiKeyInput.classList.remove('invalid');
         }
 
-        // Validate extensions
         const extensionsValue = extensionsTextarea.value.trim();
         if (!extensionsValue) {
           extensionsError.classList.add('show');
@@ -538,7 +524,6 @@
           return;
         }
 
-        // Show loading state
         saveButton.disabled = true;
         saveButton.innerHTML = '<svg class="rd-spinner" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-opacity="0.25" stroke-width="4"></circle><path stroke="currentColor" stroke-opacity="0.75" stroke-width="4" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Saving...';
 
@@ -637,8 +622,6 @@
             const childrenContainer = div.querySelector('.rd-folder-children');
 
             const toggleExpand = (event) => {
-              // PREVENT PROPAGATION HERE is redundant if we handle click on the container,
-              // but explicitly separating logic helps.
               event.stopPropagation();
               node.expanded = !node.expanded;
               childrenContainer.style.display = node.expanded ? 'block' : 'none';
@@ -648,13 +631,12 @@
               }
             };
 
-            // Explicitly handle checkbox clicks to PREVENT bubbling to the row click
             div.querySelector('.rd-checkbox').onclick = (event) => {
-              event.stopPropagation(); // Stop bubbling so row doesn't toggle
+              event.stopPropagation();
             };
 
             div.querySelector('.rd-checkbox').onchange = (event) => {
-              event.stopPropagation(); // Stop bubbling
+              event.stopPropagation();
               const setAll = (nodeParameter, checkedValue) => {
                 nodeParameter.checked = checkedValue;
                 if (nodeParameter.children)
@@ -689,7 +671,6 @@
           return div;
         };
 
-        // Render children directly, skipping the dummy root
         for (const child of fileTree.root.children) {
           treeRoot.appendChild(renderNode(child));
         }
@@ -741,11 +722,11 @@
     },
 
     setIconState(icon, state, torrentSupportEnabled = false) {
-      const configs = { processing: { opacity: '0.5', cursor: 'wait', title: 'Processing...' }, added: { textContent: '✓', background: '#64cc2e', opacity: '1', cursor: 'default', title: 'Torrent successfully added to Real-Debrid' }, existing: { textContent: '✓', background: '#64cc2e', opacity: '1', cursor: 'default', title: 'Torrent already exists on Real-Debrid' }, default: { textContent: 'RD', background: '#3b82f6', opacity: '1', cursor: 'pointer', title: torrentSupportEnabled ? 'Click to send magnet to Real-Debrid, Alt+click to send torrent file' : 'Click to send magnet to Real-Debrid' } };
+      const configs = { processing: { opacity: '0.5', cursor: 'wait', title: 'Processing...' }, added: { textContent: '✓', background: '#64cc2e', opacity: '1', cursor: 'default', title: 'Torrent successfully added to Real-Debrid' }, existing: { textContent: '✓', background: '#64cc2e', opacity: '1', cursor: 'not-allowed', title: 'Already in Real-Debrid library' }, default: { textContent: 'RD', background: '#3b82f6', opacity: '1', cursor: 'pointer', title: torrentSupportEnabled ? 'Click to send magnet to Real-Debrid, Alt+click to send torrent file' : 'Click to send magnet to Real-Debrid' } };
       icon.style.transition = 'all 0.2s';
       const config = configs[state] || configs.default;
       Object.assign(icon.style, config);
-      if (state === 'processing') icon.style.opacity = '0.5';
+      icon.title = config.title;
     },
 
     createMagnetIcon(torrentSupportEnabled = false) {
@@ -827,7 +808,6 @@
       return Array.isArray(this.#existingTorrents) && this.#existingTorrents.some(torrent => (torrent.hash || '').toUpperCase() === hash);
     }
 
-    // Filter files by extension and exclude those matching keywords or regex patterns
     filterFiles(files = []) {
       const allowed = new Set(this.#config.allowedExtensions.map(extension => extension.trim().toLowerCase()).filter(Boolean));
       const keywords = (this.#config.filterKeywords || []).map(keyword => keyword.trim()).filter(Boolean);
@@ -880,14 +860,16 @@
       if (this.isTorrentExists(hash)) throw new RealDebridError('Torrent already exists on Real-Debrid');
       const addResult = await this.#realDebridApi.addMagnet(magnetLink);
       if (!addResult || typeof addResult.id === 'undefined') throw new RealDebridError(`Failed to add magnet: ${JSON.stringify(addResult)}`);
-      return this._selectFiles(addResult.id, Array.isArray((await this.#realDebridApi.getTorrentInfo(addResult.id)).files) ? (await this.#realDebridApi.getTorrentInfo(addResult.id)).files : []);
+      const info = await this.#realDebridApi.getTorrentInfo(addResult.id);
+      return this._selectFiles(addResult.id, Array.isArray(info.files) ? info.files : []);
     }
 
     async processTorrentLink(torrentUrl) {
       const torrentBlob = await this.fetchTorrentFile(torrentUrl);
       const addResult = await this.#realDebridApi.addTorrent(torrentBlob);
       if (!addResult || typeof addResult.id === 'undefined') throw new RealDebridError('Failed to add torrent');
-      return this._selectFiles(addResult.id, Array.isArray((await this.#realDebridApi.getTorrentInfo(addResult.id)).files) ? (await this.#realDebridApi.getTorrentInfo(addResult.id)).files : []);
+      const info = await this.#realDebridApi.getTorrentInfo(addResult.id);
+      return this._selectFiles(addResult.id, Array.isArray(info.files) ? info.files : []);
     }
 
     async fetchTorrentFile(url) {
@@ -920,7 +902,7 @@
       this.keyToIcon = new Map();
       this.selectedLinks = new Set();
       this.totalMagnetLinks = 0;
-      this.initialMagnetLinkCount = 0; // Store the initial count separately
+      this.initialMagnetLinkCount = 0;
       this.batchButton = null;
     }
 
@@ -975,10 +957,8 @@
     }
 
     _removeBatchButton() {
-      if (this.batchButton && this.batchButton.parentNode) {
-        this.batchButton.parentNode.removeChild(this.batchButton);
-        this.batchButton = null;
-      }
+      this.batchButton?.remove();
+      this.batchButton = null;
     }
 
     async _processBatch() {
@@ -990,7 +970,6 @@
         UIManager.showToast('Real-Debrid API key not configured. Use the menu to set it.', 'info');
         return;
       }
-      // Re-fetch config synchronously to ensure we have the latest UI preferences
       const config = ConfigManager.getConfigSync();
 
       let successCount = 0;
@@ -1091,7 +1070,6 @@
         processLink(event_);
       });
 
-      // Handle checkbox selection for batch processing
       if (checkbox) {
         checkbox.addEventListener('change', (event_) => {
           event_.stopPropagation();
@@ -1108,9 +1086,7 @@
       const links = [...documentRoot.querySelectorAll('a[href^="magnet:"]')];
       this.totalMagnetLinks = links.length;
 
-      // Set initial count only once when we first find magnet links
       if (this.initialMagnetLinkCount === 0 && links.length > 0) {
-        // Count unique magnet hashes
         const uniqueHashes = new Set();
         for (const link of links) {
           const hash = MagnetLinkProcessor.parseMagnetHash(link.href);
@@ -1119,7 +1095,6 @@
         this.initialMagnetLinkCount = uniqueHashes.size;
       }
 
-      // Retrieve config synchronously to set correct initial tooltips
       const config = ConfigManager.getConfigSync();
       const torrentSupport = config.enableTorrentSupport;
 
@@ -1127,7 +1102,6 @@
       for (const link of links) {
         if (!link.parentNode) continue;
 
-        // Check if this link has already been processed
         if (link.hasAttribute('data-rd-processed')) {
           const key = this._magnetKeyFor(link.href);
           if (key && !this.keyToIcon.has(key)) {
@@ -1163,7 +1137,6 @@
 
     markExistingTorrents() {
       if (!this.processor) return;
-      // We need config here too to preserve tooltips if we update state
       const config = ConfigManager.getConfigSync();
 
       for (const [key, iconContainer] of this.keyToIcon.entries()) {
@@ -1176,7 +1149,6 @@
       }
     }
 
-    // Watch for new magnet links added to the page dynamically
     startObserving() {
       if (this.observer) return;
       const debouncedHandler = debounce((mutations) => {
@@ -1189,7 +1161,6 @@
                   hasNewMagnetLinks = true;
                   break;
                 }
-                // Check descendants too
                 if (node.querySelector && node.querySelector('a[href^="magnet:"]')) {
                   hasNewMagnetLinks = true;
                   break;
@@ -1227,7 +1198,7 @@
       if (!document.querySelector || !document.querySelector('a[href^="magnet:"]')) return false;
     } catch {}
 
-    const config = await ConfigManager.getConfig();
+    const config = ConfigManager.getConfigSync();
     if (!config.apiKey) return false;
 
     try {
@@ -1256,15 +1227,15 @@
 
   async function init() {
     try {
-      const config = await ConfigManager.getConfig();
+      const config = ConfigManager.getConfigSync();
       logger = Logger('Magnet Link to Real-Debrid', { debug: config.debugEnabled });
 
       _integratorInstance = new PageIntegrator(null);
       _integratorInstance.addIconsTo();
       _integratorInstance.startObserving();
 
-      GM_registerMenuCommand('Configure Real-Debrid Settings', async () => {
-        const currentConfig = await ConfigManager.getConfig();
+      GM_registerMenuCommand('Configure Real-Debrid Settings', () => {
+        const currentConfig = ConfigManager.getConfigSync();
         UIManager.createConfigDialog(currentConfig);
       });
     } catch (error) {
