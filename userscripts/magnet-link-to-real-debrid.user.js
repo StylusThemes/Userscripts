@@ -725,8 +725,13 @@
       const configs = { processing: { opacity: '0.5', cursor: 'wait', title: 'Processing...' }, added: { textContent: '✓', background: '#64cc2e', opacity: '1', cursor: 'default', title: 'Torrent successfully added to Real-Debrid' }, existing: { textContent: '✓', background: '#64cc2e', opacity: '1', cursor: 'not-allowed', title: 'Already in Real-Debrid library' }, default: { textContent: 'RD', background: '#3b82f6', opacity: '1', cursor: 'pointer', title: torrentSupportEnabled ? 'Click to send magnet to Real-Debrid, Alt+click to send torrent file' : 'Click to send magnet to Real-Debrid' } };
       icon.style.transition = 'all 0.2s';
       const config = configs[state] || configs.default;
-      Object.assign(icon.style, config);
-      icon.title = config.title;
+      
+      const { textContent, title, ...styles } = config;
+      
+      Object.assign(icon.style, styles);
+      
+      if (textContent) icon.textContent = textContent;
+      if (title) icon.title = title;
     },
 
     createMagnetIcon(torrentSupportEnabled = false) {
@@ -978,7 +983,8 @@
       for (let index = 0; index < selectedUrls.length; index++) {
         const url = selectedUrls[index];
         const key = this._magnetKeyFor(url);
-        const icon = this.keyToIcon.get(key);
+        const iconContainer = this.keyToIcon.get(key);
+        const icon = iconContainer ? (iconContainer.querySelector('.rd-icon') || iconContainer) : null;
 
         UIManager.showToast(`Processing ${index + 1}/${selectedUrls.length} links...`, 'info');
         if (icon) UIManager.setIconState(icon, 'processing', config.enableTorrentSupport);
@@ -1056,7 +1062,7 @@
           const fileCount = isProcessingMagnet ?
             await this.processor.processMagnetLink(linkToProcess.href) :
             await this.processor.processTorrentLink(linkToProcess.href);
-          UIManager.showToast(`Added to Real-Debrid — ${fileCount} file(s) selected`, 'success');
+          UIManager.showToast(`Added to Real-Debrid - ${fileCount} file(s) selected`, 'success');
           UIManager.setIconState(icon, 'added', torrentSupport);
         } catch (error) {
           UIManager.setIconState(icon, 'default', torrentSupport);
