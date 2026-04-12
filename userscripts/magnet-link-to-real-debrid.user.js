@@ -725,11 +725,11 @@
       const configs = { processing: { opacity: '0.5', cursor: 'wait', title: 'Processing...' }, added: { textContent: '✓', background: '#64cc2e', opacity: '1', cursor: 'default', title: 'Torrent successfully added to Real-Debrid' }, existing: { textContent: '✓', background: '#64cc2e', opacity: '1', cursor: 'not-allowed', title: 'Already in Real-Debrid library' }, default: { textContent: 'RD', background: '#3b82f6', opacity: '1', cursor: 'pointer', title: torrentSupportEnabled ? 'Click to send magnet to Real-Debrid, Alt+click to send torrent file' : 'Click to send magnet to Real-Debrid' } };
       icon.style.transition = 'all 0.2s';
       const config = configs[state] || configs.default;
-      
+
       const { textContent, title, ...styles } = config;
-      
+
       Object.assign(icon.style, styles);
-      
+
       if (textContent) icon.textContent = textContent;
       if (title) icon.title = title;
     },
