@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          YouTube - Filters
-// @version       2.5.0
+// @version       2.5.1
 // @description   Filter out unwanted content on YouTube to enhance your browsing experience. (Currently is able to filter videos based on age and members-only status)
 // @author        Journey Over
 // @license       MIT
@@ -32,7 +32,16 @@
     'yt-formatted-string[id="video-title"]',
     'yt-formatted-string[class="style-scope ytd-video-renderer"]',
     'a#video-title-link span.yt-core-attributed-string',
-    'span.ytp-modern-videowall-still-info-title'
+    'span.ytp-modern-videowall-still-info-title',
+
+    // Updated YouTube layout selectors
+    'a.ytLockupMetadataViewModelTitle span.ytAttributedStringHost',
+    'a.ytLockupMetadataViewModelTitle',
+    'h3 .ytLockupMetadataViewModelTitle span.ytAttributedStringHost',
+    '.ytLockupViewModelContentImage span.ytAttributedStringHost',
+    'span.ytAttributedStringHost[role="text"]',
+    'a.shortsLockupViewModelHostOutsideMetadataEndpoint span.ytAttributedStringHost',
+    'h3.ytMiniGameCardViewModelTitle'
   ];
 
   const VIDEO_SELECTORS = [
@@ -46,13 +55,21 @@
     'ytd-radio-renderer',
     'ytd-reel-item-renderer',
     'ytd-reel-video-renderer',
-    'a.ytp-modern-videowall-still'
+    'a.ytp-modern-videowall-still',
+
+    // Updated YouTube layout selectors
+    'ytm-shorts-lockup-view-model',
+    'ytm-shorts-lockup-view-model-v2',
+    'mini-game-card-view-model'
   ];
 
   const AGE_SELECTORS = [
     'span.inline-metadata-item.style-scope.ytd-video-meta-block',
     'span.yt-content-metadata-view-model__metadata-text',
-    'span.ytp-modern-videowall-still-view-count-and-date-info'
+    'span.ytp-modern-videowall-still-view-count-and-date-info',
+
+    // Updated YouTube layout selectors
+    'span.ytContentMetadataViewModelMetadataText'
   ];
 
   const MEMBERS_SELECTORS = [
