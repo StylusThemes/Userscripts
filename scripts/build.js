@@ -81,66 +81,62 @@ function normalizeEnding(content) {
 }
 
 // -----------------------------
-// JS Processing
+// Pipeline
 // -----------------------------
-async function formatSource(file) {
+async function processFile(file, options = {}) {
+  const { shouldMinify = false } = options;
   const source = await fs.readFile(file, 'utf8');
   const { header, body } = extractHeader(source);
   const beautifiedBody = jsBeautify(body, beautifyOptions);
+
+  // Validate with terser (parse-only via compress: false / mangle: false)
+  let valid = false;
+  try {
+    const r = await minify(beautifiedBody, terserOptions);
+    if (!r?.code) throw new Error('No output from terser');
+    valid = true;
+  } catch (error) {
+    console.error(`Terser error for ${path.relative(root, file)}:`, error.message || error);
+  }
+
+  // Write formatted source if it changed
   const out = (header ? header + '\n\n' : '') + beautifiedBody;
   const finalOut = normalizeEnding(out);
+  let changed = false;
 
   if (finalOut !== source) {
     await fs.writeFile(file, finalOut, 'utf8');
-    // eslint-disable-next-line no-console
+    changed = true;
     console.log(`Formatted: ${path.relative(root, file)}`);
-    return true;
+  } else {
+    console.log(`Unchanged: ${path.relative(root, file)}`);
   }
-  // eslint-disable-next-line no-console
-  console.log(`Unchanged format: ${path.relative(root, file)}`);
-  return false;
-}
 
-async function ensureMinified(file) {
-  const source = await fs.readFile(file, 'utf8');
-  const { header, body } = extractHeader(source);
-  const beautifiedBody = jsBeautify(body, beautifyOptions);
-  const result = await minify(beautifiedBody, terserOptions);
-  if (!result?.code) throw new Error(`Terser failed for ${file}`);
+  // Write minified version if needed
+  if (shouldMinify) {
+    const result = await minify(beautifiedBody, terserOptions);
+    if (!result?.code) throw new Error(`Terser failed for ${file}`);
+    const minified = (header ? header + '\n\n' : '') + result.code;
+    const finalMinified = normalizeEnding(minified);
+    const outPath = file.replace(/\.js$/, '.min.js');
 
-  const out = (header ? header + '\n\n' : '') + result.code;
-  const finalOut = normalizeEnding(out);
-  const outPath = file.replace(/\.js$/, '.min.js');
-
-  try {
-    const existing = await fs.readFile(outPath, 'utf8');
-    if (existing === finalOut) {
-      // eslint-disable-next-line no-console
-      console.log(`Unchanged: ${path.relative(root, outPath)}`);
-      return;
+    let minChanged = true;
+    try {
+      const existing = await fs.readFile(outPath, 'utf8');
+      if (existing === finalMinified) minChanged = false;
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
     }
-  } catch {} // File doesn't exist, will write
 
-  await fs.writeFile(outPath, finalOut, 'utf8');
-  // eslint-disable-next-line no-console
-  console.log(`Wrote: ${path.relative(root, outPath)}`);
-}
-
-async function validateWithTerser(file) {
-  const source = await fs.readFile(file, 'utf8');
-  const { body } = extractHeader(source);
-  try {
-    const beautified = jsBeautify(body, beautifyOptions);
-    const r = await minify(beautified, { module: true, mangle: false, compress: false });
-    if (!r?.code) throw new Error('No output from terser');
-    // eslint-disable-next-line no-console
-    console.log(`Valid: ${path.relative(root, file)}`);
-    return true;
-  } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error(`Terser error for ${path.relative(root, file)}:`, error.message || error);
-    return false;
+    if (minChanged) {
+      await fs.writeFile(outPath, finalMinified, 'utf8');
+      console.log(`Wrote: ${path.relative(root, outPath)}`);
+    } else {
+      console.log(`Unchanged: ${path.relative(root, outPath)}`);
+    }
   }
+
+  return { changed, valid, error: valid ? null : 'Validation failed' };
 }
 
 // -----------------------------
@@ -148,37 +144,59 @@ async function validateWithTerser(file) {
 // -----------------------------
 async function main() {
   try {
-    const files = await walk(libsDirectory);
-    if (!files.length) {
-      // eslint-disable-next-line no-console
-      console.log('No JS source files found under libs/');
-    }
+    const libs = await walk(libsDirectory);
+    if (!libs.length) console.log('No JS source files found under libs/');
 
-    let hadError = false;
-
-    for (const f of files) {
-      await formatSource(f);
-      if (!(await validateWithTerser(f))) hadError = true;
-      await ensureMinified(f);
-    }
-
-    // Process userscripts without minifying
+    let userFiles = [];
     try {
-      const userFiles = await walk(userscriptsDirectory);
-      for (const uf of userFiles) {
-        await formatSource(uf);
-        if (!(await validateWithTerser(uf))) hadError = true;
-      }
-    } catch {} // userscripts/ may not exist
+      userFiles = await walk(userscriptsDirectory);
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
 
-    if (hadError) process.exitCode = 2;
-    // eslint-disable-next-line no-console
+    const libResults = await Promise.allSettled(
+      libs.map(f => processFile(f, { shouldMinify: true }))
+    );
+
+    const userResults = await Promise.allSettled(
+      userFiles.map(f => processFile(f, { shouldMinify: false }))
+    );
+
+    const libsChanged = libResults.filter(
+      r => r.status === 'fulfilled' && r.value.changed
+    ).length;
+
+    const libErrors = libResults.filter(
+      r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.valid)
+    );
+
+    const userErrors = userResults.filter(
+      r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.valid)
+    );
+
+    for (const r of [...libResults, ...userResults]) {
+      if (r.status === 'rejected') console.error('Build error:', r.reason);
+    }
+
+    console.log(
+      `Built ${libs.length} lib${libs.length !== 1 ? 's' : ''} (${libsChanged} changed), ` +
+      `validated ${userFiles.length} userscript${userFiles.length !== 1 ? 's' : ''}.`
+    );
+
+    const hasValidationFailures = libErrors.length > 0 || userErrors.length > 0;
+    const hasHardErrors = [...libResults, ...userResults].some(r => r.status === 'rejected');
+
+    if (hasHardErrors) {
+      process.exitCode = 1;
+    } else if (hasValidationFailures) {
+      process.exitCode = 2;
+    }
+
     console.log('Build complete.');
   } catch (error) {
-    // eslint-disable-next-line no-console
     console.error(error);
     process.exitCode = 1;
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}` || process.argv[1].endsWith('build.js')) main();
+if (path.resolve(fileURLToPath(import.meta.url)) === path.resolve(process.argv[1])) main();

@@ -1,79 +1,111 @@
-import { promises as fs } from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
-import { execSync } from "child_process";
+import { promises as fs } from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+
+const execFileAsync = promisify(execFile);
 
 // -----------------------------
 // Paths
 // -----------------------------
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const root = path.resolve(__dirname, "..");
-const userscriptsDirectory = path.join(root, "userscripts");
+const root = path.resolve(__dirname, '..');
+const libsDirectory = path.join(root, 'libs');
+const userscriptsDirectory = path.join(root, 'userscripts');
 
 // -----------------------------
-// Helper function to get all files recursively
+// Utilities
 // -----------------------------
-async function getAllFiles(dirPath, arrayOfFiles = []) {
-  const files = await fs.readdir(dirPath);
-  for (const file of files) {
-    const fullPath = path.join(dirPath, file);
-    const stat = await fs.stat(fullPath);
-    if (stat.isDirectory()) {
-      await getAllFiles(fullPath, arrayOfFiles);
-    } else {
-      arrayOfFiles.push(fullPath);
-    }
+async function walk(directory, filter) {
+  const entries = await fs.readdir(directory, { withFileTypes: true });
+  const files = [];
+  for (const ent of entries) {
+    const full = path.join(directory, ent.name);
+    if (ent.isDirectory()) files.push(...(await walk(full, filter)));
+    else if (ent.isFile() && (!filter || filter(ent.name))) files.push(full);
   }
-  return arrayOfFiles;
+  return files;
 }
 
 // -----------------------------
-// Main function
+// Main
 // -----------------------------
-async function updateJsdelivrHashes() {
+async function main() {
   try {
-    // Get all lib files
-    const libsDirectory = path.join(root, 'libs');
-    const allLibFiles = await getAllFiles(libsDirectory);
+    // Phase 1: Gather all .min.js files from libs/
+    const libFiles = await walk(libsDirectory, (name) => name.endsWith('.min.js'));
+    if (!libFiles.length) console.log('No .min.js files found under libs/');
 
-    // Get all userscript files
-    const userscriptFiles = await fs.readdir(userscriptsDirectory);
-    const jsFiles = userscriptFiles.filter(file => file.endsWith('.user.js'));
+    // Phase 2: Resolve git hashes in parallel
+    const hashMap = new Map();
+    const hashResults = await Promise.allSettled(
+      libFiles.map(async (file) => {
+        const relPath = path.relative(root, file).replace(/\\/g, '/');
+        const { stdout } = await execFileAsync('git', ['log', '-1', '--format=%H', '--', relPath]);
+        const hash = stdout.trim();
+        if (!hash) throw new Error(`No commits found for ${relPath}`);
+        return { path: relPath, hash };
+      })
+    );
 
-    for (const libFile of allLibFiles) {
-       const relativePath = path.relative(root, libFile).replace(/\\/g, '/'); // e.g., libs/utils/utils.min.js
-
-      // Get the last commit hash for this file
-      const lastCommit = execSync(`git log -1 --format=%H -- "${relativePath}"`, { encoding: 'utf8' }).trim();
-      console.log(`Last commit for ${relativePath}: ${lastCommit}`);
-
-      const escapedPath = relativePath.replace(/\./g, '\\.');
-
-      // Regex to match the @require line for this file, only if commit hash is present
-      const regex = new RegExp(`(// @require\\s+https://cdn\\.jsdelivr\\.net/gh/StylusThemes/Userscripts@)[a-f0-9]{40}(/${escapedPath})`, 'g');
-
-      for (const jsFile of jsFiles) {
-        const filePath = path.join(userscriptsDirectory, jsFile);
-        const content = await fs.readFile(filePath, 'utf8');
-
-         if (regex.test(content)) {
-           // Replace the commit hash
-           const updatedContent = content.replace(regex, `$1${lastCommit}$2`);
-           if (updatedContent !== content) {
-             await fs.writeFile(filePath, updatedContent, 'utf8');
-             console.log(`Updated ${jsFile} for ${relativePath}`);
-           }
-         }
+    for (const r of hashResults) {
+      if (r.status === 'fulfilled') {
+        hashMap.set(r.value.path, r.value.hash);
+        console.log(`Hash for ${r.value.path}: ${r.value.hash}`);
+      } else {
+        console.error('Git error:', r.reason.message);
       }
     }
 
+    // Phase 3: Read each userscript ONCE and apply all replacements
+    let userFiles = [];
+    try {
+      userFiles = await walk(userscriptsDirectory, (name) => name.endsWith('.user.js'));
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+
+    // Single regex that matches ALL jsdelivr @require lines for this repo
+    const REQUIRE_REGEX = /(\/\/ @require\s+https:\/\/cdn\.jsdelivr\.net\/gh\/StylusThemes\/Userscripts@)[a-f0-9]{40}(\/libs\/[^\s]+)/g;
+
+    let updatedCount = 0;
+    const fileResults = await Promise.allSettled(
+      userFiles.map(async (userFile) => {
+        const content = await fs.readFile(userFile, 'utf8');
+        const updatedContent = content.replace(REQUIRE_REGEX, (match, prefix, libPath) => {
+          const newHash = hashMap.get(libPath.slice(1)); // strip leading '/'
+          return newHash ? `${prefix}${newHash}${libPath}` : match;
+        });
+        if (updatedContent !== content) {
+          await fs.writeFile(userFile, updatedContent, 'utf8');
+          const rel = path.relative(root, userFile);
+          console.log(`Updated: ${rel}`);
+          return { changed: true };
+        }
+        return { changed: false };
+      })
+    );
+
+    for (const r of fileResults) {
+      if (r.status === 'rejected') console.error('File error:', r.reason.message);
+      else if (r.value.changed) updatedCount++;
+    }
+
+    const hardErrors = [...hashResults, ...fileResults].some(r => r.status === 'rejected');
+
+    console.log(
+      `Processed ${libFiles.length} lib${libFiles.length !== 1 ? 's' : ''}, ` +
+      `updated ${updatedCount} of ${userFiles.length} userscript${userFiles.length !== 1 ? 's' : ''}.`
+    );
     console.log('Update complete.');
+
+    if (hardErrors) process.exitCode = 1;
   } catch (error) {
-    console.error('Error updating jsdelivr hashes:', error.message);
-    process.exit(1);
+    console.error(error);
+    process.exitCode = 1;
   }
 }
 
-// Run the function
-updateJsdelivrHashes();
+if (path.resolve(fileURLToPath(import.meta.url)) === path.resolve(process.argv[1])) main();
