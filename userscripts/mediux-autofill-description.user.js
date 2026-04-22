@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          Mediux - Auto-fill description field
-// @version       1.0.0
+// @version       1.0.1
 // @description   Adds a button to auto-fill the description field with attribution text
 // @author        Journey Over
 // @license       MIT
@@ -38,6 +38,7 @@
         <li>Databases &amp; Repositories: CineMaterial, FanArt.tv, IMDB, MediUX, MovieStillsDB, PXFuel, Rotten Tomatoes, TMDB, TPDB, and TVDB.</li>
         <li>Official Sources: Original networks, streaming services, and promotional materials.</li>
         <li>General Search: Google Images.</li>
+        <li>Tools: Poster Tools (https://postertools.org/poster-lab/)</li>
         <li>Original Content: Created and edited by me unless specifically stated otherwise.</li>
     </ul>
     <p>If you feel that your artwork has been used improperly, please report the poster.</p>
