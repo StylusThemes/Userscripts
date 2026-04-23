@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          YouTube - Filters
-// @version       2.5.1
+// @version       2.5.2
 // @description   Filter out unwanted content on YouTube to enhance your browsing experience. (Currently is able to filter videos based on age and members-only status)
 // @author        Journey Over
 // @license       MIT
@@ -74,12 +74,14 @@
 
   const MEMBERS_SELECTORS = [
     '.badge.badge-style-type-members-only',
+    '.badge.badge-style-type-members-first',
     'badge-shape[aria-label*="Members only" i]',
+    'badge-shape[aria-label*="Members first" i]',
     '.yt-badge-shape--commerce .yt-badge-shape__text',
     '.yt-badge-shape__text'
   ];
 
-  const MEMBERS_REGEX = /\bmembers\s*[- ]?\s*only\b/i;
+  const MEMBERS_REGEX = /\bmembers\s*[- ]?\s*(only|first)\b/i;
 
   const UI = {
     overlayId: 'ytf-overlay',
@@ -204,7 +206,13 @@
 
   // ---------- Members-Only Filtering ----------
   function isMembersOnlyBadge(badge) {
-    if (badge.classList.contains('badge-style-type-members-only')) return true;
+    if (
+      badge.classList.contains('badge-style-type-members-only') ||
+      badge.classList.contains('badge-style-type-members-first')
+    ) {
+      return true;
+    }
+
     const label = badge.getAttribute('aria-label') || badge.textContent || '';
     return MEMBERS_REGEX.test(label);
   }
