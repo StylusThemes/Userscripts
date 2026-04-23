@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          YouTube - Filters
-// @version       2.5.2
+// @version       2.5.3
 // @description   Filter out unwanted content on YouTube to enhance your browsing experience. (Currently is able to filter videos based on age and members-only status)
 // @author        Journey Over
 // @license       MIT
@@ -82,6 +82,47 @@
   ];
 
   const MEMBERS_REGEX = /\bmembers\s*[- ]?\s*(only|first)\b/i;
+  const MEMBERS_SHELF_SUBTITLE_REGEX = /videos available to members/i;
+  const UNKNOWN_AGE_TEXT = 'Unknown';
+  const CHANNEL_HANDLE_SEGMENT = '@';
+  const RESCAN_DELAY_MS = 50;
+  const YOUTUBE_NAVIGATION_EVENTS = ['yt-navigate-finish', 'yt-page-data-updated'];
+  const UNIT_CONFIG = {
+    minutes: { factor: 525600, aliases: ['m', 'minute'] },
+    hours: { factor: 8760, aliases: ['h', 'hour'] },
+    days: { factor: 365, aliases: ['d', 'day'] },
+    weeks: { factor: 52, aliases: ['w', 'week'] },
+    months: { factor: 12, aliases: ['mo', 'month'] },
+    years: { factor: 1, aliases: ['y', 'year'] }
+  };
+
+  const AGE_UNIT_ALIASES = Object.entries(UNIT_CONFIG).reduce((aliasMap, [unit, config]) => {
+    aliasMap[unit] = unit;
+    for (const alias of config.aliases) {
+      aliasMap[alias] = unit;
+    }
+    return aliasMap;
+  }, {});
+
+  const AGE_CONVERSIONS = Object.fromEntries(
+    Object.entries(UNIT_CONFIG).map(([unit, config]) => [unit, config.factor])
+  );
+
+  const AGE_UNITS = Object.keys(UNIT_CONFIG);
+
+  const AGE_TEXT_REGEX = new RegExp(
+    `(\\d+)\\s*(${Object.values(UNIT_CONFIG).flatMap(config => config.aliases).join('|')})s?\\s+ago`,
+    'i'
+  );
+  const VIDEO_SELECTOR_QUERY = VIDEO_SELECTORS.join(',');
+  const UNPROCESSED_VIDEO_SELECTOR_QUERY = VIDEO_SELECTORS.map(selector => `${selector}:not([data-processed])`).join(',');
+  const MEMBERS_SELECTOR_QUERY = MEMBERS_SELECTORS.join(',');
+  const SETTINGS_KEYS = {
+    debugEnabled: 'DEBUG_ENABLED',
+    ageThreshold: 'AGE_THRESHOLD',
+    membersOnlyEnabled: 'MEMBERS_ONLY_ENABLED',
+    ageFilteringEnabled: 'AGE_FILTERING_ENABLED'
+  };
 
   const UI = {
     overlayId: 'ytf-overlay',
@@ -92,12 +133,11 @@
   const css = '#ytf-overlay{position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.6);backdrop-filter:blur(2px);z-index:99999;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 0.2s ease;font-family:"Roboto","Arial",sans-serif}#ytf-overlay.visible{opacity:1}#ytf-modal{background:#212121;color:#fff;width:400px;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);overflow:hidden;transform:scale(0.95);transition:transform 0.2s ease}#ytf-overlay.visible #ytf-modal{transform:scale(1)}.ytf-header{padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;justify-content:space-between;align-items:center;background:#181818}.ytf-title{font-size:18px;font-weight:500}.ytf-close{background:none;border:none;color:#aaa;font-size:24px;cursor:pointer;line-height:1;padding:0}.ytf-close:hover{color:#fff}.ytf-body{padding:10px 0;max-height:60vh;overflow-y:auto}.ytf-row{display:flex;justify-content:space-between;align-items:center;padding:12px 20px;border-bottom:1px solid rgba(255,255,255,0.05);transition:background 0.2s}.ytf-row:last-child{border-bottom:none}.ytf-row:hover{background:rgba(255,255,255,0.03)}.ytf-label{font-size:14px;color:#eee}.ytf-switch{position:relative;display:inline-block;width:40px;height:24px}.ytf-switch input{opacity:0;width:0;height:0}.ytf-slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background-color:#444;transition:.4s;border-radius:24px}.ytf-slider:before{position:absolute;content:"";height:18px;width:18px;left:3px;bottom:3px;background-color:white;transition:.4s;border-radius:50%}input:checked+.ytf-slider{background-color:#f00}input:checked+.ytf-slider:before{transform:translateX(16px)}.ytf-input-group{display:flex;gap:8px}.ytf-input,.ytf-select{background:#333;color:#fff;border:1px solid #555;padding:4px 8px;border-radius:4px;font-size:13px;outline:none}.ytf-input:focus,.ytf-select:focus{border-color:#f00}.ytf-input{width:60px}.ytf-footer{padding:16px 20px;border-top:1px solid rgba(255,255,255,0.1);display:flex;justify-content:flex-end;gap:12px;background:#181818}.ytf-btn{padding:8px 16px;border:none;border-radius:6px;font-size:14px;font-weight:500;cursor:pointer;transition:background 0.2s;color:#fff}.ytf-btn-secondary{background:#444}.ytf-btn-secondary:hover{background:#555}.ytf-btn-primary{background:#f00}.ytf-btn-primary:hover{background:#d00}';
 
   // ---------- Settings State ----------
-  const DEBUG_ENABLED = GM_getValue('DEBUG_ENABLED', false);
+  const DEBUG_ENABLED = GM_getValue(SETTINGS_KEYS.debugEnabled, false);
   const logger = Logger('YT - Filters', { debug: DEBUG_ENABLED });
-  const AGE_THRESHOLD = GM_getValue('AGE_THRESHOLD', { value: 4, unit: 'years' });
-  const MEMBERS_ONLY_ENABLED = GM_getValue('MEMBERS_ONLY_ENABLED', false);
-  const AGE_FILTERING_ENABLED = GM_getValue('AGE_FILTERING_ENABLED', true);
-  const processedVideos = new WeakSet();
+  const AGE_THRESHOLD = GM_getValue(SETTINGS_KEYS.ageThreshold, { value: 4, unit: 'years' });
+  const MEMBERS_ONLY_ENABLED = GM_getValue(SETTINGS_KEYS.membersOnlyEnabled, false);
+  const AGE_FILTERING_ENABLED = GM_getValue(SETTINGS_KEYS.ageFilteringEnabled, true);
 
   // ---------- Utility Functions ----------
   function injectStyle(styleText) {
@@ -113,13 +153,34 @@
     return element;
   }
 
+  /**
+   * Converts a relative age value into years.
+   *
+   * @param {number} value
+   * @param {string} unit
+   * @returns {number}
+   */
   function convertToYears(value, unit) {
-    const conversions = { minutes: 525600, hours: 8760, days: 365, weeks: 52, months: 12, years: 1 };
-    return value / (conversions[unit] || 1);
+    return value / (AGE_CONVERSIONS[unit] || 1);
   }
 
-  function matchesAnySelector(element, selectors) {
-    return selectors.some(selector => element.matches(selector));
+  /**
+   * Parses a YouTube relative age label into normalized years.
+   *
+   * @param {string} ageText
+   * @returns {{ text: string, years: number } | null}
+   */
+  function parseAgeText(ageText) {
+    if (!/\bago\b/i.test(ageText)) return null;
+
+    const ageMatch = ageText.match(AGE_TEXT_REGEX);
+    if (!ageMatch) {
+      return { text: ageText, years: 0 };
+    }
+
+    const ageValue = parseInt(ageMatch[1], 10);
+    const ageUnit = AGE_UNIT_ALIASES[ageMatch[2].toLowerCase()] || 'years';
+    return { text: ageText, years: convertToYears(ageValue, ageUnit) };
   }
 
   function queryAll(root, selectors) {
@@ -127,41 +188,21 @@
   }
 
   // ---------- Video Processing ----------
+  /**
+   * Returns the first recognized age label for a video.
+   *
+   * @param {Element} videoElement
+   * @returns {{ text: string, years: number }}
+   */
   function getVideoAgeTextAndYears(videoElement) {
     for (const ageElement of queryAll(videoElement, AGE_SELECTORS)) {
       const ageText = (ageElement.textContent || '').trim();
-
-      if (/\bago\b/i.test(ageText)) {
-        // Matches both classic ("2 days ago", "1 month ago") and new abbreviated ("2d ago", "1mo ago") formats
-        const ageMatch = ageText.match(/(\d+)\s*(minute|hour|day|week|month|year|mo|m|h|d|w|y)s?\s+ago/i);
-
-        if (ageMatch) {
-          const ageValue = parseInt(ageMatch[1], 10);
-          const rawUnit = ageMatch[2].toLowerCase();
-
-          const unitMapping = {
-            m: 'minutes',
-            minute: 'minutes',
-            h: 'hours',
-            hour: 'hours',
-            d: 'days',
-            day: 'days',
-            w: 'weeks',
-            week: 'weeks',
-            mo: 'months',
-            month: 'months',
-            y: 'years',
-            year: 'years'
-          };
-
-          const ageUnit = unitMapping[rawUnit] || 'years';
-          const ageInYears = convertToYears(ageValue, ageUnit);
-          return { text: ageText, years: ageInYears };
-        }
-        return { text: ageText, years: 0 };
+      const parsedAge = parseAgeText(ageText);
+      if (parsedAge) {
+        return parsedAge;
       }
     }
-    return { text: 'Unknown', years: 0 };
+    return { text: UNKNOWN_AGE_TEXT, years: 0 };
   }
 
   function getVideoTitle(videoElement) {
@@ -175,14 +216,12 @@
   }
 
   function hideVideo(videoElement, reason) {
-    for (const selector of VIDEO_SELECTORS) {
-      const videoContainer = videoElement.closest(selector);
-      if (videoContainer) {
-        try {
-          videoContainer.setAttribute('hidden', 'true');
-        } catch {
-          videoContainer.style.display = 'none';
-        }
+    const videoContainer = videoElement.closest(VIDEO_SELECTOR_QUERY);
+    if (videoContainer) {
+      try {
+        videoContainer.setAttribute('hidden', 'true');
+      } catch {
+        videoContainer.style.display = 'none';
       }
     }
     logger.debug(`Hidden "${getVideoTitle(videoElement)}" (${reason})`);
@@ -190,12 +229,9 @@
 
   // ---------- Age Filtering ----------
   function filterVideoByAge(videoElement) {
-    if (processedVideos.has(videoElement)) return;
-
     const { text: ageText, years: ageYears } = getVideoAgeTextAndYears(videoElement);
-    if (ageText === 'Unknown') return;
+    if (ageText === UNKNOWN_AGE_TEXT) return;
 
-    processedVideos.add(videoElement);
     videoElement.dataset.processed = 'true';
 
     const thresholdInYears = convertToYears(AGE_THRESHOLD.value, AGE_THRESHOLD.unit);
@@ -205,6 +241,12 @@
   }
 
   // ---------- Members-Only Filtering ----------
+  /**
+   * Detects whether a badge marks Members-only or Members-first content.
+   *
+   * @param {Element} badge
+   * @returns {boolean}
+   */
   function isMembersOnlyBadge(badge) {
     if (
       badge.classList.contains('badge-style-type-members-only') ||
@@ -218,7 +260,7 @@
   }
 
   function removeMembersOnlyVideo(badge) {
-    const videoElement = badge.closest(VIDEO_SELECTORS.join(','));
+    const videoElement = badge.closest(VIDEO_SELECTOR_QUERY);
     if (videoElement) {
       videoElement.remove();
       logger.debug(`Removed Members-only "${getVideoTitle(videoElement)}"`);
@@ -229,7 +271,7 @@
     for (const shelf of root.querySelectorAll('ytd-shelf-renderer')) {
       const title = (shelf.querySelector('#title')?.textContent || '').trim();
       const subtitle = (shelf.querySelector('#subtitle')?.textContent || '').trim();
-      if (MEMBERS_REGEX.test(title) || /videos available to members/i.test(subtitle)) {
+      if (MEMBERS_REGEX.test(title) || MEMBERS_SHELF_SUBTITLE_REGEX.test(subtitle)) {
         shelf.remove();
       }
     }
@@ -247,11 +289,10 @@
   // ---------- Observers ----------
   function processUnfilteredVideos() {
     try {
-      const unprocessedVideos = document.querySelectorAll(
-        VIDEO_SELECTORS.map(selector => `${selector}:not([data-processed])`).join(',')
-      );
+      const unprocessedVideos = document.querySelectorAll(UNPROCESSED_VIDEO_SELECTOR_QUERY);
+      const shouldFilterAges = AGE_FILTERING_ENABLED && !window.location.href.includes(CHANNEL_HANDLE_SEGMENT);
       for (const videoElement of unprocessedVideos) {
-        if (AGE_FILTERING_ENABLED && !window.location.href.includes('@')) {
+        if (shouldFilterAges) {
           filterVideoByAge(videoElement);
         }
       }
@@ -261,15 +302,25 @@
     }
   }
 
-  function observeNewVideos() {
-    const unprocessedSelector = VIDEO_SELECTORS.map(selector => `${selector}:not([data-processed])`).join(',');
+  /**
+   * Re-runs a scan after YouTube client-side navigation events settle.
+   *
+   * @param {() => void} callback
+   */
+  function registerYouTubeRescan(callback) {
+    const rescan = () => setTimeout(callback, RESCAN_DELAY_MS);
+    for (const eventName of YOUTUBE_NAVIGATION_EVENTS) {
+      window.addEventListener(eventName, rescan);
+    }
+  }
 
+  function observeNewVideos() {
     const observer = new MutationObserver(mutations => {
       for (const mutation of mutations) {
         if (mutation.type !== 'childList') continue;
         for (const node of mutation.addedNodes) {
           if (!(node instanceof Element)) continue;
-          if (node.matches(unprocessedSelector) || node.querySelector(unprocessedSelector)) {
+          if (node.matches(UNPROCESSED_VIDEO_SELECTOR_QUERY) || node.querySelector(UNPROCESSED_VIDEO_SELECTOR_QUERY)) {
             processUnfilteredVideos();
             return;
           }
@@ -278,22 +329,18 @@
     });
     observer.observe(document.documentElement, { childList: true, subtree: true });
 
-    const rescan = () => setTimeout(processUnfilteredVideos, 50);
-    window.addEventListener('yt-navigate-finish', rescan);
-    window.addEventListener('yt-page-data-updated', rescan);
+    registerYouTubeRescan(processUnfilteredVideos);
 
     processUnfilteredVideos();
   }
 
   function observeMembersOnly() {
-    // Use MutationObserver to detect newly added members-only badges and remove them
-    // Also listen to YouTube's custom events for page changes to rescan content
     const observer = new MutationObserver(mutations => {
       for (const mutation of mutations) {
         if (mutation.type === 'childList') {
           for (const node of mutation.addedNodes) {
             if (!(node instanceof Element)) continue;
-            if (matchesAnySelector(node, MEMBERS_SELECTORS) && isMembersOnlyBadge(node)) {
+            if (node.matches(MEMBERS_SELECTOR_QUERY) && isMembersOnlyBadge(node)) {
               removeMembersOnlyVideo(node);
             } else {
               scanForMembersOnly(node);
@@ -304,9 +351,7 @@
     });
     observer.observe(document.documentElement, { childList: true, subtree: true });
 
-    const rescan = () => setTimeout(() => scanForMembersOnly(document), 50);
-    window.addEventListener('yt-navigate-finish', rescan);
-    window.addEventListener('yt-page-data-updated', rescan);
+    registerYouTubeRescan(() => scanForMembersOnly(document));
   }
 
   // ---------- Settings UI ----------
@@ -354,7 +399,7 @@
     const select = createElement('select', 'ytf-select');
     select.id = 'ytf-threshold-unit';
     select.setAttribute('aria-label', 'Age Threshold Unit');
-    for (const unit of ['minutes', 'hours', 'days', 'weeks', 'months', 'years']) {
+    for (const unit of AGE_UNITS) {
       const opt = createElement('option');
       opt.value = unit;
       opt.textContent = unit.charAt(0).toUpperCase() + unit.slice(1);
@@ -376,13 +421,32 @@
     return row;
   }
 
+  /**
+   * Persists settings to userscript storage.
+   *
+   * @param {{
+   *   ageFilteringEnabled: boolean,
+   *   ageThreshold: { value: number, unit: string },
+   *   membersOnlyEnabled: boolean,
+   *   debugEnabled: boolean
+   * }} settings
+   */
+  function saveSettings(settings) {
+    GM_setValue(SETTINGS_KEYS.ageFilteringEnabled, settings.ageFilteringEnabled);
+    GM_setValue(SETTINGS_KEYS.ageThreshold, settings.ageThreshold);
+    GM_setValue(SETTINGS_KEYS.membersOnlyEnabled, settings.membersOnlyEnabled);
+    GM_setValue(SETTINGS_KEYS.debugEnabled, settings.debugEnabled);
+  }
+
   function openSettingsMenu() {
     if (document.getElementById(UI.overlayId)) return;
 
-    let temporaryAgeFilteringEnabled = AGE_FILTERING_ENABLED;
-    let temporaryAgeThreshold = { ...AGE_THRESHOLD };
-    let temporaryMembersOnlyEnabled = MEMBERS_ONLY_ENABLED;
-    let temporaryDebugEnabled = DEBUG_ENABLED;
+    const draftSettings = {
+      ageFilteringEnabled: AGE_FILTERING_ENABLED,
+      ageThreshold: { ...AGE_THRESHOLD },
+      membersOnlyEnabled: MEMBERS_ONLY_ENABLED,
+      debugEnabled: DEBUG_ENABLED
+    };
 
     const overlay = createElement('div');
     overlay.id = UI.overlayId;
@@ -408,20 +472,20 @@
 
     const body = createElement('div', 'ytf-body');
 
-    body.appendChild(createToggleRow('Enable Age Filtering', temporaryAgeFilteringEnabled, (checked) => {
-      temporaryAgeFilteringEnabled = checked;
+    body.appendChild(createToggleRow('Enable Age Filtering', draftSettings.ageFilteringEnabled, (checked) => {
+      draftSettings.ageFilteringEnabled = checked;
     }));
 
-    body.appendChild(createThresholdRow(temporaryAgeThreshold, (newThreshold) => {
-      temporaryAgeThreshold = newThreshold;
+    body.appendChild(createThresholdRow(draftSettings.ageThreshold, (newThreshold) => {
+      draftSettings.ageThreshold = newThreshold;
     }));
 
-    body.appendChild(createToggleRow('Hide Members-only Videos', temporaryMembersOnlyEnabled, (checked) => {
-      temporaryMembersOnlyEnabled = checked;
+    body.appendChild(createToggleRow('Hide Members-only Videos', draftSettings.membersOnlyEnabled, (checked) => {
+      draftSettings.membersOnlyEnabled = checked;
     }));
 
-    body.appendChild(createToggleRow('Debug Logging', temporaryDebugEnabled, (checked) => {
-      temporaryDebugEnabled = checked;
+    body.appendChild(createToggleRow('Debug Logging', draftSettings.debugEnabled, (checked) => {
+      draftSettings.debugEnabled = checked;
     }));
 
     const footer = createElement('div', 'ytf-footer');
@@ -431,10 +495,7 @@
 
     const saveButton = createElement('button', 'ytf-btn ytf-btn-primary', 'Save & Reload');
     saveButton.addEventListener('click', () => {
-      GM_setValue('AGE_FILTERING_ENABLED', temporaryAgeFilteringEnabled);
-      GM_setValue('AGE_THRESHOLD', temporaryAgeThreshold);
-      GM_setValue('MEMBERS_ONLY_ENABLED', temporaryMembersOnlyEnabled);
-      GM_setValue('DEBUG_ENABLED', temporaryDebugEnabled);
+      saveSettings(draftSettings);
       window.location.reload();
     });
 
