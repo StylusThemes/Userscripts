@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          Magnet Link to Real-Debrid
-// @version       2.12.0
+// @version       2.12.1
 // @description   Automatically send magnet links to Real-Debrid
 // @author        Journey Over
 // @license       MIT
@@ -983,19 +983,25 @@
       for (let index = 0; index < selectedUrls.length; index++) {
         const url = selectedUrls[index];
         const key = this._magnetKeyFor(url);
-        const iconContainer = this.keyToIcon.get(key);
-        const icon = iconContainer ? (iconContainer.querySelector('.rd-icon') || iconContainer) : null;
+        const iconContainers = this._iconsForKey(key);
+        const icons = iconContainers.map(iconContainer => iconContainer.querySelector('.rd-icon') || iconContainer);
 
         UIManager.showToast(`Processing ${index + 1}/${selectedUrls.length} links...`, 'info');
-        if (icon) UIManager.setIconState(icon, 'processing', config.enableTorrentSupport);
+        for (const icon of icons) {
+          UIManager.setIconState(icon, 'processing', config.enableTorrentSupport);
+        }
 
         try {
           await this.processor.processMagnetLink(url);
           successCount++;
-          if (icon) UIManager.setIconState(icon, 'added', config.enableTorrentSupport);
+          for (const icon of icons) {
+            UIManager.setIconState(icon, 'added', config.enableTorrentSupport);
+          }
         } catch (error) {
           errorCount++;
-          if (icon) UIManager.setIconState(icon, 'default', config.enableTorrentSupport);
+          for (const icon of icons) {
+            UIManager.setIconState(icon, 'default', config.enableTorrentSupport);
+          }
           logger.error(`[Batch Processing] Failed to process ${url}`, error);
         }
       }
@@ -1013,6 +1019,21 @@
       const hash = MagnetLinkProcessor.parseMagnetHash(href);
       if (hash) return `hash:${hash}`;
       try { return `href:${href.trim().toLowerCase()}`; } catch { return `href:${String(href).trim().toLowerCase()}`; }
+    }
+
+    _storeIconForKey(key, iconContainer) {
+      if (!key || !iconContainer) return;
+      const iconContainers = this.keyToIcon.get(key);
+      if (!iconContainers) {
+        this.keyToIcon.set(key, [iconContainer]);
+        return;
+      }
+      if (!iconContainers.includes(iconContainer)) iconContainers.push(iconContainer);
+    }
+
+    _iconsForKey(key) {
+      if (!key) return [];
+      return this.keyToIcon.get(key) || [];
     }
 
     _attach(iconContainer, link) {
@@ -1110,16 +1131,13 @@
 
         if (link.hasAttribute('data-rd-processed')) {
           const key = this._magnetKeyFor(link.href);
-          if (key && !this.keyToIcon.has(key)) {
-            // Find the icon - it might not be the immediate next sibling anymore
-            const icon = link.parentNode.querySelector(`[${INSERTED_ICON_ATTR}]`);
-            if (icon) this.keyToIcon.set(key, icon);
-          }
+          // Find the icon - it might not be the immediate next sibling anymore
+          const icon = link.parentNode.querySelector(`[${INSERTED_ICON_ATTR}]`);
+          this._storeIconForKey(key, icon);
           continue;
         }
 
         const key = this._magnetKeyFor(link.href);
-        if (key && this.keyToIcon.has(key)) continue;
 
         const iconContainer = this._shouldShowBatchUI() ?
           UIManager.createMagnetIconWithCheckbox(torrentSupport) :
@@ -1129,7 +1147,7 @@
         link.parentNode.insertBefore(iconContainer, link.nextSibling);
         link.setAttribute('data-rd-processed', '1');
         const storeKey = key || `href:${link.href.trim().toLowerCase()}`;
-        this.keyToIcon.set(storeKey, iconContainer);
+        this._storeIconForKey(storeKey, iconContainer);
         newlyAddedKeys.push(storeKey);
       }
 
@@ -1145,12 +1163,14 @@
       if (!this.processor) return;
       const config = ConfigManager.getConfigSync();
 
-      for (const [key, iconContainer] of this.keyToIcon.entries()) {
+      for (const [key, iconContainers] of this.keyToIcon.entries()) {
         if (!key.startsWith('hash:')) continue;
         const hash = key.split(':')[1];
         if (this.processor.isTorrentExists(hash)) {
-          const icon = iconContainer.querySelector('.rd-icon') || iconContainer;
-          UIManager.setIconState(icon, 'existing', config.enableTorrentSupport);
+          for (const iconContainer of iconContainers) {
+            const icon = iconContainer.querySelector('.rd-icon') || iconContainer;
+            UIManager.setIconState(icon, 'existing', config.enableTorrentSupport);
+          }
         }
       }
     }
