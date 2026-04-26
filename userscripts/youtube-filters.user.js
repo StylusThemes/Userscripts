@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          YouTube - Filters
-// @version       2.5.3
+// @version       2.5.4
 // @description   Filter out unwanted content on YouTube to enhance your browsing experience. (Currently is able to filter videos based on age and members-only status)
 // @author        Journey Over
 // @license       MIT
@@ -81,6 +81,15 @@
     '.yt-badge-shape__text'
   ];
 
+  const LIVE_PREMIERE_SELECTORS = [
+    'badge-shape.ytBadgeShapeThumbnailLive',
+    'div.ytBadgeShapeText',
+    '.yt-badge-shape__text'
+  ];
+
+  const LIVE_BADGE_REGEX = /^\s*live\s*$/i;
+  const PREMIERE_BADGE_REGEX = /^\s*premiere\s*$/i;
+
   const MEMBERS_REGEX = /\bmembers\s*[- ]?\s*(only|first)\b/i;
   const MEMBERS_SHELF_SUBTITLE_REGEX = /videos available to members/i;
   const UNKNOWN_AGE_TEXT = 'Unknown';
@@ -121,7 +130,9 @@
     debugEnabled: 'DEBUG_ENABLED',
     ageThreshold: 'AGE_THRESHOLD',
     membersOnlyEnabled: 'MEMBERS_ONLY_ENABLED',
-    ageFilteringEnabled: 'AGE_FILTERING_ENABLED'
+    ageFilteringEnabled: 'AGE_FILTERING_ENABLED',
+    liveVideosEnabled: 'LIVE_VIDEOS_ENABLED',
+    premiereVideosEnabled: 'PREMIERE_VIDEOS_ENABLED'
   };
 
   const UI = {
@@ -138,6 +149,8 @@
   const AGE_THRESHOLD = GM_getValue(SETTINGS_KEYS.ageThreshold, { value: 4, unit: 'years' });
   const MEMBERS_ONLY_ENABLED = GM_getValue(SETTINGS_KEYS.membersOnlyEnabled, false);
   const AGE_FILTERING_ENABLED = GM_getValue(SETTINGS_KEYS.ageFilteringEnabled, true);
+  const LIVE_VIDEOS_ENABLED = GM_getValue(SETTINGS_KEYS.liveVideosEnabled, false);
+  const PREMIERE_VIDEOS_ENABLED = GM_getValue(SETTINGS_KEYS.premiereVideosEnabled, false);
 
   // ---------- Utility Functions ----------
   function injectStyle(styleText) {
@@ -216,14 +229,17 @@
   }
 
   function hideVideo(videoElement, reason) {
-    const videoContainer = videoElement.closest(VIDEO_SELECTOR_QUERY);
-    if (videoContainer) {
-      try {
-        videoContainer.setAttribute('hidden', 'true');
-      } catch {
-        videoContainer.style.display = 'none';
-      }
+    let videoContainer = videoElement.closest(VIDEO_SELECTOR_QUERY);
+    if (!videoContainer) return;
+
+    let parentContainer = videoContainer.parentElement?.closest(VIDEO_SELECTOR_QUERY);
+    while (parentContainer) {
+      videoContainer = parentContainer;
+      parentContainer = videoContainer.parentElement?.closest(VIDEO_SELECTOR_QUERY);
     }
+
+    videoContainer.hidden = true;
+    videoContainer.style.setProperty('display', 'none', 'important');
     logger.debug(`Hidden "${getVideoTitle(videoElement)}" (${reason})`);
   }
 
@@ -232,12 +248,59 @@
     const { text: ageText, years: ageYears } = getVideoAgeTextAndYears(videoElement);
     if (ageText === UNKNOWN_AGE_TEXT) return;
 
-    videoElement.dataset.processed = 'true';
-
     const thresholdInYears = convertToYears(AGE_THRESHOLD.value, AGE_THRESHOLD.unit);
     if (ageYears >= thresholdInYears) {
       hideVideo(videoElement, ageText);
     }
+  }
+
+  /**
+   * Detects LIVE or PREMIERE badge on a video element.
+   *
+   * @param {Element} videoElement
+   * @returns {string} 'LIVE', 'PREMIERE', or ''
+   */
+  function getVideoBroadcastBadge(videoElement) {
+    for (const badge of queryAll(videoElement, LIVE_PREMIERE_SELECTORS)) {
+      const label = (badge.getAttribute('aria-label') || badge.textContent || '').trim();
+      if (LIVE_BADGE_REGEX.test(label)) return 'LIVE';
+      if (PREMIERE_BADGE_REGEX.test(label)) return 'PREMIERE';
+    }
+    return '';
+  }
+
+  /**
+   * Filters a video by its broadcast status (LIVE/PREMIERE).
+   *
+   * @param {Element} videoElement
+   * @returns {boolean} true if video was hidden
+   */
+  function filterVideoByBroadcastStatus(videoElement) {
+    const badgeType = getVideoBroadcastBadge(videoElement);
+
+    if (badgeType === 'LIVE' && LIVE_VIDEOS_ENABLED) {
+      hideVideo(videoElement, 'LIVE');
+      return true;
+    }
+
+    if (badgeType === 'PREMIERE' && PREMIERE_VIDEOS_ENABLED) {
+      hideVideo(videoElement, 'PREMIERE');
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Applies all video filters to an unprocessed video element.
+   *
+   * @param {Element} videoElement
+   * @param {boolean} shouldFilterAges
+   */
+  function applyVideoFilters(videoElement, shouldFilterAges) {
+    videoElement.dataset.processed = 'true';
+    if (filterVideoByBroadcastStatus(videoElement)) return;
+    if (shouldFilterAges) filterVideoByAge(videoElement);
   }
 
   // ---------- Members-Only Filtering ----------
@@ -292,9 +355,7 @@
       const unprocessedVideos = document.querySelectorAll(UNPROCESSED_VIDEO_SELECTOR_QUERY);
       const shouldFilterAges = AGE_FILTERING_ENABLED && !window.location.href.includes(CHANNEL_HANDLE_SEGMENT);
       for (const videoElement of unprocessedVideos) {
-        if (shouldFilterAges) {
-          filterVideoByAge(videoElement);
-        }
+        applyVideoFilters(videoElement, shouldFilterAges);
       }
       if (MEMBERS_ONLY_ENABLED) pruneMembersShelf();
     } catch (error) {
@@ -428,6 +489,8 @@
    *   ageFilteringEnabled: boolean,
    *   ageThreshold: { value: number, unit: string },
    *   membersOnlyEnabled: boolean,
+   *   liveVideosEnabled: boolean,
+   *   premiereVideosEnabled: boolean,
    *   debugEnabled: boolean
    * }} settings
    */
@@ -435,6 +498,8 @@
     GM_setValue(SETTINGS_KEYS.ageFilteringEnabled, settings.ageFilteringEnabled);
     GM_setValue(SETTINGS_KEYS.ageThreshold, settings.ageThreshold);
     GM_setValue(SETTINGS_KEYS.membersOnlyEnabled, settings.membersOnlyEnabled);
+    GM_setValue(SETTINGS_KEYS.liveVideosEnabled, settings.liveVideosEnabled);
+    GM_setValue(SETTINGS_KEYS.premiereVideosEnabled, settings.premiereVideosEnabled);
     GM_setValue(SETTINGS_KEYS.debugEnabled, settings.debugEnabled);
   }
 
@@ -445,6 +510,8 @@
       ageFilteringEnabled: AGE_FILTERING_ENABLED,
       ageThreshold: { ...AGE_THRESHOLD },
       membersOnlyEnabled: MEMBERS_ONLY_ENABLED,
+      liveVideosEnabled: LIVE_VIDEOS_ENABLED,
+      premiereVideosEnabled: PREMIERE_VIDEOS_ENABLED,
       debugEnabled: DEBUG_ENABLED
     };
 
@@ -482,6 +549,14 @@
 
     body.appendChild(createToggleRow('Hide Members-only Videos', draftSettings.membersOnlyEnabled, (checked) => {
       draftSettings.membersOnlyEnabled = checked;
+    }));
+
+    body.appendChild(createToggleRow('Hide LIVE Videos', draftSettings.liveVideosEnabled, (checked) => {
+      draftSettings.liveVideosEnabled = checked;
+    }));
+
+    body.appendChild(createToggleRow('Hide PREMIERE Videos', draftSettings.premiereVideosEnabled, (checked) => {
+      draftSettings.premiereVideosEnabled = checked;
     }));
 
     body.appendChild(createToggleRow('Debug Logging', draftSettings.debugEnabled, (checked) => {
