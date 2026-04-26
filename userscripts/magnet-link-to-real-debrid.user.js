@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          Magnet Link to Real-Debrid
-// @version       2.12.1
+// @version       2.12.2
 // @description   Automatically send magnet links to Real-Debrid
 // @author        Journey Over
 // @license       MIT
@@ -46,7 +46,6 @@
     filterKeywords: ['sample', 'bloopers', 'trailer'],
     manualFileSelection: false,
     debugEnabled: false,
-    enableTorrentSupport: false
   };
 
   class ConfigurationError extends Error {
@@ -97,7 +96,6 @@
       if (!Array.isArray(config.filterKeywords)) errors.push('filterKeywords must be an array');
       if (typeof config.manualFileSelection !== 'boolean') errors.push('manualFileSelection must be a boolean');
       if (typeof config.debugEnabled !== 'boolean') errors.push('debugEnabled must be a boolean');
-      if (typeof config.enableTorrentSupport !== 'boolean') errors.push('enableTorrentSupport must be a boolean');
       return errors;
     },
   };
@@ -408,7 +406,7 @@
     createConfigDialog(currentConfig) {
       this.injectStyles();
 
-      const html = `<div class="rd-dialog" role="dialog" aria-labelledby="rd-dialog-title" aria-modal="true"><div class="rd-header"><h2 id="rd-dialog-title" class="rd-title">Real-Debrid Settings</h2><button class="rd-close" aria-label="Close settings dialog">&times;</button></div><div class="rd-body"><nav class="rd-sidebar" role="tablist" aria-label="Settings sections"><button class="rd-nav-item active" data-tab="tab-general" role="tab" aria-selected="true" id="tab-general-btn">General</button><button class="rd-nav-item" data-tab="tab-filtering" role="tab" aria-selected="false" id="tab-filtering-btn">Filters</button></nav><div class="rd-content"><div id="tab-general" class="rd-tab-pane active" role="tabpanel" aria-labelledby="tab-general-btn"><div class="rd-group"><label for="apiKeyInput" class="rd-label">API Token</label><div class="rd-input-wrapper"><input type="password" id="apiKeyInput" class="rd-input" value="${this.escapeHtml(currentConfig.apiKey||'')}" placeholder="Paste your Real-Debrid API Token here" style="padding-right:40px" aria-describedby="api-key-help" required><button id="toggleApiVisibility" class="rd-eye-btn" type="button" aria-label="Toggle API key visibility" title="Show/Hide Token"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></button></div><div id="api-key-help" class="rd-sub-label">Find this at <a href="https://real-debrid.com/apitoken" target="_blank" rel="noopener">real-debrid.com/apitoken</a></div><div id="api-key-error" class="rd-field-error">API key is required</div></div><div class="rd-list-item"><div class="rd-info"><h4>Manual File Selection</h4><p>Always show the file selection dialog before adding<br><span style="color:var(--rd-text-dim);font-size:11px">(Enabling this hides the Filters tab)</span></p></div><label class="rd-toggle"><input type="checkbox" id="manualFileSelection" ${currentConfig.manualFileSelection?'checked':''}><span class="rd-slider"></span></label></div><div class="rd-list-item"><div class="rd-info"><h4>Torrent Support</h4><p>Alt+Click magnet links to process .torrent files instead</p></div><label class="rd-toggle"><input type="checkbox" id="enableTorrentSupport" ${currentConfig.enableTorrentSupport?'checked':''}><span class="rd-slider"></span></label></div><div class="rd-list-item"><div class="rd-info"><h4>Debug Mode</h4><p>Log detailed information to the browser console</p></div><label class="rd-toggle"><input type="checkbox" id="debugEnabled" ${currentConfig.debugEnabled?'checked':''}><span class="rd-slider"></span></label></div></div><div id="tab-filtering" class="rd-tab-pane" role="tabpanel" aria-labelledby="tab-filtering-btn"><div class="rd-group"><label for="allowedExtensions" class="rd-label">Allowed Extensions</label><textarea id="allowedExtensions" class="rd-textarea" placeholder="mkv, mp4, avi" aria-describedby="extensions-help">${this.escapeHtml(currentConfig.allowedExtensions.join(', '))}</textarea><div id="extensions-help" class="rd-sub-label">Comma separated list of file extensions to auto-select</div><div id="extensions-error" class="rd-field-error">Please enter at least one file extension</div></div><div class="rd-group"><label for="filterKeywords" class="rd-label">Filter Keywords</label><textarea id="filterKeywords" class="rd-textarea" placeholder="sample, trailer" aria-describedby="keywords-help">${this.escapeHtml(currentConfig.filterKeywords.join(', '))}</textarea><div id="keywords-help" class="rd-sub-label">Files containing these words (or Regex /.../) will be skipped</div></div></div></div></div><div class="rd-footer"><button class="rd-btn rd-btn-ghost" id="cancelButton" type="button">Cancel</button><button class="rd-btn rd-btn-primary" id="saveButton" type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"></path><polyline points="17,21 17,13 7,13 7,21"></polyline><polyline points="7,3 7,8 15,8"></polyline></svg>Save Changes</button></div></div>`;
+      const html = `<div class="rd-dialog" role="dialog" aria-labelledby="rd-dialog-title" aria-modal="true"><div class="rd-header"><h2 id="rd-dialog-title" class="rd-title">Real-Debrid Settings</h2><button class="rd-close" aria-label="Close settings dialog">&times;</button></div><div class="rd-body"><nav class="rd-sidebar" role="tablist" aria-label="Settings sections"><button class="rd-nav-item active" data-tab="tab-general" role="tab" aria-selected="true" id="tab-general-btn">General</button><button class="rd-nav-item" data-tab="tab-filtering" role="tab" aria-selected="false" id="tab-filtering-btn">Filters</button></nav><div class="rd-content"><div id="tab-general" class="rd-tab-pane active" role="tabpanel" aria-labelledby="tab-general-btn"><div class="rd-group"><label for="apiKeyInput" class="rd-label">API Token</label><div class="rd-input-wrapper"><input type="password" id="apiKeyInput" class="rd-input" value="${this.escapeHtml(currentConfig.apiKey||'')}" placeholder="Paste your Real-Debrid API Token here" style="padding-right:40px" aria-describedby="api-key-help" required><button id="toggleApiVisibility" class="rd-eye-btn" type="button" aria-label="Toggle API key visibility" title="Show/Hide Token"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></button></div><div id="api-key-help" class="rd-sub-label">Find this at <a href="https://real-debrid.com/apitoken" target="_blank" rel="noopener">real-debrid.com/apitoken</a></div><div id="api-key-error" class="rd-field-error">API key is required</div></div><div class="rd-list-item"><div class="rd-info"><h4>Manual File Selection</h4><p>Always show the file selection dialog before adding<br><span style="color:var(--rd-text-dim);font-size:11px">(Enabling this hides the Filters tab)</span></p></div><label class="rd-toggle"><input type="checkbox" id="manualFileSelection" ${currentConfig.manualFileSelection?'checked':''}><span class="rd-slider"></span></label></div><div class="rd-list-item"><div class="rd-info"><h4>Debug Mode</h4><p>Log detailed information to the browser console</p></div><label class="rd-toggle"><input type="checkbox" id="debugEnabled" ${currentConfig.debugEnabled?'checked':''}><span class="rd-slider"></span></label></div></div><div id="tab-filtering" class="rd-tab-pane" role="tabpanel" aria-labelledby="tab-filtering-btn"><div class="rd-group"><label for="allowedExtensions" class="rd-label">Allowed Extensions</label><textarea id="allowedExtensions" class="rd-textarea" placeholder="mkv, mp4, avi" aria-describedby="extensions-help">${this.escapeHtml(currentConfig.allowedExtensions.join(', '))}</textarea><div id="extensions-help" class="rd-sub-label">Comma separated list of file extensions to auto-select</div><div id="extensions-error" class="rd-field-error">Please enter at least one file extension</div></div><div class="rd-group"><label for="filterKeywords" class="rd-label">Filter Keywords</label><textarea id="filterKeywords" class="rd-textarea" placeholder="sample, trailer" aria-describedby="keywords-help">${this.escapeHtml(currentConfig.filterKeywords.join(', '))}</textarea><div id="keywords-help" class="rd-sub-label">Files and folders containing these words (or Regex /.../) will be skipped</div></div></div></div></div><div class="rd-footer"><button class="rd-btn rd-btn-ghost" id="cancelButton" type="button">Cancel</button><button class="rd-btn rd-btn-primary" id="saveButton" type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"></path><polyline points="17,21 17,13 7,13 7,21"></polyline><polyline points="7,3 7,8 15,8"></polyline></svg>Save Changes</button></div></div>`;
 
       const overlay = document.createElement('div');
       overlay.className = 'rd-overlay';
@@ -474,7 +472,6 @@
       overlay.querySelector('.rd-close').addEventListener('click', close);
       overlay.querySelector('#cancelButton').addEventListener('click', close);
 
-      // Tab switching
       const tabs = overlay.querySelectorAll('.rd-nav-item');
       for (const tab of tabs) {
         tab.addEventListener('click', () => {
@@ -530,7 +527,6 @@
         try {
           const newConfig = {
             apiKey: apiKeyValue,
-            enableTorrentSupport: overlay.querySelector('#enableTorrentSupport').checked,
             debugEnabled: overlay.querySelector('#debugEnabled').checked,
             manualFileSelection: manualCheckbox.checked,
             allowedExtensions: extensionsTextarea.value.split(',').map(extension => extension.trim()).filter(Boolean),
@@ -579,7 +575,6 @@
           };
           updateStates(fileTree.root);
 
-          // Sync folder checkboxes in DOM
           const syncCheckboxes = (node, element) => {
             if (node.type === 'folder') {
               const checkbox = element.querySelector('.rd-checkbox');
@@ -678,9 +673,8 @@
         updateUI();
 
         toggleButton.onclick = () => {
-          const all = allFiles;
-          const value = all.some(file => !file.checked);
-          for (const file of all) file.checked = value;
+          const value = allFiles.some(file => !file.checked);
+          for (const file of allFiles) file.checked = value;
           updateUI();
           treeRoot.innerHTML = '';
           for (const child of fileTree.root.children) {
@@ -894,10 +888,6 @@
         });
       });
     }
-
-    isTorrentSupportEnabled() {
-      return this.#config.enableTorrentSupport;
-    }
   }
 
   class PageIntegrator {
@@ -906,7 +896,6 @@
       this.observer = null;
       this.keyToIcon = new Map();
       this.selectedLinks = new Set();
-      this.totalMagnetLinks = 0;
       this.initialMagnetLinkCount = 0;
       this.batchButton = null;
     }
@@ -975,8 +964,6 @@
         UIManager.showToast('Real-Debrid API key not configured. Use the menu to set it.', 'info');
         return;
       }
-      const config = ConfigManager.getConfigSync();
-
       let successCount = 0;
       let errorCount = 0;
 
@@ -988,25 +975,24 @@
 
         UIManager.showToast(`Processing ${index + 1}/${selectedUrls.length} links...`, 'info');
         for (const icon of icons) {
-          UIManager.setIconState(icon, 'processing', config.enableTorrentSupport);
+          UIManager.setIconState(icon, 'processing', true);
         }
 
         try {
           await this.processor.processMagnetLink(url);
           successCount++;
           for (const icon of icons) {
-            UIManager.setIconState(icon, 'added', config.enableTorrentSupport);
+            UIManager.setIconState(icon, 'added', true);
           }
         } catch (error) {
           errorCount++;
           for (const icon of icons) {
-            UIManager.setIconState(icon, 'default', config.enableTorrentSupport);
+            UIManager.setIconState(icon, 'default', true);
           }
           logger.error(`[Batch Processing] Failed to process ${url}`, error);
         }
       }
 
-      // Clear selections after processing
       this.selectedLinks.clear();
       this._updateBatchButton();
 
@@ -1041,19 +1027,11 @@
       const checkbox = iconContainer.querySelector('input[type="checkbox"]');
 
       const processLink = async (event) => {
-        if (icon.textContent === '✓') return; // Already processed
-
-        // Fetch latest config for current operation
-        const config = ConfigManager.getConfigSync();
-        const torrentSupport = config.enableTorrentSupport;
+        if (icon.textContent === '✓') return;
 
         const isMagnet = link.href.startsWith('magnet:');
         let linkToProcess = link;
         if (isMagnet && event.altKey) {
-          if (!torrentSupport) {
-            UIManager.showToast('Torrent support not enabled. Enable it in settings.', 'info');
-            return;
-          }
           const container = link.closest('tr') || link.closest('div') || link.closest('li') || link.parentElement;
           const torrentLink = container?.querySelector('a[href$=".torrent"]');
           if (torrentLink) linkToProcess = torrentLink;
@@ -1073,20 +1051,20 @@
 
         if (isProcessingMagnet && key?.startsWith('hash:') && this.processor?.isTorrentExists(key.split(':')[1])) {
           UIManager.showToast('Torrent already exists on Real-Debrid', 'info');
-          UIManager.setIconState(icon, 'existing', torrentSupport); // This sets text to checkmark
+          UIManager.setIconState(icon, 'existing', true);
           return;
         }
 
-        UIManager.setIconState(icon, 'processing', torrentSupport);
+        UIManager.setIconState(icon, 'processing', true);
 
         try {
           const fileCount = isProcessingMagnet ?
             await this.processor.processMagnetLink(linkToProcess.href) :
             await this.processor.processTorrentLink(linkToProcess.href);
           UIManager.showToast(`Added to Real-Debrid - ${fileCount} file(s) selected`, 'success');
-          UIManager.setIconState(icon, 'added', torrentSupport);
+          UIManager.setIconState(icon, 'added', true);
         } catch (error) {
-          UIManager.setIconState(icon, 'default', torrentSupport);
+          UIManager.setIconState(icon, 'default', true);
           UIManager.showToast(error?.message || 'Failed to process link', 'error');
           logger.error('[Link Processor] Failed to process link', error);
         }
@@ -1100,7 +1078,7 @@
       if (checkbox) {
         checkbox.addEventListener('change', (event_) => {
           event_.stopPropagation();
-          if (icon.textContent === '✓') return; // Already processed
+          if (icon.textContent === '✓') return;
           if (checkbox.checked) this.selectedLinks.add(link.href);
           else this.selectedLinks.delete(link.href);
           this._updateBatchButton();
@@ -1111,7 +1089,6 @@
 
     addIconsTo(documentRoot = document) {
       const links = [...documentRoot.querySelectorAll('a[href^="magnet:"]')];
-      this.totalMagnetLinks = links.length;
 
       if (this.initialMagnetLinkCount === 0 && links.length > 0) {
         const uniqueHashes = new Set();
@@ -1121,17 +1098,12 @@
         }
         this.initialMagnetLinkCount = uniqueHashes.size;
       }
-
-      const config = ConfigManager.getConfigSync();
-      const torrentSupport = config.enableTorrentSupport;
-
       const newlyAddedKeys = [];
       for (const link of links) {
         if (!link.parentNode) continue;
 
         if (link.hasAttribute('data-rd-processed')) {
           const key = this._magnetKeyFor(link.href);
-          // Find the icon - it might not be the immediate next sibling anymore
           const icon = link.parentNode.querySelector(`[${INSERTED_ICON_ATTR}]`);
           this._storeIconForKey(key, icon);
           continue;
@@ -1140,8 +1112,8 @@
         const key = this._magnetKeyFor(link.href);
 
         const iconContainer = this._shouldShowBatchUI() ?
-          UIManager.createMagnetIconWithCheckbox(torrentSupport) :
-          UIManager.createMagnetIcon(torrentSupport);
+          UIManager.createMagnetIconWithCheckbox(true) :
+          UIManager.createMagnetIcon(true);
 
         this._attach(iconContainer, link);
         link.parentNode.insertBefore(iconContainer, link.nextSibling);
@@ -1161,15 +1133,13 @@
 
     markExistingTorrents() {
       if (!this.processor) return;
-      const config = ConfigManager.getConfigSync();
-
       for (const [key, iconContainers] of this.keyToIcon.entries()) {
         if (!key.startsWith('hash:')) continue;
         const hash = key.split(':')[1];
         if (this.processor.isTorrentExists(hash)) {
           for (const iconContainer of iconContainers) {
             const icon = iconContainer.querySelector('.rd-icon') || iconContainer;
-            UIManager.setIconState(icon, 'existing', config.enableTorrentSupport);
+            UIManager.setIconState(icon, 'existing', true);
           }
         }
       }
