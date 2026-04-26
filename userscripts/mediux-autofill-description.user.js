@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          Mediux - Auto-fill description field
-// @version       1.0.1
+// @version       1.0.2
 // @description   Adds a button to auto-fill the description field with attribution text
 // @author        Journey Over
 // @license       MIT
@@ -9,8 +9,8 @@
 // @grant         none
 // @icon          https://www.google.com/s2/favicons?sz=32&domain=mediux.pro
 // @homepageURL   https://github.com/StylusThemes/Userscripts
-// @downloadURL   https://raw.githubusercontent.com/StylusThemes/Userscripts/master/userscripts/mediux-autofill-description.user.js
-// @updateURL     https://raw.githubusercontent.com/StylusThemes/Userscripts/master/userscripts/mediux-autofill-description.user.js
+// @downloadURL   https://raw.githubusercontent.com/StylusThemes/Userscripts/main/userscripts/mediux-autofill-description.user.js
+// @updateURL     https://raw.githubusercontent.com/StylusThemes/Userscripts/main/userscripts/mediux-autofill-description.user.js
 // ==/UserScript==
 
 (function() {

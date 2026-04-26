@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          GitHub - Latest
-// @version       1.9.6
+// @version       1.9.7
 // @description   Always keep an eye on the latest activity of your favorite projects
 // @author        Journey Over
 // @license       MIT
@@ -21,14 +21,6 @@
   const BUTTON_ID = 'latest-issues-button';
   const QUERY_STRING = 'q=sort%3Aupdated-desc';
   const NAVIGATION_SELECTOR = 'nav[aria-label="Repository"] > ul';
-
-  const debounce = (callback, wait) => {
-    let timeout;
-    return (...callbackArguments) => {
-      clearTimeout(timeout);
-      timeout = setTimeout(() => callback.apply(this, callbackArguments), wait);
-    };
-  };
 
   const findTemplateTab = (navigationBody) => {
     // Search for either the issues OR the pulls anchor

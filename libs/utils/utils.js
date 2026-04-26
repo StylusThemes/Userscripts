@@ -5,30 +5,30 @@
 // @name         @journeyover/utils
 // @description  Utility helpers for my userscripts
 // @license      MIT
-// @version      1.1.0
+// @version      1.1.1
 // @homepageURL  https://github.com/StylusThemes/Userscripts
 // ==/UserScript==
 
 /**
- * Create a debounced function that delays calling `fn` until `wait`
+ * Create a debounced function that delays calling `callback` until `wait`
  * milliseconds have passed without another call.
  *
  * The returned function preserves the original `this` binding and forwards
- * all arguments to `fn`. This implementation does not provide cancel/flush
+ * all arguments to `callback`. This implementation does not provide cancel/flush
  * helpers; it only postpones execution.
  *
  * Inputs:
- * - fn: Function to invoke after the quiet period.
+ * - callback: Function to invoke after the quiet period.
  * - wait: Number of milliseconds to wait.
  *
  * Output:
- * - A callable function that schedules `fn` and returns undefined.
+ * - A callable function that schedules `callback` and returns undefined.
  *
  * Edge cases:
- * - If `fn` is not a function a TypeError will be thrown by the runtime when
+ * - If `callback` is not a function a TypeError will be thrown by the runtime when
  *   attempting to call it. `wait` is coerced by the timer APIs to a number.
  *
- * @param {Function} fn - Function to debounce. Called with the original `this`.
+ * @param {Function} callback - Function to debounce. Called with the original `this`.
  * @param {number} wait - Delay in milliseconds.
  * @returns {Function} A debounced wrapper function.
  *

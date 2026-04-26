@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          YouTube - Filters
-// @version       2.5.5
+// @version       2.5.6
 // @description   Filter out unwanted content on YouTube to enhance your browsing experience. (Currently is able to filter videos based on age and members-only status)
 // @author        Journey Over
 // @license       MIT
@@ -125,6 +125,7 @@
   );
   const VIDEO_SELECTOR_QUERY = VIDEO_SELECTORS.join(',');
   const UNPROCESSED_VIDEO_SELECTOR_QUERY = VIDEO_SELECTORS.map(selector => `${selector}:not([data-processed])`).join(',');
+  const AGE_SELECTOR_QUERY = AGE_SELECTORS.join(',');
   const MEMBERS_SELECTOR_QUERY = MEMBERS_SELECTORS.join(',');
   const LIVE_PREMIERE_SELECTOR_QUERY = LIVE_PREMIERE_SELECTORS.join(',');
   const SETTINGS_KEYS = {
@@ -197,8 +198,8 @@
     return { text: ageText, years: convertToYears(ageValue, ageUnit) };
   }
 
-  function queryAll(root, selectors) {
-    return root.querySelectorAll(selectors.join(','));
+  function queryAll(root, selectorQuery) {
+    return root.querySelectorAll(selectorQuery);
   }
 
   // ---------- Video Processing ----------
@@ -209,7 +210,7 @@
    * @returns {{ text: string, years: number }}
    */
   function getVideoAgeTextAndYears(videoElement) {
-    for (const ageElement of queryAll(videoElement, AGE_SELECTORS)) {
+    for (const ageElement of queryAll(videoElement, AGE_SELECTOR_QUERY)) {
       const ageText = (ageElement.textContent || '').trim();
       const parsedAge = parseAgeText(ageText);
       if (parsedAge) {
@@ -262,7 +263,7 @@
    * @returns {string} 'LIVE', 'PREMIERE', or ''
    */
   function getVideoBroadcastBadge(videoElement) {
-    for (const badge of queryAll(videoElement, LIVE_PREMIERE_SELECTORS)) {
+    for (const badge of queryAll(videoElement, LIVE_PREMIERE_SELECTOR_QUERY)) {
       const label = (badge.getAttribute('aria-label') || badge.textContent || '').trim();
       if (LIVE_BADGE_REGEX.test(label)) return 'LIVE';
       if (PREMIERE_BADGE_REGEX.test(label)) return 'PREMIERE';
@@ -342,7 +343,7 @@
   }
 
   function scanForMembersOnly(root = document) {
-    for (const badge of queryAll(root, MEMBERS_SELECTORS)) {
+    for (const badge of queryAll(root, MEMBERS_SELECTOR_QUERY)) {
       if (isMembersOnlyBadge(badge)) {
         removeMembersOnlyVideo(badge);
       }
