@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          YouTube - Filters
-// @version       2.5.4
+// @version       2.5.5
 // @description   Filter out unwanted content on YouTube to enhance your browsing experience. (Currently is able to filter videos based on age and members-only status)
 // @author        Journey Over
 // @license       MIT
@@ -126,6 +126,7 @@
   const VIDEO_SELECTOR_QUERY = VIDEO_SELECTORS.join(',');
   const UNPROCESSED_VIDEO_SELECTOR_QUERY = VIDEO_SELECTORS.map(selector => `${selector}:not([data-processed])`).join(',');
   const MEMBERS_SELECTOR_QUERY = MEMBERS_SELECTORS.join(',');
+  const LIVE_PREMIERE_SELECTOR_QUERY = LIVE_PREMIERE_SELECTORS.join(',');
   const SETTINGS_KEYS = {
     debugEnabled: 'DEBUG_ENABLED',
     ageThreshold: 'AGE_THRESHOLD',
@@ -384,6 +385,16 @@
           if (node.matches(UNPROCESSED_VIDEO_SELECTOR_QUERY) || node.querySelector(UNPROCESSED_VIDEO_SELECTOR_QUERY)) {
             processUnfilteredVideos();
             return;
+          }
+          if (!LIVE_VIDEOS_ENABLED && !PREMIERE_VIDEOS_ENABLED) continue;
+
+          const badgeElement = node.matches(LIVE_PREMIERE_SELECTOR_QUERY) ?
+            node :
+            node.querySelector(LIVE_PREMIERE_SELECTOR_QUERY);
+          const videoElement = badgeElement?.closest(VIDEO_SELECTOR_QUERY);
+
+          if (videoElement) {
+            filterVideoByBroadcastStatus(videoElement);
           }
         }
       }
