@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          Mediux - Yaml Fixes
-// @version       2.2.3
+// @version       2.2.4
 // @description   Adds fixes and functions to Mediux
 // @author        Journey Over
 // @license       MIT
@@ -333,7 +333,7 @@
         const button = document.querySelector('#fytvbutton');
         let yamlContent = codeblock.textContent;
 
-        const regexSetInfo = /(\d+): # TVDB id for (.*?)\. Set by (.*?) on MediUX\. (https:\/\/mediux\.pro\/sets\/\d+)/;
+        const regexSetInfo = /(null|\d+): # TVDB id for (.*?)\. Set by (.*?) on MediUX\. (https:\/\/mediux\.pro\/sets\/\d+)/;
 
         const year = MediuxFixes.utils.getYear();
 
