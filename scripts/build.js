@@ -80,6 +80,10 @@ function normalizeEnding(content) {
   return content.endsWith('\n') ? content : content + '\n';
 }
 
+function normalizeLineEndings(content) {
+  return content.replace(/\r\n?/g, '\n');
+}
+
 // -----------------------------
 // Pipeline
 // -----------------------------
@@ -102,9 +106,11 @@ async function processFile(file, options = {}) {
   // Write formatted source if it changed
   const out = (header ? header + '\n\n' : '') + beautifiedBody;
   const finalOut = normalizeEnding(out);
+  const normalizedSource = normalizeLineEndings(source);
+  const normalizedFinalOut = normalizeLineEndings(finalOut);
   let changed = false;
 
-  if (finalOut !== source) {
+  if (normalizedFinalOut !== normalizedSource) {
     await fs.writeFile(file, finalOut, 'utf8');
     changed = true;
     console.log(`Formatted: ${path.relative(root, file)}`);
@@ -123,7 +129,7 @@ async function processFile(file, options = {}) {
     let minChanged = true;
     try {
       const existing = await fs.readFile(outPath, 'utf8');
-      if (existing === finalMinified) minChanged = false;
+      if (normalizeLineEndings(existing) === normalizeLineEndings(finalMinified)) minChanged = false;
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
     }
