@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          Nexus Mods - Updated Mod Highlighter
-// @version       2.1.1
+// @version       2.1.2
 // @description   Highlight mods that have updated since you last downloaded them
 // @author        Journey Over
 // @license       MIT
@@ -19,6 +19,7 @@
   const CONFIG = {
     table: {
       highlightClass: 'nm-update-row',
+      styleId: 'nexus-updated-style',
     },
     tile: {
       styleId: 'nm-highlighter-style',
@@ -55,12 +56,11 @@
 
   const ANIMATION_DURATIONS = {
     TILE_GLOW: 2,
-    TILE_PULSE: 2.5,
     TABLE_GLOW: 3,
     TABLE_STRIPE: 4,
   };
 
-  const PAGE_SELECTORS = {
+  const PAGE_ROUTES = {
     DOWNLOAD_HISTORY: {
       path: '/users/myaccount',
       tab: 'tab=download+history'
@@ -82,12 +82,8 @@
     }
 
     isDownloadHistoryPage() {
-      return window.location.pathname.includes(PAGE_SELECTORS.DOWNLOAD_HISTORY.path) &&
-        window.location.search.includes(PAGE_SELECTORS.DOWNLOAD_HISTORY.tab);
-    }
-
-    getTileSelector() {
-      return CONFIG.tile.selectors.join(', ');
+      return window.location.pathname.includes(PAGE_ROUTES.DOWNLOAD_HISTORY.path) &&
+        window.location.search.includes(PAGE_ROUTES.DOWNLOAD_HISTORY.tab);
     }
 
     injectStyleElement(styleId, styleCss) {
@@ -102,7 +98,7 @@
     injectTableStyles() {
       const updateColors = CONFIG.tile.colors.update;
       const css = `@keyframes table-row-glow{0%,100%{box-shadow:inset 0 0 8px ${updateColors.glow.replace('0.4','0.1')},0 0 4px ${updateColors.glow.replace('0.4','0.2')};background:linear-gradient(90deg,${updateColors.bg} 0%,${updateColors.bg.replace('0.05','0.08')} 50%,${updateColors.bg} 100%)}50%{box-shadow:inset 0 0 12px ${updateColors.glow.replace('0.4','0.15')},0 0 8px ${updateColors.glow.replace('0.4','0.3')};background:linear-gradient(90deg,${updateColors.bg.replace('0.05','0.08')} 0%,${updateColors.bg.replace('0.05','0.12')} 50%,${updateColors.bg.replace('0.05','0.08')} 100%)}}@keyframes table-stripe{0%{background-position:-200% 0}100%{background-position:200% 0}}.${CONFIG.table.highlightClass}{position:relative;animation:table-row-glow ${ANIMATION_DURATIONS.TABLE_GLOW}s ease-in-out infinite;background:linear-gradient(90deg,${updateColors.bg.replace('0.05','0.03')} 0%,${updateColors.bg.replace('0.05','0.06')} 50%,${updateColors.bg.replace('0.05','0.03')} 100%);background-size:200% 100%;transition:all 0.3s ease}.${CONFIG.table.highlightClass}::before{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:linear-gradient(90deg,transparent 0%,${updateColors.glow.replace('0.4','0.1')} 20%,${updateColors.glow.replace('0.4','0.2')} 50%,${updateColors.glow.replace('0.4','0.1')} 80%,transparent 100%);background-size:200% 100%;animation:table-stripe ${ANIMATION_DURATIONS.TABLE_STRIPE}s linear infinite;pointer-events:none;z-index:1}.${CONFIG.table.highlightClass}::after{content:'';position:absolute;top:0;left:0;bottom:0;width:3px;background:linear-gradient(180deg,${updateColors.primary} 0%,${updateColors.secondary} 50%,${updateColors.primary} 100%);box-shadow:0 0 8px ${updateColors.glow}}`;
-      this.injectStyleElement('nexus-updated-style', css);
+      this.injectStyleElement(CONFIG.table.styleId, css);
     }
 
     injectTileStyles() {
@@ -143,7 +139,7 @@
 
     processTiles() {
       if (this.isDownloadHistoryPage()) return;
-      const tileSelectorString = this.getTileSelector();
+      const tileSelectorString = CONFIG.tile.selectors.join(', ');
       const tileElements = document.querySelectorAll(tileSelectorString);
       for (const tileElement of tileElements) {
         tileElement.classList.remove(CONFIG.tile.updateClass, CONFIG.tile.downloadClass);
@@ -178,13 +174,13 @@
     setupNavigationHooks() {
       const originalPushState = history.pushState;
       const originalReplaceState = history.replaceState;
-      history.pushState = (...stateArguments) => {
-        const result = originalPushState.apply(history, stateArguments);
+      history.pushState = (...arguments_) => {
+        const result = originalPushState.apply(history, arguments_);
         this.debouncedProcess();
         return result;
       };
-      history.replaceState = (...stateArguments) => {
-        const result = originalReplaceState.apply(history, stateArguments);
+      history.replaceState = (...arguments_) => {
+        const result = originalReplaceState.apply(history, arguments_);
         this.debouncedProcess();
         return result;
       };
