@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          DMM - Add Trash Guide Regex Buttons
-// @version       4.0.0
+// @version       4.0.1
 // @description   Adds buttons to Debrid Media Manager for applying Trash Guide regex patterns.
 // @author        Journey Over
 // @license       MIT
@@ -42,6 +42,7 @@
     CACHE_DURATION: 24 * 60 * 60 * 1000,
     MUTATION_DEBOUNCE: 150,
     EXTERNAL_BUTTON_CONTAINERS: [
+      'div[data-testid="media-header-actions"]',
       '.grid > div:last-child',
       '.flex.flex-col.gap-2 > div:last-child',
       'div[class*="gap-2"] > div:last-child',
