@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          Mediux - Yaml Fixes
-// @version       2.2.4
+// @version       2.2.5
 // @description   Adds fixes and functions to Mediux
 // @author        Journey Over
 // @license       MIT
@@ -47,22 +47,15 @@
         );
       },
 
-      // Extract year from page elements, trying multiple selectors for reliability
-      getYear() {
-        const selectors = [
-          'h1',
-          'a[href*="/sets/"]',
-          'a[href*="/shows/"]'
-        ];
-
-        for (const selector of selectors) {
-          const element = document.querySelector(selector);
-          if (element) {
-            const match = element.textContent.match(/\((\d{4})\)/);
-            if (match) return match[1];
-          }
-        }
-        return 'Unknown';
+      // Extract year from the correct set's page element using its set ID.
+      // On listing pages, find the link for that specific set.
+      // On single set pages, fall back to the page heading (no self-link exists).
+      getYear(setId) {
+        const setLink = document.querySelector(`a[href="/sets/${setId}"]`);
+        const heading = document.querySelector('h1');
+        const text = setLink?.textContent ?? heading?.textContent ?? '';
+        const yearMatch = text.match(/\((\d{4})\)/);
+        return yearMatch ? yearMatch[1] : 'Unknown';
       },
 
       showNotification(message, duration = 3000) {
@@ -333,15 +326,15 @@
         const button = document.querySelector('#fytvbutton');
         let yamlContent = codeblock.textContent;
 
-        const regexSetInfo = /(null|\d+): # TVDB id for (.*?)\. Set by (.*?) on MediUX\. (https:\/\/mediux\.pro\/sets\/\d+)/;
-
-        const year = MediuxFixes.utils.getYear();
+        const regexSetInfo = /(null|\d+): # TVDB id for (.*?)\. Set by (.*?) on MediUX\. (https:\/\/mediux\.pro\/sets\/(\d+))/;
 
         const setMatch = yamlContent.match(regexSetInfo);
         if (setMatch) {
           const tvdbId = setMatch[1];
           const showTitle = setMatch[2];
           const setUrl = setMatch[4];
+          const setId = setMatch[5];
+          const year = MediuxFixes.utils.getYear(setId);
 
           yamlContent = yamlContent.replace(regexSetInfo, `# Posters from:\n# ${setUrl}\n\nmetadata:\n\n  ${tvdbId}: # ${showTitle} (${year})`);
         }
