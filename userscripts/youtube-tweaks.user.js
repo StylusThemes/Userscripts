@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          YouTube - Tweaks
-// @version       1.4.0
+// @version       1.4.1
 // @description   Random tweaks and fixes for YouTube!
 // @author        Journey Over
 // @license       MIT
@@ -10,23 +10,20 @@
 // @grant         GM_getValue
 // @grant         GM_setValue
 // @grant         GM_registerMenuCommand
-// @grant         GM_addStyle
 // @icon          https://www.google.com/s2/favicons?sz=64&domain=youtube.com
 // @homepageURL   https://github.com/StylusThemes/Userscripts
 // @downloadURL   https://github.com/StylusThemes/Userscripts/raw/main/userscripts/youtube-tweaks.user.js
 // @updateURL     https://github.com/StylusThemes/Userscripts/raw/main/userscripts/youtube-tweaks.user.js
 // ==/UserScript==
 
-(async function() {
+(function() {
   'use strict';
 
   const logger = Logger('YT - Tweaks', { debug: false });
-  const playSingleIconUrl = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15,3 21,3 21,9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>');
 
   const UI = {
     overlayId: 'ytt-overlay',
     modalId: 'ytt-modal',
-    closeButtonId: 'ytt-close-btn',
     buttonSelector: 'button-view-model#button-play-single'
   };
 
@@ -40,16 +37,12 @@
     document.head.appendChild(styleElement);
   }
 
-  function getFeatureStorageKey(featureId) {
-    return `feature_${featureId}`;
-  }
-
   function getFeatureEnabledState(featureId, defaultValue) {
-    return GM_getValue(getFeatureStorageKey(featureId), defaultValue);
+    return GM_getValue(`feature_${featureId}`, defaultValue);
   }
 
   function setFeatureEnabledState(featureId, enabled) {
-    GM_setValue(getFeatureStorageKey(featureId), enabled);
+    GM_setValue(`feature_${featureId}`, enabled);
   }
 
   function startFeatureInstance(feature, localLogger) {
@@ -75,8 +68,12 @@
   function createPlaySingleButtons() {
     if (!location.href.includes('/playlist?')) return;
 
-    for (const renderer of document.querySelectorAll('ytd-playlist-video-renderer')) {
-      const anchor = renderer.querySelector('a#thumbnail');
+    // Look for both the old renderer and the new lockup models
+    const renderers = document.querySelectorAll('ytd-playlist-video-renderer, yt-lockup-view-model');
+
+    for (const renderer of renderers) {
+      // Look for both the old thumbnail ID and the new class
+      const anchor = renderer.querySelector('a#thumbnail, a.ytLockupViewModelContentImage');
       if (!anchor) continue;
 
       const href = anchor.getAttribute('href') || '';
@@ -97,26 +94,77 @@
       button.id = 'button-play-single';
 
       const link = document.createElement('a');
-      link.className = 'yt-spec-button-shape-next yt-spec-button-shape-next--filled yt-spec-button-shape-next--overlay yt-spec-button-shape-next--size-m yt-spec-button-shape-next--icon-leading yt-spec-button-shape-next--enable-backdrop-filter-experiment';
+      link.className = 'yt-spec-button-shape-next yt-spec-button-shape-next--text yt-spec-button-shape-next--mono yt-spec-button-shape-next--size-m yt-spec-button-shape-next--icon-only-default';
       link.href = singleUrl;
       link.setAttribute('aria-label', 'Play Single');
-      link.style.paddingRight = '0';
 
       const iconWrapper = document.createElement('div');
       iconWrapper.className = 'yt-spec-button-shape-next__icon';
       iconWrapper.setAttribute('aria-hidden', 'true');
 
-      const icon = document.createElement('img');
-      icon.src = playSingleIconUrl;
-      icon.style.width = '24px';
-      icon.style.height = '24px';
+      // Build the SVG using DOM methods to bypass YouTube's Trusted Types policy
+      const svgNS = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(svgNS, 'svg');
+      svg.setAttribute('width', '24');
+      svg.setAttribute('height', '24');
+      svg.setAttribute('viewBox', '0 0 24 24');
+      svg.setAttribute('fill', 'none');
+      svg.setAttribute('stroke', 'currentColor');
+      svg.setAttribute('stroke-width', '2');
+      svg.setAttribute('stroke-linecap', 'round');
+      svg.setAttribute('stroke-linejoin', 'round');
 
-      iconWrapper.appendChild(icon);
+      const path = document.createElementNS(svgNS, 'path');
+      path.setAttribute('d', 'M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6');
+      svg.appendChild(path);
+
+      const polyline = document.createElementNS(svgNS, 'polyline');
+      polyline.setAttribute('points', '15,3 21,3 21,9');
+      svg.appendChild(polyline);
+
+      const line = document.createElementNS(svgNS, 'line');
+      line.setAttribute('x1', '10');
+      line.setAttribute('y1', '14');
+      line.setAttribute('x2', '21');
+      line.setAttribute('y2', '3');
+      svg.appendChild(line);
+
+      const svgContainer = document.createElement('div');
+      svgContainer.style.width = '24px';
+      svgContainer.style.height = '24px';
+      svgContainer.style.display = 'flex';
+      svgContainer.style.alignItems = 'center';
+      svgContainer.style.justifyContent = 'center';
+      svgContainer.appendChild(svg);
+
+      iconWrapper.appendChild(svgContainer);
       link.appendChild(iconWrapper);
       button.appendChild(link);
 
-      const menu = renderer.querySelector('div#menu');
-      if (menu) menu.before(button);
+      // Find the correct insertion point for either UI version
+      const oldMenu = renderer.querySelector('div#menu');
+      const newMenuContainer = renderer.querySelector('.ytLockupMetadataViewModelMenuButton');
+
+      if (newMenuContainer) {
+        // Inject inside the new menu container and force it to act as a flex row
+        newMenuContainer.style.display = 'flex';
+        newMenuContainer.style.alignItems = 'center';
+        newMenuContainer.style.flexDirection = 'row';
+        newMenuContainer.style.gap = '8px';
+        newMenuContainer.prepend(button);
+
+        // Fix overlap with extensions like DeArrow / Clickbait Remover
+        const textContainer = renderer.querySelector('.ytLockupMetadataViewModelTextContainer');
+        if (textContainer && textContainer.style.paddingRight !== '50px') {
+          // Push the inner contents of the title leftwards to make room for our new button
+          textContainer.style.paddingRight = '50px';
+          textContainer.style.boxSizing = 'border-box';
+        }
+
+      } else if (oldMenu) {
+        button.style.marginRight = '8px';
+        oldMenu.before(button);
+      }
     }
   }
 
@@ -228,12 +276,8 @@
   function createFeatureManager(featureList) {
     const featuresById = new Map(featureList.map(feature => [feature.id, feature]));
 
-    function forEachFeature(callback) {
-      for (const feature of featuresById.values()) callback(feature);
-    }
-
     function init() {
-      forEachFeature((feature) => {
+      for (const feature of featuresById.values()) {
         feature.enabled = getFeatureEnabledState(feature.id, feature.default);
         if (feature.enabled) {
           try {
@@ -242,7 +286,7 @@
             logger.error('Error during feature init', feature.id, error);
           }
         }
-      });
+      }
     }
 
     function setEnabled(featureId, enabled) {
@@ -267,7 +311,6 @@
 
   function createPlaylistPlaySingleFeature() {
     const state = {
-      started: false,
       onNavigateFinish: null,
       onAction: null
     };
@@ -278,7 +321,7 @@
       default: true,
       enabled: false,
       start() {
-        if (state.started) return;
+        if (state.onNavigateFinish) return;
 
         createPlaySingleButtons();
         state.onNavigateFinish = () => setTimeout(createPlaySingleButtons, 500);
@@ -292,10 +335,9 @@
 
         document.addEventListener('yt-navigate-finish', state.onNavigateFinish);
         document.addEventListener('yt-action', state.onAction);
-        state.started = true;
       },
       stop() {
-        if (!state.started) return;
+        if (!state.onNavigateFinish) return;
 
         document.removeEventListener('yt-navigate-finish', state.onNavigateFinish);
         document.removeEventListener('yt-action', state.onAction);
@@ -303,14 +345,12 @@
 
         state.onNavigateFinish = null;
         state.onAction = null;
-        state.started = false;
       }
     };
   }
 
   function createOpenVideosNewTabFeature() {
     const state = {
-      started: false,
       onClick: null
     };
 
@@ -320,16 +360,14 @@
       default: true,
       enabled: false,
       start() {
-        if (state.started) return;
+        if (state.onClick) return;
         state.onClick = event => handleOpenVideoClick(event, logger);
         document.body.addEventListener('click', state.onClick, true);
-        state.started = true;
       },
       stop() {
-        if (!state.started) return;
+        if (!state.onClick) return;
         document.body.removeEventListener('click', state.onClick, true);
         state.onClick = null;
-        state.started = false;
       }
     };
   }
@@ -366,9 +404,9 @@
 
         analyserLeft.fftSize = 32;
         analyserRight.fftSize = 32;
-        gain.gain.value = 1;
 
         source.connect(splitter);
+        // Analyser nodes are intentional dead-end sinks — used only for metering via getByteTimeDomainData
         splitter.connect(analyserLeft, 0);
         splitter.connect(analyserRight, 1);
         merger.connect(audioContext.destination);
@@ -527,7 +565,6 @@
     const header = createElement('div', 'ytt-header');
     const title = createElement('div', 'ytt-title', 'YouTube Tweaks');
     const closeButton = createElement('button', 'ytt-close', '×');
-    closeButton.id = UI.closeButtonId;
     closeButton.type = 'button';
     closeButton.addEventListener('click', removeSettingsModal);
 
