@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          GitHub - Latest
-// @version       2.0.0
+// @version       2.0.1
 // @description   Always keep an eye on the latest activity of your favorite projects
 // @author        Journey Over
 // @license       MIT
@@ -73,6 +73,9 @@
   const addLatestIssuesButton = () => {
     // Skip non-repo pages (e.g. /settings, /notifications, /dashboard)
     if (!/^\/[^\/]+\/[^\/]/.test(location.pathname)) return;
+
+    // Wait for the global nav bar to finish loading before making DOM changes
+    if (!document.querySelector('[partial-name="global-nav-bar"].loaded')) return;
 
     const existingButton = document.getElementById(BUTTON_ID);
     if (existingButton && existingButton.isConnected) return;
