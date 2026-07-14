@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          YouTube - Tweaks
-// @version       1.4.2
+// @version       1.5.0
 // @description   Random tweaks and fixes for YouTube!
 // @author        Journey Over
 // @license       MIT
@@ -30,7 +30,7 @@
     buttonSelector: 'button-view-model#button-play-single'
   };
 
-  const STYLES = '#ytt-overlay{position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.6);backdrop-filter:blur(2px);z-index:99999;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 0.2s ease;font-family:"Roboto","Arial",sans-serif}#ytt-overlay.visible{opacity:1}#ytt-modal{background:#212121;color:#fff;width:400px;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);overflow:hidden;transform:scale(0.95);transition:transform 0.2s ease}#ytt-overlay.visible #ytt-modal{transform:scale(1)}.ytt-header{padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;justify-content:space-between;align-items:center;background:#181818}.ytt-title{font-size:18px;font-weight:500}.ytt-close{background:none;border:none;color:#aaa;font-size:24px;cursor:pointer;line-height:1;padding:0}.ytt-close:hover{color:#fff}.ytt-body{padding:10px 0;max-height:60vh;overflow-y:auto}.ytt-row{display:flex;justify-content:space-between;align-items:center;padding:12px 20px;border-bottom:1px solid rgba(255,255,255,0.05);transition:background 0.2s}.ytt-row:last-child{border-bottom:none}.ytt-row:hover{background:rgba(255,255,255,0.03)}.ytt-label{font-size:14px;color:#eee}.ytt-switch{position:relative;display:inline-block;width:40px;height:24px}.ytt-switch input{opacity:0;width:0;height:0}.ytt-slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background-color:#444;transition:.4s;border-radius:24px}.ytt-slider:before{position:absolute;content:"";height:18px;width:18px;left:3px;bottom:3px;background-color:white;transition:.4s;border-radius:50%}input:checked+.ytt-slider{background-color:#f00}input:checked+.ytt-slider:before{transform:translateX(16px)}.ytt-footer{padding:12px 20px;background:#181818;border-top:1px solid rgba(255,255,255,0.1);text-align:right;font-size:12px;color:#888}';
+  const STYLES = `#ytt-overlay{position:fixed;inset:0;width:100vw;height:100vh;background:rgba(0,0,0,0.7);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);z-index:99999;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .3s ease;font-family:"Roboto","Arial",sans-serif}#ytt-overlay.visible{opacity:1}#ytt-modal{background:#1a1a1a;color:#fff;width:400px;border-radius:14px;box-shadow:0 24px 80px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.06);overflow:hidden;transform:scale(.94);transition:transform .35s cubic-bezier(.34,1.56,.64,1)}#ytt-overlay.visible #ytt-modal{transform:scale(1)}.ytt-header{padding:20px 20px 16px;position:relative;background:#141414}.ytt-header::after{content:"";position:absolute;bottom:0;left:20px;right:20px;height:1px;background:linear-gradient(90deg,transparent,rgba(255,0,0,.35),transparent)}.ytt-header-top{display:flex;justify-content:space-between;align-items:center}.ytt-title{font-size:14px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:rgba(255,255,255,.9)}.ytt-subtitle{font-size:11px;color:rgba(255,255,255,.3);margin-top:3px;letter-spacing:.2px}.ytt-close{background:rgba(255,255,255,.06);border:none;color:rgba(255,255,255,.4);width:28px;height:28px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;transition:all .2s;line-height:1}.ytt-close:hover{background:rgba(255,255,255,.12);color:#fff}.ytt-body{padding:6px 10px;max-height:60vh;overflow-y:auto}.ytt-body::-webkit-scrollbar{width:4px}.ytt-body::-webkit-scrollbar-track{background:transparent}.ytt-body::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:4px}.ytt-body::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.2)}@keyframes ytt-slide-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}.ytt-card{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;transition:background .2s,border-color .2s;margin-bottom:2px;border:1px solid transparent;animation:ytt-slide-in .3s ease both}.ytt-card:hover{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.06)}.ytt-card-icon{width:34px;height:34px;border-radius:9px;background:rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:rgba(255,255,255,.45);transition:all .25s}.ytt-card.active .ytt-card-icon{background:rgba(255,0,0,.14);color:#ff4444}.ytt-card-info{flex:1;min-width:0}.ytt-card-name{font-size:13px;font-weight:500;color:rgba(255,255,255,.88);line-height:1.3}.ytt-card-desc{font-size:11px;color:rgba(255,255,255,.32);margin-top:1px;line-height:1.3}.ytt-card-control{flex-shrink:0}.ytt-switch{position:relative;display:inline-block;width:38px;height:20px}.ytt-switch input{opacity:0;width:0;height:0;position:absolute}.ytt-slider{position:absolute;cursor:pointer;inset:0;background:rgba(255,255,255,.1);transition:all .25s cubic-bezier(.4,0,.2,1);border-radius:20px}.ytt-slider:before{position:absolute;content:"";height:14px;width:14px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:all .25s cubic-bezier(.4,0,.2,1);box-shadow:0 1px 3px rgba(0,0,0,.3)}input:checked+.ytt-slider{background:#ff0000;box-shadow:0 0 10px rgba(255,0,0,.3)}input:checked+.ytt-slider:before{transform:translateX(18px)}input:focus-visible+.ytt-slider{outline:2px solid rgba(255,0,0,.5);outline-offset:2px}.ytt-step-inline{display:flex;align-items:center;gap:10px;margin-top:6px}.ytt-step-inline .ytt-sub-label{font-size:11px;color:rgba(255,255,255,.3);white-space:nowrap}.ytt-input-wrap{display:flex;align-items:center;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:8px;overflow:hidden}.ytt-input-btn{width:26px;height:26px;border:none;background:transparent;color:rgba(255,255,255,.35);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;transition:all .15s}.ytt-input-btn:hover{background:rgba(255,255,255,.08);color:#fff}.ytt-input{width:32px;text-align:center;background:transparent;border:none;color:#fff;font-size:12px;font-weight:500;outline:none;padding:0;-moz-appearance:textfield}.ytt-input::-webkit-outer-spin-button,.ytt-input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}`;
 
   // ==========================================
   // 2. CORE UTILITIES
@@ -46,6 +46,24 @@
       if (className) element.className = className;
       if (typeof textContent === 'string') element.textContent = textContent;
       return element;
+    },
+    createSvgIcon(elements, size) {
+      const ns = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(ns, 'svg');
+      svg.setAttribute('width', String(size));
+      svg.setAttribute('height', String(size));
+      svg.setAttribute('viewBox', '0 0 24 24');
+      svg.setAttribute('fill', 'none');
+      svg.setAttribute('stroke', 'currentColor');
+      svg.setAttribute('stroke-width', '2');
+      svg.setAttribute('stroke-linecap', 'round');
+      svg.setAttribute('stroke-linejoin', 'round');
+      for (const [tag, attributes] of elements) {
+        const element = document.createElementNS(ns, tag);
+        for (const [key, value] of Object.entries(attributes)) element.setAttribute(key, value);
+        svg.appendChild(element);
+      }
+      return svg;
     },
     storage: {
       get(featureId, defaultValue) {
@@ -98,27 +116,20 @@
     const match = text.match(/^(\d+)\s*(s|m|h|d|w|mo|y)\s*ago$/i);
     if (!match) return text;
 
+    const units = { s: 'second', m: 'minute', h: 'hour', d: 'day', w: 'week', mo: 'month', y: 'year' };
+    const unit = units[match[2].toLowerCase()];
+    if (!unit) return text;
+
     const value = parseInt(match[1], 10);
-    const unitLetter = match[2].toLowerCase();
-    let unit = '';
-
-    switch (unitLetter) {
-      case 's': { unit = 'second'; break; }
-      case 'm': { unit = 'minute'; break; }
-      case 'h': { unit = 'hour'; break; }
-      case 'd': { unit = 'day'; break; }
-      case 'w': { unit = 'week'; break; }
-      case 'mo': { unit = 'month'; break; }
-      case 'y': { unit = 'year'; break; }
-      default: { return text; }
-    }
-
-    if (value !== 1) unit += 's';
-    return value + ' ' + unit + ' ago';
+    return value + ' ' + unit + (value !== 1 ? 's' : '') + ' ago';
   }
 
   function createPlaySingleButtons() {
-    if (!location.href.includes('/playlist?')) return;
+    const isPlaylistPage = location.pathname === '/playlist';
+    if (!isPlaylistPage) {
+      for (const button of document.querySelectorAll(UI.buttonSelector)) button.remove();
+      return;
+    }
 
     const renderers = document.querySelectorAll('ytd-playlist-video-renderer, yt-lockup-view-model');
 
@@ -151,42 +162,14 @@
       const iconWrapper = document.createElement('div');
       iconWrapper.className = 'yt-spec-button-shape-next__icon';
       iconWrapper.setAttribute('aria-hidden', 'true');
-
-      const svgNS = 'http://www.w3.org/2000/svg';
-      const svg = document.createElementNS(svgNS, 'svg');
-      svg.setAttribute('width', '24');
-      svg.setAttribute('height', '24');
-      svg.setAttribute('viewBox', '0 0 24 24');
-      svg.setAttribute('fill', 'none');
-      svg.setAttribute('stroke', 'currentColor');
-      svg.setAttribute('stroke-width', '2');
-      svg.setAttribute('stroke-linecap', 'round');
-      svg.setAttribute('stroke-linejoin', 'round');
-
-      const path = document.createElementNS(svgNS, 'path');
-      path.setAttribute('d', 'M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6');
-      svg.appendChild(path);
-
-      const polyline = document.createElementNS(svgNS, 'polyline');
-      polyline.setAttribute('points', '15,3 21,3 21,9');
-      svg.appendChild(polyline);
-
-      const line = document.createElementNS(svgNS, 'line');
-      line.setAttribute('x1', '10');
-      line.setAttribute('y1', '14');
-      line.setAttribute('x2', '21');
-      line.setAttribute('y2', '3');
-      svg.appendChild(line);
-
-      const svgContainer = document.createElement('div');
-      svgContainer.style.width = '24px';
-      svgContainer.style.height = '24px';
-      svgContainer.style.display = 'flex';
-      svgContainer.style.alignItems = 'center';
-      svgContainer.style.justifyContent = 'center';
-      svgContainer.appendChild(svg);
-
-      iconWrapper.appendChild(svgContainer);
+      const svgWrap = document.createElement('div');
+      svgWrap.style.cssText = 'width:24px;height:24px;display:flex;align-items:center;justify-content:center';
+      svgWrap.appendChild(Utilities.createSvgIcon([
+        ['path', { d: 'M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6' }],
+        ['polyline', { points: '15,3 21,3 21,9' }],
+        ['line', { x1: '10', y1: '14', x2: '21', y2: '3' }]
+      ], 24));
+      iconWrapper.appendChild(svgWrap);
       link.appendChild(iconWrapper);
       button.appendChild(link);
 
@@ -217,13 +200,7 @@
       const link = event.target.closest?.('a');
       if (!link?.href || link.target === '_blank' || link.hasAttribute('download')) return;
 
-      let targetUrl;
-      try {
-        targetUrl = new URL(link.href, location.href);
-      } catch {
-        return;
-      }
-
+      const targetUrl = new URL(link.href, location.href);
       if (!targetUrl.pathname.startsWith('/watch') && !targetUrl.pathname.startsWith('/shorts/')) return;
 
       const currentId = getVideoIdFromUrl(location.href);
@@ -608,6 +585,98 @@
     };
   }
 
+  function createMouseWheelVolumeFeature() {
+    const STEP_KEY = 'feature_mouseWheelVolume_step';
+
+    let hideTimeout;
+    let volumeIndicator = null;
+    let wheelHandler = null;
+
+    function getStep() {
+      return parseInt(GM_getValue(STEP_KEY, 5), 10) || 5;
+    }
+
+    function getOrCreateIndicator(player) {
+      if (!volumeIndicator || !document.getElementById('ytt-vol-indicator')) {
+        volumeIndicator = document.createElement('div');
+        volumeIndicator.id = 'ytt-vol-indicator';
+        volumeIndicator.style.cssText = [
+          'position:absolute',
+          'top:15%',
+          'left:50%',
+          'transform:translateX(-50%)',
+          'background:rgba(0,0,0,0.65)',
+          'color:#fff',
+          'font-size:28px',
+          'font-weight:500',
+          'font-family:Roboto,Arial,sans-serif',
+          'padding:10px 24px',
+          'border-radius:8px',
+          'z-index:99999',
+          'pointer-events:none',
+          'opacity:0',
+          'transition:opacity .15s ease-in-out',
+          'text-shadow:0 1px 2px rgba(0,0,0,0.5)',
+          'backdrop-filter:blur(2px)'
+        ].join(';');
+        player.appendChild(volumeIndicator);
+      }
+      return volumeIndicator;
+    }
+
+    function showVolumeUI(player, volume) {
+      const indicator = getOrCreateIndicator(player);
+      indicator.textContent = Math.round(volume) + '%';
+      indicator.style.opacity = '1';
+      clearTimeout(hideTimeout);
+      hideTimeout = setTimeout(() => { indicator.style.opacity = '0'; }, 1200);
+    }
+
+    return {
+      id: 'mouseWheelVolume',
+      name: 'Mouse Wheel Volume Control',
+      default: false,
+      enabled: false,
+      start() {
+        if (wheelHandler) return;
+        wheelHandler = (event) => {
+          const player = document.getElementById('movie_player');
+          if (!player || !player.contains(event.target)) return;
+
+          if (document.fullscreenElement || document.webkitFullscreenElement ||
+            player.classList.contains('ytp-fullscreen')) return;
+          if (event.target.closest('.ytp-chrome-bottom')) return;
+          if (typeof player.getVolume !== 'function' || typeof player.setVolume !== 'function') return;
+
+          event.preventDefault();
+
+          const step = getStep();
+          const currentVolume = player.getVolume();
+          const newVolume = event.deltaY < 0 ?
+            Math.min(100, currentVolume + step) :
+            Math.max(0, currentVolume - step);
+
+          if (newVolume !== currentVolume) {
+            player.setVolume(newVolume);
+            if (typeof player.isMuted === 'function' && player.isMuted() && newVolume > 0) {
+              player.unMute();
+            }
+            showVolumeUI(player, newVolume);
+          }
+        };
+        document.addEventListener('wheel', wheelHandler, { passive: false });
+      },
+      stop() {
+        if (!wheelHandler) return;
+        document.removeEventListener('wheel', wheelHandler, { passive: false });
+        wheelHandler = null;
+        clearTimeout(hideTimeout);
+        document.getElementById('ytt-vol-indicator')?.remove();
+        volumeIndicator = null;
+      }
+    };
+  }
+
   // ==========================================
   // 5. FEATURE MANAGER
   // ==========================================
@@ -642,11 +711,57 @@
       if (!overlay) return;
 
       overlay.classList.remove('visible');
-      setTimeout(() => overlay.remove(), 200);
+      setTimeout(() => overlay.remove(), 300);
     },
 
     createModal(featureManager) {
       if (document.getElementById(UI.overlayId)) return;
+
+      const svg = (els) => Utilities.createSvgIcon(els, 18);
+      const featureMeta = {
+        playlistPlaySingle: {
+          desc: 'Adds a play-single button to playlist items',
+          icon: svg([['polygon', { points: '5 3 19 12 5 21 5 3' }]])
+        },
+        openVideosNewTab: {
+          desc: 'Opens video links in a new tab',
+          icon: svg([
+            ['path', { d: 'M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6' }],
+            ['polyline', { points: '15 3 21 3 21 9' }],
+            ['line', { x1: '10', y1: '14', x2: '21', y2: '3' }]
+          ])
+        },
+        monoAudioFix: {
+          desc: 'Fixes mono and one-ear audio issues',
+          icon: svg([
+            ['path', { d: 'M3 18v-6a9 9 0 0 1 18 0v6' }],
+            ['path', { d: 'M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z' }]
+          ])
+        },
+        actualTimeDisplay: {
+          desc: 'Shows real playback time at current speed',
+          icon: svg([
+            ['circle', { cx: '12', cy: '12', r: '10' }],
+            ['polyline', { points: '12 6 12 12 16 14' }]
+          ])
+        },
+        layoutFix: {
+          desc: 'Expands abbreviated metadata in results',
+          icon: svg([
+            ['rect', { x: '3', y: '3', width: '7', height: '7' }],
+            ['rect', { x: '14', y: '3', width: '7', height: '7' }],
+            ['rect', { x: '14', y: '14', width: '7', height: '7' }],
+            ['rect', { x: '3', y: '14', width: '7', height: '7' }]
+          ])
+        },
+        mouseWheelVolume: {
+          desc: 'Scroll over the player to adjust volume',
+          icon: svg([
+            ['polygon', { points: '11 5 6 9 2 9 2 15 6 15 11 19 11 5' }],
+            ['path', { d: 'M15.54 8.46a5 5 0 0 1 0 7.07' }]
+          ])
+        }
+      };
 
       const overlay = Utilities.createElement('div');
       overlay.id = UI.overlayId;
@@ -658,36 +773,80 @@
       modal.id = UI.modalId;
 
       const header = Utilities.createElement('div', 'ytt-header');
+      const headerTop = Utilities.createElement('div', 'ytt-header-top');
       const title = Utilities.createElement('div', 'ytt-title', 'YouTube Tweaks');
-
-      const closeButton = Utilities.createElement('button', 'ytt-close', '×');
+      const closeButton = Utilities.createElement('button', 'ytt-close', '\u00d7');
       closeButton.type = 'button';
       closeButton.addEventListener('click', () => this.removeModal());
-
-      header.appendChild(title);
-      header.appendChild(closeButton);
+      headerTop.appendChild(title);
+      headerTop.appendChild(closeButton);
+      const subtitle = Utilities.createElement('div', 'ytt-subtitle', 'Customize your viewing experience');
+      header.appendChild(headerTop);
+      header.appendChild(subtitle);
 
       const body = Utilities.createElement('div', 'ytt-body');
 
-      for (const feature of featureManager.list()) {
-        const row = Utilities.createElement('div', 'ytt-row');
-        const label = Utilities.createElement('span', 'ytt-label', feature.name);
-        const switchLabel = Utilities.createElement('label', 'ytt-switch');
+      for (const [index, feature] of featureManager.list().entries()) {
+        const meta = featureMeta[feature.id] || {};
+        const card = Utilities.createElement('div', 'ytt-card');
+        if (feature.enabled) card.classList.add('active');
+        card.style.animationDelay = (index * 40) + 'ms';
 
+        const icon = Utilities.createElement('div', 'ytt-card-icon');
+        if (meta.icon) icon.appendChild(meta.icon);
+        card.appendChild(icon);
+
+        const info = Utilities.createElement('div', 'ytt-card-info');
+        info.appendChild(Utilities.createElement('div', 'ytt-card-name', feature.name));
+        info.appendChild(Utilities.createElement('div', 'ytt-card-desc', meta.desc || ''));
+        card.appendChild(info);
+
+        if (feature.id === 'mouseWheelVolume') {
+          const stepRow = Utilities.createElement('div', 'ytt-step-inline');
+          stepRow.appendChild(Utilities.createElement('span', 'ytt-sub-label', 'Step size'));
+          const wrap = Utilities.createElement('div', 'ytt-input-wrap');
+          const minusButton = Utilities.createElement('button', 'ytt-input-btn', '\u2212');
+          minusButton.type = 'button';
+          const stepInput = Utilities.createElement('input', 'ytt-input');
+          stepInput.type = 'number';
+          stepInput.min = '1';
+          stepInput.max = '50';
+          stepInput.value = GM_getValue('feature_mouseWheelVolume_step', 5);
+          const plusButton = Utilities.createElement('button', 'ytt-input-btn', '+');
+          plusButton.type = 'button';
+
+          const updateStep = (value) => {
+            const clamped = Math.max(1, Math.min(50, parseInt(value, 10) || 5));
+            stepInput.value = clamped;
+            GM_setValue('feature_mouseWheelVolume_step', clamped);
+          };
+          stepInput.addEventListener('change', () => updateStep(stepInput.value));
+          minusButton.addEventListener('click', () => updateStep(parseInt(stepInput.value, 10) - 1));
+          plusButton.addEventListener('click', () => updateStep(parseInt(stepInput.value, 10) + 1));
+
+          wrap.appendChild(minusButton);
+          wrap.appendChild(stepInput);
+          wrap.appendChild(plusButton);
+          stepRow.appendChild(wrap);
+          info.appendChild(stepRow);
+        }
+
+        const control = Utilities.createElement('div', 'ytt-card-control');
+        const switchLabel = Utilities.createElement('label', 'ytt-switch');
         const input = Utilities.createElement('input');
         input.type = 'checkbox';
         input.checked = !!feature.enabled;
         input.addEventListener('change', () => {
           featureManager.setEnabled(feature.id, input.checked);
+          card.classList.toggle('active', input.checked);
         });
-
         const slider = Utilities.createElement('span', 'ytt-slider');
-
         switchLabel.appendChild(input);
         switchLabel.appendChild(slider);
-        row.appendChild(label);
-        row.appendChild(switchLabel);
-        body.appendChild(row);
+        control.appendChild(switchLabel);
+        card.appendChild(control);
+
+        body.appendChild(card);
       }
 
       modal.appendChild(header);
@@ -709,7 +868,8 @@
     createOpenVideosNewTabFeature(),
     createMonoAudioFixFeature(),
     createActualTimeDisplayFeature(),
-    createLayoutFixFeature()
+    createLayoutFixFeature(),
+    createMouseWheelVolumeFeature()
   ]);
 
   featureManager.init();

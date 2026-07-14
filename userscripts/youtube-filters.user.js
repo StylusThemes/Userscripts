@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          YouTube - Filters
-// @version       2.5.7
+// @version       2.5.8
 // @description   Filter out unwanted content on YouTube to enhance your browsing experience. (Currently is able to filter videos based on age and members-only status)
 // @author        Journey Over
 // @license       MIT
@@ -356,7 +356,7 @@
   function processUnfilteredVideos() {
     try {
       const unprocessedVideos = document.querySelectorAll(UNPROCESSED_VIDEO_SELECTOR_QUERY);
-      const shouldFilterAges = AGE_FILTERING_ENABLED && !window.location.href.includes(CHANNEL_HANDLE_SEGMENT);
+      const shouldFilterAges = AGE_FILTERING_ENABLED && !window.location.href.includes(CHANNEL_HANDLE_SEGMENT) && location.pathname !== '/playlist';
       for (const videoElement of unprocessedVideos) {
         applyVideoFilters(videoElement, shouldFilterAges);
       }
