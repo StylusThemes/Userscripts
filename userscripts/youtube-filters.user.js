@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          YouTube - Filters
-// @version       2.5.6
+// @version       2.5.7
 // @description   Filter out unwanted content on YouTube to enhance your browsing experience. (Currently is able to filter videos based on age and members-only status)
 // @author        Journey Over
 // @license       MIT
@@ -78,7 +78,8 @@
     'badge-shape[aria-label*="Members only" i]',
     'badge-shape[aria-label*="Members first" i]',
     '.yt-badge-shape--commerce .yt-badge-shape__text',
-    '.yt-badge-shape__text'
+    '.yt-badge-shape__text',
+    'yt-badge-view-model'
   ];
 
   const LIVE_PREMIERE_SELECTORS = [
@@ -198,10 +199,6 @@
     return { text: ageText, years: convertToYears(ageValue, ageUnit) };
   }
 
-  function queryAll(root, selectorQuery) {
-    return root.querySelectorAll(selectorQuery);
-  }
-
   // ---------- Video Processing ----------
   /**
    * Returns the first recognized age label for a video.
@@ -210,7 +207,7 @@
    * @returns {{ text: string, years: number }}
    */
   function getVideoAgeTextAndYears(videoElement) {
-    for (const ageElement of queryAll(videoElement, AGE_SELECTOR_QUERY)) {
+    for (const ageElement of videoElement.querySelectorAll(AGE_SELECTOR_QUERY)) {
       const ageText = (ageElement.textContent || '').trim();
       const parsedAge = parseAgeText(ageText);
       if (parsedAge) {
@@ -230,18 +227,22 @@
     return '';
   }
 
-  function hideVideo(videoElement, reason) {
-    let videoContainer = videoElement.closest(VIDEO_SELECTOR_QUERY);
-    if (!videoContainer) return;
-
-    let parentContainer = videoContainer.parentElement?.closest(VIDEO_SELECTOR_QUERY);
-    while (parentContainer) {
-      videoContainer = parentContainer;
-      parentContainer = videoContainer.parentElement?.closest(VIDEO_SELECTOR_QUERY);
+  function findOutermostVideoContainer(element) {
+    let container = element.closest(VIDEO_SELECTOR_QUERY);
+    if (!container) return null;
+    let parent = container.parentElement?.closest(VIDEO_SELECTOR_QUERY);
+    while (parent) {
+      container = parent;
+      parent = container.parentElement?.closest(VIDEO_SELECTOR_QUERY);
     }
+    return container;
+  }
 
-    videoContainer.hidden = true;
-    videoContainer.style.setProperty('display', 'none', 'important');
+  function hideVideo(videoElement, reason) {
+    const container = findOutermostVideoContainer(videoElement);
+    if (!container) return;
+    container.hidden = true;
+    container.style.setProperty('display', 'none', 'important');
     logger.debug(`Hidden "${getVideoTitle(videoElement)}" (${reason})`);
   }
 
@@ -263,7 +264,7 @@
    * @returns {string} 'LIVE', 'PREMIERE', or ''
    */
   function getVideoBroadcastBadge(videoElement) {
-    for (const badge of queryAll(videoElement, LIVE_PREMIERE_SELECTOR_QUERY)) {
+    for (const badge of videoElement.querySelectorAll(LIVE_PREMIERE_SELECTOR_QUERY)) {
       const label = (badge.getAttribute('aria-label') || badge.textContent || '').trim();
       if (LIVE_BADGE_REGEX.test(label)) return 'LIVE';
       if (PREMIERE_BADGE_REGEX.test(label)) return 'PREMIERE';
@@ -325,11 +326,11 @@
   }
 
   function removeMembersOnlyVideo(badge) {
-    const videoElement = badge.closest(VIDEO_SELECTOR_QUERY);
-    if (videoElement) {
-      videoElement.remove();
-      logger.debug(`Removed Members-only "${getVideoTitle(videoElement)}"`);
-    }
+    const container = findOutermostVideoContainer(badge);
+    if (!container || container.classList.contains('ytf-hide')) return;
+    container.classList.add('ytf-hide');
+    window.dispatchEvent(new Event('resize'));
+    logger.debug(`Hidden Members-only "${getVideoTitle(container)}"`);
   }
 
   function pruneMembersShelf(root = document) {
@@ -343,7 +344,7 @@
   }
 
   function scanForMembersOnly(root = document) {
-    for (const badge of queryAll(root, MEMBERS_SELECTOR_QUERY)) {
+    for (const badge of root.querySelectorAll(MEMBERS_SELECTOR_QUERY)) {
       if (isMembersOnlyBadge(badge)) {
         removeMembersOnlyVideo(badge);
       }
@@ -600,17 +601,26 @@
 
   // ---------- Initialization ----------
   injectStyle(css);
+  injectStyle('ytd-rich-item-renderer.ytf-hide,ytd-grid-video-renderer.ytf-hide,ytd-video-renderer.ytf-hide,ytd-rich-grid-media.ytf-hide{display:none!important}');
   observeNewVideos();
 
   if (MEMBERS_ONLY_ENABLED) {
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', () => {
-        scanForMembersOnly();
-        observeMembersOnly();
-      });
-    } else {
+    const startMembersOnly = () => {
       scanForMembersOnly();
       observeMembersOnly();
+
+      let checks = 0;
+      const bootInterval = setInterval(() => {
+        scanForMembersOnly();
+        checks++;
+        if (checks > 10) clearInterval(bootInterval);
+      }, 300);
+    };
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', startMembersOnly);
+    } else {
+      startMembersOnly();
     }
   }
 
