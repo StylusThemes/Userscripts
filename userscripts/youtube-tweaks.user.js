@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          YouTube - Tweaks
-// @version       1.5.0
+// @version       1.6.0
 // @description   Random tweaks and fixes for YouTube!
 // @author        Journey Over
 // @license       MIT
@@ -585,6 +585,48 @@
     };
   }
 
+  function createDefaultVolumeFeature() {
+    const VOL_KEY = 'feature_defaultVolume_value';
+
+    let applied = false;
+
+    function applyVolume() {
+      const target = GM_getValue(VOL_KEY, 50);
+      const player = document.getElementById('movie_player');
+      if (player && typeof player.setVolume === 'function') {
+        if (typeof player.isMuted === 'function' && player.isMuted()) return;
+        player.setVolume(target);
+        applied = true;
+      }
+    }
+
+    return {
+      id: 'defaultVolume',
+      name: 'Default Volume',
+      default: false,
+      enabled: false,
+      start() {
+        applied = false;
+        applyVolume();
+        if (!applied) {
+          const observer = new MutationObserver(() => {
+            if (!applied) applyVolume();
+          });
+          observer.observe(document.body, { childList: true, subtree: true });
+          // store observer so stop() can disconnect it
+          this._obs = observer;
+        }
+      },
+      stop() {
+        if (this._obs) {
+          this._obs.disconnect();
+          this._obs = null;
+        }
+        applied = false;
+      }
+    };
+  }
+
   function createMouseWheelVolumeFeature() {
     const STEP_KEY = 'feature_mouseWheelVolume_step';
 
@@ -754,6 +796,13 @@
             ['rect', { x: '3', y: '14', width: '7', height: '7' }]
           ])
         },
+        defaultVolume: {
+          desc: 'Set a default volume level on page load',
+          icon: svg([
+            ['polygon', { points: '11 5 6 9 2 9 2 15 6 15 11 19 11 5' }],
+            ['path', { d: 'M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07' }]
+          ])
+        },
         mouseWheelVolume: {
           desc: 'Scroll over the player to adjust volume',
           icon: svg([
@@ -800,6 +849,36 @@
         info.appendChild(Utilities.createElement('div', 'ytt-card-name', feature.name));
         info.appendChild(Utilities.createElement('div', 'ytt-card-desc', meta.desc || ''));
         card.appendChild(info);
+
+        if (feature.id === 'defaultVolume') {
+          const volRow = Utilities.createElement('div', 'ytt-step-inline');
+          volRow.appendChild(Utilities.createElement('span', 'ytt-sub-label', 'Volume'));
+          const wrap = Utilities.createElement('div', 'ytt-input-wrap');
+          const minusButton = Utilities.createElement('button', 'ytt-input-btn', '\u2212');
+          minusButton.type = 'button';
+          const volInput = Utilities.createElement('input', 'ytt-input');
+          volInput.type = 'number';
+          volInput.min = '0';
+          volInput.max = '100';
+          volInput.value = GM_getValue('feature_defaultVolume_value', 50);
+          const plusButton = Utilities.createElement('button', 'ytt-input-btn', '+');
+          plusButton.type = 'button';
+
+          const updateVol = (value) => {
+            const clamped = Math.max(0, Math.min(100, parseInt(value, 10) || 0));
+            volInput.value = clamped;
+            GM_setValue('feature_defaultVolume_value', clamped);
+          };
+          volInput.addEventListener('change', () => updateVol(volInput.value));
+          minusButton.addEventListener('click', () => updateVol(parseInt(volInput.value, 10) - 5));
+          plusButton.addEventListener('click', () => updateVol(parseInt(volInput.value, 10) + 5));
+
+          wrap.appendChild(minusButton);
+          wrap.appendChild(volInput);
+          wrap.appendChild(plusButton);
+          volRow.appendChild(wrap);
+          info.appendChild(volRow);
+        }
 
         if (feature.id === 'mouseWheelVolume') {
           const stepRow = Utilities.createElement('div', 'ytt-step-inline');
@@ -869,6 +948,7 @@
     createMonoAudioFixFeature(),
     createActualTimeDisplayFeature(),
     createLayoutFixFeature(),
+    createDefaultVolumeFeature(),
     createMouseWheelVolumeFeature()
   ]);
 
