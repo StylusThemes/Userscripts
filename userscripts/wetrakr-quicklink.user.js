@@ -29,9 +29,6 @@
   const WETRAKR_PURPLE = '#4937E9';
   const WETRAKR_ICON_URL = 'https://wetrakr.com/assets/images/we_small.png';
 
-  // Supported: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left'
-  const CONFIG = { position: 'bottom-right' };
-
   // ---------------------------------------------------------------------------
   // URL builders
   // ---------------------------------------------------------------------------
@@ -176,24 +173,13 @@
   // UI — styles + button
   // ---------------------------------------------------------------------------
 
-  const POSITION_STYLES = {
-    'bottom-right': 'bottom:24px;right:28px;',
-    'bottom-left': 'bottom:24px;left:28px;',
-    'top-right': 'top:24px;right:28px;',
-    'top-left': 'top:24px;left:28px;'
-  };
-
   function injectStyles() {
-    const pos = POSITION_STYLES[CONFIG.position] || POSITION_STYLES['bottom-right'];
-    const isTop = CONFIG.position.startsWith('top');
-    const tipEdge = isTop ? 'top' : 'bottom';
-    const tipSlide = isTop ? '-4px' : '4px';
     const style = document.createElement('style');
     style.textContent = `
       @keyframes wetrakr-pop { 0% { transform: scale(0); opacity: 0; } 60% { transform: scale(1.08); } 100% { transform: scale(1); opacity: 1; } }
-      #wetrakr-quicklink { position: fixed; ${pos} z-index: 99999; }
+      #wetrakr-quicklink { position: fixed; bottom:24px; right:28px; z-index: 99999; }
       #wetrakr-quicklink a { position: relative; display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 14px; background: linear-gradient(145deg, #6c5ce7, ${WETRAKR_PURPLE}); border: 1px solid rgba(255,255,255,0.15); box-shadow: 0 2px 8px rgba(73,55,233,0.25), 0 1px 2px rgba(0,0,0,0.1); outline: none; text-decoration: none; animation: wetrakr-pop 0.4s cubic-bezier(0.34,1.56,0.64,1) both; transition: transform 0.2s cubic-bezier(0.4,0,0.2,1), box-shadow 0.2s ease; }
-      #wetrakr-quicklink a::after { content: attr(aria-label); position: absolute; left: 50%; ${tipEdge}: calc(100% + 8px); transform: translateX(-50%) translateY(${tipSlide}); z-index: 1; white-space: nowrap; padding: 5px 10px; border-radius: 6px; background: rgba(30,30,30,0.92); color: #fff; font: 600 12px/1.3 system-ui, -apple-system, sans-serif; opacity: 0; pointer-events: none; transition: opacity 0.15s ease, transform 0.15s ease; }
+      #wetrakr-quicklink a::after { content: attr(aria-label); position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%) translateY(4px); z-index: 1; white-space: nowrap; padding: 5px 10px; border-radius: 6px; background: rgba(30,30,30,0.92); color: #fff; font: 600 12px/1.3 system-ui, -apple-system, sans-serif; opacity: 0; pointer-events: none; transition: opacity 0.15s ease, transform 0.15s ease; }
       #wetrakr-quicklink a:hover { transform: translateY(-1px) scale(1.05); box-shadow: 0 6px 20px rgba(73,55,233,0.35), 0 2px 4px rgba(0,0,0,0.1); }
       #wetrakr-quicklink a:hover::after { opacity: 1; transform: translateX(-50%) translateY(0); }
       #wetrakr-quicklink a:active { transform: translateY(1px) scale(0.95); box-shadow: 0 1px 3px rgba(73,55,233,0.3); transition-duration: 0.08s; }
