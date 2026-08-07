@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       1.2.0
+// @version       1.3.0
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
@@ -89,6 +89,21 @@
     .detail-grid--episode .detail-grid__info .title-stack .we-heading-1 .we-text-accent { display: none; }
     /* 5. Date / runtime - positioned last */
     .detail-grid--episode .detail-grid__info .title-stack > p.we-text-body:not(.detail-breadcrumb) { order: 7; flex-basis: 100%; margin-bottom: 10px !important; font-size: var(--font-size-0); font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; }
+
+    /* ===== Title Stack (Tracking) ===== */
+    /* 1. Title - on its own line */
+    .detail-grid--min .title-stack.title-center { display: flex; flex-direction: column; }
+    .detail-grid--min .title-stack .we-heading-1 { order: 1; }
+    /* 2. Meta line (dates, seasons, runtime) - second */
+    .detail-grid--min .title-stack .detail-status-line.detail-meta-line { order: 2; margin-bottom: var(--space-2); }
+    /* 3. Status line (airing + genres) - last */
+    .detail-grid--min .title-stack .detail-status-line:not(.detail-meta-line) { order: 3; margin-bottom: 15px; }
+    /* Airing badge - cloned next to the title, centered */
+    .detail-grid--min .detail-status-badge.rs-clone { align-self: center; margin-left: var(--space-2); margin-right: 0; margin-bottom: -4px; }
+    .detail-grid--min .detail-status-badge.rs-clone:not(.detail-status-badge--airing) { border: 1px solid currentColor; border-radius: var(--radius-1); padding: 2px 6px; background: none; }
+    /* Meta badges - flat, separated by dots */
+    .detail-grid--min .detail-status-line.detail-meta-line .detail-status-badge { background: none !important; padding: 0 !important; }
+    .detail-grid--min .detail-status-line.detail-meta-line .detail-status-badge + .detail-status-badge::before { content: "∙"; margin: 0 10px 0 4px; font-weight: bold; }
 
     /* ===== Hover Border ===== */
     .media-item__border-overlay, .episode-item__border-overlay { display: none !important; }
@@ -215,7 +230,7 @@
     convertNode(node) {
       const original = node.textContent;
       const newText = original
-        .replace(/(\d{2}\/\d{2}\/\d{4}) \| (\d{2}):(\d{2})/, (_, date, hour, minute) => `${date} | ${this.to12Hour(+hour, +minute)}`)
+        .replace(/(\d{2}\/\d{2}\/\d{4}) \| (\d{2}):(\d{2})(?!\s*[AP]M)/gi, (_, date, hour, minute) => `${date} | ${this.to12Hour(+hour, +minute)}`)
         .replace(/· (\d{2}):(\d{2})(?!\s*[AP]M)/gi, (_, hour, minute) => `· ${this.to12Hour(+hour, +minute)}`)
         .replace(/(\d{1,2})\.(\d{2})\s?(AM|PM)/gi, '$1:$2 $3');
 
@@ -244,7 +259,7 @@
       const titleStack = this.getVisibleTitleStack();
       const h1 = titleStack?.querySelector('.we-heading-1');
       const cert = h1?.querySelector('.detail-certification');
-      const statusBadge = titleStack?.querySelector('.detail-status-line:not(.detail-meta-line) .detail-status-badge:not(.rs-hidden-original):not(.detail-status-badge--genre)');
+      const statusBadge = titleStack?.querySelector('.detail-status-line:not(.detail-meta-line) .detail-status-badge:not(.rs-hidden-original):not(.rs-clone):not(.detail-status-badge--genre)');
 
       if (!h1 || !cert || !statusBadge || h1.querySelector('.rs-clone')) return;
 
@@ -259,8 +274,10 @@
     },
 
     ensureLineBreakAfter(container, selector, spacerClass) {
+      // Only insert once per container - a re-render can detach the spacer from
+      // its target, so check anywhere in the container, not just the next sibling
       const target = container?.querySelector(selector);
-      if (!target || target.nextElementSibling?.classList.contains(spacerClass)) return;
+      if (!target || container.querySelector(`.${spacerClass}`)) return;
 
       const spacer = document.createElement('span');
       spacer.className = spacerClass;
