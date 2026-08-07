@@ -4,18 +4,14 @@
 // @description   Floating button linking the current title/person page to its WeTrakr page
 // @author        Journey Over
 // @license       MIT
-// @match         https://www.imdb.com/title/*
-// @match         https://www.imdb.com/name/*
-// @match         https://thetvdb.com/series/*
-// @match         https://www.thetvdb.com/series/*
-// @match         https://thetvdb.com/movies/*
-// @match         https://www.thetvdb.com/movies/*
-// @match         https://thetvdb.com/people/*
-// @match         https://www.thetvdb.com/people/*
-// @match         https://www.themoviedb.org/movie/*
-// @match         https://www.themoviedb.org/tv/*
-// @match         https://www.themoviedb.org/person/*
-// @match         https://letterboxd.com/film/*
+// @match         *://imdb.com/*
+// @match         *://*.imdb.com/*
+// @match         *://thetvdb.com/*
+// @match         *://*.thetvdb.com/*
+// @match         *://themoviedb.org/*
+// @match         *://*.themoviedb.org/*
+// @match         *://letterboxd.com/*
+// @match         *://*.letterboxd.com/*
 // @grant         none
 // @icon          https://www.google.com/s2/favicons?sz=64&domain=wetrakr.com
 // @homepageURL   https://github.com/StylusThemes/Userscripts
