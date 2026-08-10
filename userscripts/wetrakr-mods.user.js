@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       1.4.0
+// @version       1.5.0
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
@@ -107,6 +107,10 @@
 
     /* ===== Hover Border ===== */
     .media-item__border-overlay, .episode-item__border-overlay { display: none !important; }
+
+    /* ===== Upcoming Section ===== */
+    /* Hide upcoming items that have no progress bar (e.g. already-watched episodes) */
+    #upcoming we-item-poster:not(:has(.media-item__progress)) { display: none !important; }
 
     /* ===== Profile Menu Overflow ===== */
     .profile-menu .profile-menu-content { overflow-x: unset !important; }
@@ -574,11 +578,12 @@
       }, wait);
     });
 
+    // Watch only structural changes. All runMods() work is idempotent and reacts
+    // to new nodes; class/style churn (hover, progress updates) would otherwise
+    // fire the observer constantly and cause page lag.
     observer.observe(document.body, {
       childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ['class', 'style']
+      subtree: true
     });
   }
 
