@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       1.5.0
+// @version       1.5.1
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
@@ -107,6 +107,16 @@
 
     /* ===== Hover Border ===== */
     .media-item__border-overlay, .episode-item__border-overlay { display: none !important; }
+
+    /* ===== Seasons Section (Reload Bug) ===== */
+    /* On reload/refresh the site re-injects into each season poster's .rating-row:
+       1) a duplicate we-rating-badge (the rating already lives on the poster
+          overlay) and 2) a fa-calendar-days release date for watched seasons,
+          which only show the fa-check watched date in the good render.
+       Hide both. The fa-calendar-days rule only fires when a fa-check is present,
+       so unwatched seasons (which legitimately show only the release date) keep it. */
+    .seasons-section .rating-row we-rating-badge { display: none !important; }
+    .seasons-section .rating-row:has(.entity-release-date .fa-check) .entity-release-date:has(.fa-calendar-days) { display: none !important; }
 
     /* ===== Upcoming Section ===== */
     /* Hide upcoming items that have no progress bar (e.g. already-watched episodes) */
@@ -558,33 +568,29 @@
     DubService.apply();
   }
 
-  // Set up initialization and throttled observation
+  // Set up initialization and rAF polling loop
   function init() {
     GM_registerMenuCommand('WeTrakr Mods Settings', () => SettingsUI.open());
     ModuleCache.clearExpired();
     runMods();
 
-    let applyTimer;
     let lastRun = 0;
     const RUN_INTERVAL = 100;
 
-    // Throttle: coalesce rapid DOM mutations into at most one runMods() per 100ms
-    const observer = new MutationObserver(() => {
-      const wait = Math.max(0, RUN_INTERVAL - (Date.now() - lastRun));
-      clearTimeout(applyTimer);
-      applyTimer = setTimeout(() => {
-        lastRun = Date.now();
+    // rAF polling: run mods in sync with paint, throttled to at most one
+    // runMods() per 100ms. rAF auto-pauses when the tab is hidden, so no work
+    // is wasted in background tabs, and it catches late/async DOM that a
+    // structural-only observer could miss.
+    function poll() {
+      const now = Date.now();
+      if (now - lastRun >= RUN_INTERVAL) {
+        lastRun = now;
         runMods();
-      }, wait);
-    });
+      }
+      requestAnimationFrame(poll);
+    }
 
-    // Watch only structural changes. All runMods() work is idempotent and reacts
-    // to new nodes; class/style churn (hover, progress updates) would otherwise
-    // fire the observer constantly and cause page lag.
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true
-    });
+    requestAnimationFrame(poll);
   }
 
   init();
