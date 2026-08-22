@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       1.6.0
+// @version       1.6.1
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
@@ -32,16 +32,28 @@
   // CSS Styles
   // ==========================================
   GM_addStyle(`
+    /* ========================================================================== */
+    /* Global                                                                     */
+    /* ========================================================================== */
+
     /* ===== Square Everything ===== */
     * { border-radius: 0 !important; }
 
-    /* ===== Title Stack (Actor) ===== */
+    /* ===== Progress Ring ===== */
+    /* Hide the circular progress ring on the avatar because it clashes with the square theme. */
+    svg.ring { display: none !important; }
+
+    /* ========================================================================== */
+    /* Detail Pages                                                               */
+    /* ========================================================================== */
+
+    /* ===== Title Stack: Actor ===== */
     .detail-grid--person .person-badge-department { font-size: 14px !important; margin: 5px 0 0 12px !important; }
     .detail-grid--person [class="detail-status-line"] .detail-status-badge { background: none !important; padding: 0 !important; }
     .detail-grid--person [class="detail-status-line"] .detail-status-badge + .detail-status-badge::before { content: "∙"; margin: 0 10px 0 4px; font-weight: bold; }
 
-    /* ===== Title Stack (Movies + Shows) ===== */
-    /* [class="detail-grid"] is an exact class match, so it only targets the plain grid, never the modifier grids (--person/--season/--episode) */
+    /* ===== Title Stack: Movies + Shows ===== */
+    /* Exact class match targets only the plain detail grid, never modifier grids such as --person, --season, or --episode. */
     [class="detail-grid"] .title-stack { display: flex; flex-direction: column; }
     [class="detail-grid"] .title-stack .we-heading-1 { order: 1; }
     [class="detail-grid"] .title-stack .detail-status-line.detail-meta-line { order: 2; margin-bottom: var(--space-2); }
@@ -52,76 +64,91 @@
     [class="detail-grid"] .detail-status-line.detail-meta-line .detail-status-badge + .detail-status-badge::before { content: "∙"; margin: 0 10px 0 4px; font-weight: bold; }
     [class="detail-grid"] .detail-overview-block .we-text-body.detail-directed-by { padding-bottom: 15px; }
 
-    /* ===== Title Stack (Season) ===== */
+    /* ===== Title Stack: Season ===== */
     .detail-grid--season .detail-grid__info .title-stack.title-center { display: flex !important; flex-direction: column !important; }
-    /* 1. Season nav pill - stays first */
+    /* 1. Season navigation pill */
     .detail-grid--season .detail-grid__info .title-stack .detail-nav-links--season { order: 1; }
-    /* 2. Show title - promoted to main heading; hides the "/ Season X" part */
+    /* 2. Show title: promoted to main heading while hiding the "/ Season X" portion */
     .detail-grid--season .detail-grid__info .title-stack .detail-breadcrumb { order: 2; }
     .detail-grid--season .detail-grid__info .title-stack .detail-breadcrumb a.we-link-body { font-size: var(--font-size-4) !important; font-weight: 800 !important; letter-spacing: -0.02em; line-height: var(--line-height-0); color: #fff; text-decoration: none; }
     .detail-grid--season .detail-grid__info .title-stack .detail-breadcrumb a.we-link-body:hover { color: #8283ff; }
-    .detail-grid--season .detail-grid__info .title-stack .detail-breadcrumb span,
-    .detail-grid--season .detail-grid__info .title-stack .detail-breadcrumb .detail-breadcrumb__current { display: none !important; }
-    /* 3. Season number - demoted to secondary heading */
+    .detail-grid--season .detail-grid__info .title-stack .detail-breadcrumb span, .detail-grid--season .detail-grid__info .title-stack .detail-breadcrumb .detail-breadcrumb__current { display: none !important; }
+    /* 3. Season number: demoted to secondary heading */
     .detail-grid--season .detail-grid__info .title-stack .we-heading-1 { order: 3; font-size: 22px !important; font-weight: 700 !important; letter-spacing: 0.4px !important; }
     .detail-grid--season .detail-grid__info .title-stack .we-heading-1 .we-text-accent { display: none; }
-    /* 4. Date / episode count - positioned last */
+    /* 4. Date and episode count */
     .detail-grid--season .detail-grid__info .title-stack > p.we-text-body:not(.detail-breadcrumb) { order: 4; margin-bottom: 10px !important; font-size: var(--font-size-0); font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; }
 
-    /* ===== Title Stack (Episode) ===== */
+    /* ===== Title Stack: Episode ===== */
     .detail-grid--episode .detail-grid__info .title-stack.title-center { display: flex !important; flex-flow: row wrap !important; align-items: baseline !important; }
-    /* 1. Episode nav pill - stays first */
+    /* 1. Episode navigation pill */
     .detail-grid--episode .detail-grid__info .title-stack .detail-nav-links { order: 1; flex-basis: 100%; }
-    /* Breadcrumb becomes "invisible" as a box - its children join the flex flow directly */
+    /* Breadcrumb becomes invisible as a box so its children participate directly in the flex layout. */
     .detail-grid--episode .detail-grid__info .title-stack .detail-breadcrumb { display: contents; }
-    /* 2. New Episode + New Season badges */
-    .detail-grid--episode .detail-grid__info .title-stack .episode-milestone-badge-detail,
-    .detail-grid--episode .detail-grid__info .title-stack .episode-upcoming-icon-detail { position: static !important; margin-right: 7px; order: 2; }
+    /* 2. New Episode and New Season badges */
+    .detail-grid--episode .detail-grid__info .title-stack .episode-milestone-badge-detail, .detail-grid--episode .detail-grid__info .title-stack .episode-upcoming-icon-detail { position: static !important; margin-right: 7px; order: 2; }
     .detail-grid--episode .detail-grid__info .title-stack .badge-linebreak { order: 2; flex-basis: 100%; width: 0; height: 0; }
-    /* 3. Episode title - split to own line, large */
+    /* 3. Episode title: placed on its own line and enlarged */
     .detail-grid--episode .detail-grid__info .title-stack .detail-breadcrumb a.we-link-body:first-child { order: 3; font-size: var(--font-size-4) !important; font-weight: 800 !important; letter-spacing: -0.02em; line-height: var(--line-height-0); color: #fff; text-decoration: none; margin-bottom: -3px; }
     .detail-grid--episode .detail-grid__info .title-stack .detail-breadcrumb a.we-link-body:hover { color: #8283ff; }
     .detail-grid--episode .detail-grid__info .title-stack .ep-linebreak { order: 3; flex-basis: 100%; width: 0; height: 0; }
     .detail-grid--episode .detail-grid__info .title-stack .detail-breadcrumb span:not(.detail-breadcrumb__current):not(.ep-linebreak) { display: none !important; }
-    /* 4. Episode details - season #, episode #, episode title */
+    /* 4. Episode details: season number, episode number, and episode title */
     .detail-grid--episode .detail-grid__info .title-stack .detail-breadcrumb a.we-link-body:nth-of-type(2) { order: 4; font-size: 22px !important; font-weight: 700 !important; letter-spacing: 0.4px !important; text-decoration: none; }
     .detail-grid--episode .detail-grid__info .title-stack .detail-breadcrumb .detail-breadcrumb__current { order: 5; font-size: 22px !important; font-weight: 700 !important; letter-spacing: 0.4px !important; }
     .detail-grid--episode .detail-grid__info .title-stack .detail-breadcrumb .detail-breadcrumb__current::before { content: "∙"; margin: 0 6px; }
     .detail-grid--episode .detail-grid__info .title-stack .we-heading-1 { order: 6; font-size: 22px !important; font-weight: 700 !important; letter-spacing: 0.4px !important; }
     .detail-grid--episode .detail-grid__info .title-stack .we-heading-1::before { content: "–"; margin: 0 2px 0 6px; }
     .detail-grid--episode .detail-grid__info .title-stack .we-heading-1 .we-text-accent { display: none; }
-    /* 5. Date / runtime - positioned last */
+    /* 5. Date and runtime */
     .detail-grid--episode .detail-grid__info .title-stack > p.we-text-body:not(.detail-breadcrumb) { order: 7; flex-basis: 100%; margin-bottom: 10px !important; font-size: var(--font-size-0); font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; }
 
-    /* ===== Title Stack (Tracking) ===== */
-    /* 1. Title - on its own line */
+    /* ===== Title Stack: Tracking ===== */
     .detail-grid--min .title-stack.title-center { display: flex; flex-direction: column; }
+    /* 1. Title */
     .detail-grid--min .title-stack .we-heading-1 { order: 1; }
-    /* 2. Meta line (dates, seasons, runtime) - second */
+    /* 2. Meta line: dates, seasons, and runtime */
     .detail-grid--min .title-stack .detail-status-line.detail-meta-line { order: 2; margin-bottom: var(--space-2); }
-    /* 3. Status line (airing + genres) - last */
+    /* 3. Status line: airing status and genres */
     .detail-grid--min .title-stack .detail-status-line:not(.detail-meta-line) { order: 3; margin-bottom: 15px; }
-    /* Airing badge - cloned next to the title, centered */
+    /* Airing badge: cloned beside the title and vertically centered */
     .detail-grid--min .detail-status-badge.rs-clone { align-self: center; margin-left: var(--space-2); margin-right: 0; margin-bottom: -4px; }
     .detail-grid--min .detail-status-badge.rs-clone:not(.detail-status-badge--airing) { border: 1px solid currentColor; border-radius: var(--radius-1); padding: 2px 6px; background: none; }
-    /* Meta badges - flat, separated by dots */
+    /* Meta badges: flattened and separated with dots */
     .detail-grid--min .detail-status-line.detail-meta-line .detail-status-badge { background: none !important; padding: 0 !important; }
     .detail-grid--min .detail-status-line.detail-meta-line .detail-status-badge + .detail-status-badge::before { content: "∙"; margin: 0 10px 0 4px; font-weight: bold; }
+
+    /* ===== Dub Information ===== */
+    .detail-meta-box .rs-dub-info { display: flex; flex-direction: row; align-items: baseline; justify-content: space-between; gap: var(--space-3); padding: var(--space-4) var(--space-4); }
+    .detail-meta-box .rs-dub-info .detail-meta-box__label { display: flex; align-items: center; gap: var(--space-2); flex-shrink: 0; font-size: var(--font-size-0); font-weight: 600; color: #fff; letter-spacing: 0.04em; line-height: 1.4; margin: 0; }
+    .detail-meta-box .rs-dub-info .detail-meta-box__value { font-size: var(--font-size-0); font-weight: 400; color: #96a4af; line-height: 1.4; text-align: right; margin: 0; min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
+
+    /* ========================================================================== */
+    /* Media Items                                                                */
+    /* ========================================================================== */
 
     /* ===== Hover Border ===== */
     .media-item__border-overlay, .episode-item__border-overlay { display: none !important; }
 
     /* ===== Upcoming Section ===== */
-    /* Hide upcoming items that have no progress bar (e.g. already-watched episodes) */
+    /* Hide upcoming items without a progress bar, such as already-watched episodes. */
     #upcoming we-item-poster:not(:has(.media-item__progress)) { display: none !important; }
 
-    /* ===== Profile Menu Overflow ===== */
-    .profile-menu .profile-menu-content { overflow-x: unset !important; }
+    /* ===== Release / Watched Date ===== */
+    /* Keep the eye icon, date, and time on one line to prevent wrapping and misalignment on narrow cards. */
+    .entity-release-date .wd-full { flex-wrap: unset !important; }
+
+    /* ===== Empty Cards ===== */
+    [class="we-empty-card"] { display: none; }
+
+    /* ========================================================================== */
+    /* Action Buttons                                                             */
+    /* ========================================================================== */
 
     /* ===== Active Button Colours ===== */
-    /* Watched */
+    /* Watched: sort badge */
     .media-item__sort-badge { background: #6B3041 !important; }
-    /* Watched */
+    /* Watched: action button */
     [aria-label="Mark as watched"].media-item__action-btn--active.media-item__action-btn--active, .detail-grid .detail-grid__cast [aria-label="Mark as watched"].media-item__action-btn--active.media-item__action-btn--active, [aria-label="Unmark all episodes"].media-item__action-btn--active.media-item__action-btn--active, html body .detail-grid .detail-grid__cast [aria-label="Unmark all episodes"].media-item__action-btn--active.media-item__action-btn--active, .episode-item--season.episode-item--row .episode-item__actions [aria-label="Mark as watched"].episode-item__action-btn--active { background-color: #2E6B48 !important; }
     /* Waiting */
     [aria-label="Waiting for new episodes"].media-item__action-btn--active.media-item__action-btn--active, .detail-grid .detail-grid__cast [aria-label="Waiting for new episodes"].media-item__action-btn--active.media-item__action-btn--active { background-color: #7D5B2C !important; }
@@ -129,37 +156,54 @@
     [aria-label="Mark as planning"].media-item__action-btn--active.media-item__action-btn--active, .detail-grid .detail-grid__cast [aria-label="Mark as planning"].media-item__action-btn--active.media-item__action-btn--active { background-color: #366B7D !important; }
     /* Favourite */
     [aria-label="Mark as favorite"].media-item__action-btn--active.media-item__action-btn--active, html body .detail-grid .detail-grid__cast [aria-label="Mark as favorite"].media-item__action-btn--active.media-item__action-btn--active, .episode-item--season.episode-item--row .episode-item__actions [aria-label="Mark as favorite"].episode-item__action-btn--active { background-color: #895e77 !important; }
-    /* Add to list (when count >= 1) */
+    /* Add to list: active when count is 1 or greater */
     [aria-label="Add to list"]:has(.action-btn__count), .detail-grid .detail-grid__cast .media-item__action-btn[aria-label="Add to list"]:has(.action-btn__count) { background-color: #3B6FB5 !important; color: #e9ecf2 !important; }
 
-    /* Progress ring (hidden - circular element clashes with square theme) */
-    svg.ring { display: none !important; }
+    /* ========================================================================== */
+    /* Navigation + Menus                                                         */
+    /* ========================================================================== */
 
-    /* ===== Dub Info ===== */
-    .detail-meta-box .rs-dub-info { display: flex; flex-direction: row; align-items: baseline; justify-content: space-between; gap: var(--space-3); padding: var(--space-4) var(--space-4); }
-    .detail-meta-box .rs-dub-info .detail-meta-box__label { display: flex; align-items: center; gap: var(--space-2); flex-shrink: 0; font-size: var(--font-size-0); font-weight: 600; color: #fff; letter-spacing: 0.04em; line-height: 1.4; margin: 0; }
-    .detail-meta-box .rs-dub-info .detail-meta-box__value { font-size: var(--font-size-0); font-weight: 400; color: #96a4af; line-height: 1.4; text-align: right; margin: 0; min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
+    /* ===== Profile Menu Overflow ===== */
+    .profile-menu .profile-menu-content { overflow-x: unset !important; }
 
-    /* ===== Settings Modal ===== */
+    /* ========================================================================== */
+    /* Settings Modal                                                             */
+    /* ========================================================================== */
+
+    /* ===== Modal Layout ===== */
     .rs-settings-overlay { position: fixed; inset: 0; z-index: 10000; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.6); font-family: 'Proxima Nova', 'Open Sans', Arial, sans-serif; }
     .rs-settings-modal { width: 480px; max-width: 90vw; max-height: 85vh; display: flex; flex-direction: column; overflow: hidden; background: #1e1e2e; color: #e0e0e0; border: 1px solid #333; border-radius: 10px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5); }
+
+    /* ===== Modal Header ===== */
     .rs-settings-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid #333; }
     .rs-settings-header h2 { margin: 0; font-size: 17px; font-weight: 700; }
     .rs-settings-close { background: none; border: none; color: #999; font-size: 22px; line-height: 1; cursor: pointer; }
     .rs-settings-close:hover { color: #e0e0e0; }
+
+    /* ===== Modal Body ===== */
     .rs-settings-body { padding: 16px 20px; overflow-y: auto; }
     .rs-settings-body h3 { margin: 0 0 12px; font-size: 13px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: #999; }
+
+    /* ===== Settings Rows ===== */
     .rs-settings-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 12px 0; }
     .rs-settings-row + .rs-settings-row { border-top: 1px solid #333; }
     .rs-settings-row strong { display: block; font-size: 14px; }
     .rs-settings-row small { display: block; margin-top: 2px; color: #999; font-size: 12px; }
+
+    /* ===== Toggle ===== */
     .rs-settings-toggle { width: 42px; height: 24px; flex-shrink: 0; appearance: none; position: relative; background: #444; border-radius: 24px; cursor: pointer; transition: background 0.2s; }
     .rs-settings-toggle::before { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; background: #fff; border-radius: 50%; transition: transform 0.2s; }
     .rs-settings-toggle:checked { background: #4937e9; }
     .rs-settings-toggle:checked::before { transform: translateX(18px); }
+
+    /* ===== Select Menu ===== */
     .rs-settings-row select { flex-shrink: 0; padding: 8px 10px; background: #2a2a3d; color: #e0e0e0; border: 1px solid #444; border-radius: 6px; font-size: 13px; outline: none; }
     .rs-settings-row select:focus { border-color: #4937e9; }
+
+    /* ===== Modal Footer ===== */
     .rs-settings-footer { display: flex; justify-content: space-between; padding: 14px 20px; border-top: 1px solid #333; }
+
+    /* ===== Footer Buttons ===== */
     .rs-settings-btn { padding: 8px 16px; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
     .rs-settings-btn--ghost { background: transparent; color: #999; }
     .rs-settings-btn--ghost:hover { background: #2a2a3d; color: #e0e0e0; }
