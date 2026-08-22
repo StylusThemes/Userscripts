@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       1.5.1
+// @version       1.6.0
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
@@ -32,6 +32,9 @@
   // CSS Styles
   // ==========================================
   GM_addStyle(`
+    /* ===== Square Everything ===== */
+    * { border-radius: 0 !important; }
+
     /* ===== Title Stack (Actor) ===== */
     .detail-grid--person .person-badge-department { font-size: 14px !important; margin: 5px 0 0 12px !important; }
     .detail-grid--person [class="detail-status-line"] .detail-status-badge { background: none !important; padding: 0 !important; }
@@ -56,7 +59,7 @@
     /* 2. Show title - promoted to main heading; hides the "/ Season X" part */
     .detail-grid--season .detail-grid__info .title-stack .detail-breadcrumb { order: 2; }
     .detail-grid--season .detail-grid__info .title-stack .detail-breadcrumb a.we-link-body { font-size: var(--font-size-4) !important; font-weight: 800 !important; letter-spacing: -0.02em; line-height: var(--line-height-0); color: #fff; text-decoration: none; }
-    .detail-grid--season .detail-grid__info .title-stack .detail-breadcrumb a.we-link-body:hover { text-decoration: underline; }
+    .detail-grid--season .detail-grid__info .title-stack .detail-breadcrumb a.we-link-body:hover { color: #8283ff; }
     .detail-grid--season .detail-grid__info .title-stack .detail-breadcrumb span,
     .detail-grid--season .detail-grid__info .title-stack .detail-breadcrumb .detail-breadcrumb__current { display: none !important; }
     /* 3. Season number - demoted to secondary heading */
@@ -73,11 +76,11 @@
     .detail-grid--episode .detail-grid__info .title-stack .detail-breadcrumb { display: contents; }
     /* 2. New Episode + New Season badges */
     .detail-grid--episode .detail-grid__info .title-stack .episode-milestone-badge-detail,
-    .detail-grid--episode .detail-grid__info .title-stack .episode-upcoming-icon-detail { position: static !important; order: 2; }
+    .detail-grid--episode .detail-grid__info .title-stack .episode-upcoming-icon-detail { position: static !important; margin-right: 7px; order: 2; }
     .detail-grid--episode .detail-grid__info .title-stack .badge-linebreak { order: 2; flex-basis: 100%; width: 0; height: 0; }
     /* 3. Episode title - split to own line, large */
     .detail-grid--episode .detail-grid__info .title-stack .detail-breadcrumb a.we-link-body:first-child { order: 3; font-size: var(--font-size-4) !important; font-weight: 800 !important; letter-spacing: -0.02em; line-height: var(--line-height-0); color: #fff; text-decoration: none; margin-bottom: -3px; }
-    .detail-grid--episode .detail-grid__info .title-stack .detail-breadcrumb a.we-link-body:hover { text-decoration: underline; }
+    .detail-grid--episode .detail-grid__info .title-stack .detail-breadcrumb a.we-link-body:hover { color: #8283ff; }
     .detail-grid--episode .detail-grid__info .title-stack .ep-linebreak { order: 3; flex-basis: 100%; width: 0; height: 0; }
     .detail-grid--episode .detail-grid__info .title-stack .detail-breadcrumb span:not(.detail-breadcrumb__current):not(.ep-linebreak) { display: none !important; }
     /* 4. Episode details - season #, episode #, episode title */
@@ -108,22 +111,29 @@
     /* ===== Hover Border ===== */
     .media-item__border-overlay, .episode-item__border-overlay { display: none !important; }
 
-    /* ===== Seasons Section (Reload Bug) ===== */
-    /* On reload/refresh the site re-injects into each season poster's .rating-row:
-       1) a duplicate we-rating-badge (the rating already lives on the poster
-          overlay) and 2) a fa-calendar-days release date for watched seasons,
-          which only show the fa-check watched date in the good render.
-       Hide both. The fa-calendar-days rule only fires when a fa-check is present,
-       so unwatched seasons (which legitimately show only the release date) keep it. */
-    .seasons-section .rating-row we-rating-badge { display: none !important; }
-    .seasons-section .rating-row:has(.entity-release-date .fa-check) .entity-release-date:has(.fa-calendar-days) { display: none !important; }
-
     /* ===== Upcoming Section ===== */
     /* Hide upcoming items that have no progress bar (e.g. already-watched episodes) */
     #upcoming we-item-poster:not(:has(.media-item__progress)) { display: none !important; }
 
     /* ===== Profile Menu Overflow ===== */
     .profile-menu .profile-menu-content { overflow-x: unset !important; }
+
+    /* ===== Active Button Colours ===== */
+    /* Watched */
+    .media-item__sort-badge { background: #6B3041 !important; }
+    /* Watched */
+    [aria-label="Mark as watched"].media-item__action-btn--active.media-item__action-btn--active, .detail-grid .detail-grid__cast [aria-label="Mark as watched"].media-item__action-btn--active.media-item__action-btn--active, [aria-label="Unmark all episodes"].media-item__action-btn--active.media-item__action-btn--active, html body .detail-grid .detail-grid__cast [aria-label="Unmark all episodes"].media-item__action-btn--active.media-item__action-btn--active, .episode-item--season.episode-item--row .episode-item__actions [aria-label="Mark as watched"].episode-item__action-btn--active { background-color: #2E6B48 !important; }
+    /* Waiting */
+    [aria-label="Waiting for new episodes"].media-item__action-btn--active.media-item__action-btn--active, .detail-grid .detail-grid__cast [aria-label="Waiting for new episodes"].media-item__action-btn--active.media-item__action-btn--active { background-color: #7D5B2C !important; }
+    /* Planning */
+    [aria-label="Mark as planning"].media-item__action-btn--active.media-item__action-btn--active, .detail-grid .detail-grid__cast [aria-label="Mark as planning"].media-item__action-btn--active.media-item__action-btn--active { background-color: #366B7D !important; }
+    /* Favourite */
+    [aria-label="Mark as favorite"].media-item__action-btn--active.media-item__action-btn--active, html body .detail-grid .detail-grid__cast [aria-label="Mark as favorite"].media-item__action-btn--active.media-item__action-btn--active, .episode-item--season.episode-item--row .episode-item__actions [aria-label="Mark as favorite"].episode-item__action-btn--active { background-color: #895e77 !important; }
+    /* Add to list (when count >= 1) */
+    [aria-label="Add to list"]:has(.action-btn__count), .detail-grid .detail-grid__cast .media-item__action-btn[aria-label="Add to list"]:has(.action-btn__count) { background-color: #3B6FB5 !important; color: #e9ecf2 !important; }
+
+    /* Progress ring (hidden - circular element clashes with square theme) */
+    svg.ring { display: none !important; }
 
     /* ===== Dub Info ===== */
     .detail-meta-box .rs-dub-info { display: flex; flex-direction: row; align-items: baseline; justify-content: space-between; gap: var(--space-3); padding: var(--space-4) var(--space-4); }
@@ -310,15 +320,25 @@
       cert.after(clone);
     },
 
-    ensureLineBreakAfter(container, selector, spacerClass) {
-      // Only insert once per container - a re-render can detach the spacer from
-      // its target, so check anywhere in the container, not just the next sibling
-      const target = container?.querySelector(selector);
-      if (!target || container.querySelector(`.${spacerClass}`)) return;
+    ensureLineBreakAfter(container, targetSelector, spacerClass) {
+      if (!container) return;
+
+      const targets = container.querySelectorAll(targetSelector);
+      if (!targets.length) return;
+
+      const lastTarget = targets[targets.length - 1];
+
+      if (lastTarget.nextElementSibling?.classList.contains(spacerClass)) {
+        return;
+      }
+
+      for (const element of container.querySelectorAll(`.${spacerClass}`)) {
+        element.remove();
+      }
 
       const spacer = document.createElement('span');
       spacer.className = spacerClass;
-      target.after(spacer);
+      lastTarget.after(spacer);
     },
 
     applyEpisodeLineBreaks() {
@@ -364,6 +384,11 @@
   // ==========================================
   const DubService = {
     hasStarted: false,
+    generation: 0,
+
+    isCurrent(generation, route) {
+      return generation === this.generation && route === location.pathname;
+    },
 
     getExternalIds() {
       const ids = { anilist: null, imdb: null, tmdb: null };
@@ -440,7 +465,11 @@
       if (!config.dubInfo) return;
 
       this.hasStarted = true;
+      const generation = this.generation;
+      const route = location.pathname;
+
       const anilistId = await this.resolveAnilistId(this.getExternalIds());
+      if (!this.isCurrent(generation, route)) return;
 
       if (!anilistId) {
         logger.warn('No AniList ID available for dub info');
@@ -452,16 +481,20 @@
       const cached = ModuleCache.get(cacheKey);
 
       if (cached !== undefined) {
+        if (!this.isCurrent(generation, route)) return;
         this.displayDubInfo(cached, language);
         return;
       }
 
       try {
         const edges = await this.queryAnilistDub(anilistId, language);
+        if (!this.isCurrent(generation, route)) return;
         const hasDub = edges.some(edge => edge.voiceActors?.length > 0);
         ModuleCache.set(cacheKey, hasDub);
+        if (!this.isCurrent(generation, route)) return;
         this.displayDubInfo(hasDub, language);
       } catch (error) {
+        if (!this.isCurrent(generation, route)) return;
         logger.error(`Failed to fetch dub info for ${anilistId}: ${error.message}`);
         ModuleCache.set(cacheKey, false);
       }
@@ -469,6 +502,7 @@
 
     reset() {
       this.hasStarted = false;
+      this.generation++;
     }
   };
 
@@ -549,17 +583,21 @@
   };
 
   // ==========================================
-  // Core Execution Loop
+  // Core Execution (event-driven)
   // ==========================================
   let lastPath = location.pathname;
+  let framePending = false;
+
+  function handleRouteChange() {
+    if (location.pathname === lastPath) return false;
+    lastPath = location.pathname;
+    DubService.reset();
+    logger.debug(`SPA navigation detected: ${lastPath}`);
+    return true;
+  }
 
   function runMods() {
-    // Detect SPA route changes so per-page state (e.g. dub info) re-runs without a reload
-    if (location.pathname !== lastPath) {
-      lastPath = location.pathname;
-      DubService.reset();
-      logger.debug(`SPA navigation detected: ${lastPath}`);
-    }
+    handleRouteChange();
 
     DOMModifiers.moveStatusBadge();
     DOMModifiers.applyEpisodeLineBreaks();
@@ -568,29 +606,45 @@
     DubService.apply();
   }
 
-  // Set up initialization and rAF polling loop
+  function scheduleRun() {
+    if (framePending) return;
+    framePending = true;
+    requestAnimationFrame(() => {
+      framePending = false;
+      runMods();
+    });
+  }
+
+  const observer = new MutationObserver(() => {
+    scheduleRun();
+  });
+
+  function hookHistoryMethod(methodName) {
+    const original = history[methodName];
+    history[methodName] = function(...callArguments) {
+      const result = original.apply(this, callArguments);
+      scheduleRun();
+      return result;
+    };
+  }
+
   function init() {
     GM_registerMenuCommand('WeTrakr Mods Settings', () => SettingsUI.open());
     ModuleCache.clearExpired();
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ['class']
+    });
+
+    hookHistoryMethod('pushState');
+    hookHistoryMethod('replaceState');
+    window.addEventListener('popstate', scheduleRun);
+
     runMods();
-
-    let lastRun = 0;
-    const RUN_INTERVAL = 100;
-
-    // rAF polling: run mods in sync with paint, throttled to at most one
-    // runMods() per 100ms. rAF auto-pauses when the tab is hidden, so no work
-    // is wasted in background tabs, and it catches late/async DOM that a
-    // structural-only observer could miss.
-    function poll() {
-      const now = Date.now();
-      if (now - lastRun >= RUN_INTERVAL) {
-        lastRun = now;
-        runMods();
-      }
-      requestAnimationFrame(poll);
-    }
-
-    requestAnimationFrame(poll);
   }
 
   init();
