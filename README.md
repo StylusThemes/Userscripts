@@ -50,99 +50,99 @@ This table shows supported browsers and their compatible userscript managers. Cl
         <tr>
             <td>
                 <a href="https://www.chrome.com" title="Chrome">
-                    <img src="https://assets.aiwebextensions.com/images/icons/browsers/chrome/icon16.png" width=16 alt="Chrome"></a>
+                    <img src="https://gitlab.com/adamlui/ai-web-extensions/-/raw/main/assets/images/icons/browsers/chrome/icon16.png" width=16 alt="Chrome"></a>
                 <strong>Chrome</strong><br>
                 <small>Windows, macOS, Linux</small>
             </td>
             <td>
                 <a href="https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo" title="Tampermonkey">
-                    <img width=16 src="https://assets.aiwebextensions.com/images/icons/userscript-managers/tampermonkey/icon28.png">
+                    <img width=16 src="https://gitlab.com/adamlui/ai-web-extensions/-/raw/main/assets/images/icons/userscript-managers/tampermonkey/icon28.png">
                     Tampermonkey</a><br>
                 <a href="https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag" title="Violentmonkey">
-                    <img width=16 src="https://assets.aiwebextensions.com/images/icons/userscript-managers/violentmonkey/icon25.png">
+                    <img width=16 src="https://gitlab.com/adamlui/ai-web-extensions/-/raw/main/assets/images/icons/userscript-managers/violentmonkey/icon25.png">
                     Violentmonkey</a><br>
                 <a href="https://chromewebstore.google.com/detail/scriptcat/ndcooeababalnlpkfedmmbbbgkljhpjf" title="ScriptCat">
-                    <img width=16 src="https://assets.aiwebextensions.com/images/icons/userscript-managers/scriptcat/icon16.png">
+                    <img width=16 src="https://lh3.googleusercontent.com/SAwxV3v76ZFiLyi69sE1zNXy5x4eQgG2Q3JqilcYRM1ZuASV_dbCU5_DNBYwq4wm8xQJMTfFTnI_gOjagdEDhpab">
                     ScriptCat</a><br>
                 <a href="https://chromewebstore.google.com/detail/orangemonkey/ekmeppjgajofkpiofbebgcbohbmfldaf" title="OrangeMonkey">
-                    <img width=16 src="https://assets.aiwebextensions.com/images/icons/userscript-managers/orangemonkey/icon16.png">
+                    <img width=16 src="https://gitlab.com/adamlui/ai-web-extensions/-/raw/main/assets/images/icons/userscript-managers/orangemonkey/icon16.png">
                     OrangeMonkey</a>
             </td>
             <td>
                 <a href="https://www.chrome.com" title="Chrome">
-                    <img src="https://assets.aiwebextensions.com/images/icons/browsers/chrome/icon16.png" width=16 alt="Chrome"></a>
+                    <img src="https://gitlab.com/adamlui/ai-web-extensions/-/raw/main/assets/images/icons/browsers/chrome/icon16.png" width=16 alt="Chrome"></a>
                 <a href="https://www.google.com/chrome/beta/" title="Chrome Beta">
-                    <img src="https://assets.aiwebextensions.com/images/icons/browsers/chrome/beta/icon16.svg" width=16 alt="Chrome Beta"></a>
+                    <img src="https://gitlab.com/adamlui/ai-web-extensions/-/raw/main/assets/images/icons/browsers/chrome/beta/icon16.svg" width=16 alt="Chrome Beta"></a>
                 <a href="https://www.google.com/chrome/dev/" title="Chrome Dev">
-                    <img src="https://assets.aiwebextensions.com/images/icons/browsers/chrome/dev/icon16.svg" width=16 alt="Chrome Dev"></a>
+                    <img src="https://gitlab.com/adamlui/ai-web-extensions/-/raw/main/assets/images/icons/browsers/chrome/dev/icon16.svg" width=16 alt="Chrome Dev"></a>
                 <a href="https://www.google.com/chrome/canary/" title="Chrome Canary">
-                    <img src="https://assets.aiwebextensions.com/images/icons/browsers/chrome/canary/icon16.svg" width=16 alt="Chrome Canary"></a>
+                    <img src="https://gitlab.com/adamlui/ai-web-extensions/-/raw/main/assets/images/icons/browsers/chrome/canary/icon16.svg" width=16 alt="Chrome Canary"></a>
             </td>
         </tr>
         <tr>
             <td>
                 <a href="https://www.apple.com/safari/" title="Safari">
-                    <img src="https://assets.aiwebextensions.com/images/icons/browsers/safari/icon16.png" width=16 alt="Safari"></a>
+                    <img src="https://gitlab.com/adamlui/ai-web-extensions/-/raw/main/assets/images/icons/browsers/safari/icon16.png" width=16 alt="Safari"></a>
                 <strong>Safari</strong><br>
                 <small>macOS, iOS, iPadOS</small>
             </td>
             <td>
                 <a href="https://apps.apple.com/app/stay-for-safari/id1591620171" title="Stay">
-                    <img width=16 src="https://assets.aiwebextensions.com/images/icons/userscript-managers/stay/icon16.png">
+                    <img width=16 src="https://is1-ssl.mzstatic.com/image/thumb/PurpleSource221/v4/e1/3c/ab/e13caba8-8550-3ec6-f41f-a2f875acba58/Placeholder.mill/400x400bb-75.webp">
                     Stay</a><br>
                 <a href="https://apps.apple.com/app/userscripts/id1463298887" title="Userscripts">
-                    <img width=16 src="https://assets.aiwebextensions.com/images/icons/userscript-managers/userscripts/icon16.png">
+                    <img width=16 src="https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/47/be/20/47be20a2-fedd-cf0b-3a35-476ae727ae01/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/400x400ia-75.webp">
                     Userscripts</a>
             </td>
             <td>
                 <a href="https://www.apple.com/safari/" title="Safari">
-                    <img src="https://assets.aiwebextensions.com/images/icons/browsers/safari/icon16.png" width=16 alt="Safari"></a>
+                    <img src="https://gitlab.com/adamlui/ai-web-extensions/-/raw/main/assets/images/icons/browsers/safari/icon16.png" width=16 alt="Safari"></a>
             </td>
         </tr>
         <tr>
             <td>
                 <a href="https://www.microsoft.com/edge" title="Edge">
-                    <img src="https://assets.aiwebextensions.com/images/icons/browsers/edge/icon16.png" width=16 alt="Edge"></a>
+                    <img src="https://gitlab.com/adamlui/ai-web-extensions/-/raw/main/assets/images/icons/browsers/edge/icon16.png" width=16 alt="Edge"></a>
                 <strong>Edge</strong><br>
                 <small>Windows, macOS, Linux</small>
             </td>
             <td>
                 <a href="https://microsoftedge.microsoft.com/addons/detail/tampermonkey/iikmkjmpaadaobahmlepeloendndfphd" title="Tampermonkey">
-                    <img width=16 src="https://assets.aiwebextensions.com/images/icons/userscript-managers/tampermonkey/icon28.png">
+                    <img width=16 src="https://gitlab.com/adamlui/ai-web-extensions/-/raw/main/assets/images/icons/userscript-managers/tampermonkey/icon28.png">
                     Tampermonkey</a><br>
                 <a href="https://microsoftedge.microsoft.com/addons/detail/violentmonkey/eeagobfjdenkkddmbclomhiblgggliao" title="Violentmonkey">
-                    <img width=16 src="https://assets.aiwebextensions.com/images/icons/userscript-managers/violentmonkey/icon25.png">
+                    <img width=16 src="https://gitlab.com/adamlui/ai-web-extensions/-/raw/main/assets/images/icons/userscript-managers/violentmonkey/icon25.png">
                     Violentmonkey</a><br>
                 <a href="https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh" title="ScriptCat">
-                    <img width=16 src="https://assets.aiwebextensions.com/images/icons/userscript-managers/scriptcat/icon16.png">
+                    <img width=16 src="https://lh3.googleusercontent.com/SAwxV3v76ZFiLyi69sE1zNXy5x4eQgG2Q3JqilcYRM1ZuASV_dbCU5_DNBYwq4wm8xQJMTfFTnI_gOjagdEDhpab">
                     ScriptCat</a>
             </td>
             <td>
                 <a href="https://www.microsoft.com/edge/download" title="Edge">
-                    <img src="https://assets.aiwebextensions.com/images/icons/browsers/edge/icon16.png" width=16 alt="Edge"></a>
+                    <img src="https://gitlab.com/adamlui/ai-web-extensions/-/raw/main/assets/images/icons/browsers/edge/icon16.png" width=16 alt="Edge"></a>
             </td>
         </tr>
         <tr>
             <td>
                 <a href="https://www.firefox.com" title="Firefox">
-                    <img src="https://assets.aiwebextensions.com/images/icons/browsers/firefox/icon16.png" width=16 alt="Firefox"></a>
+                    <img src="https://gitlab.com/adamlui/ai-web-extensions/-/raw/main/assets/images/icons/browsers/firefox/icon16.png" width=16 alt="Firefox"></a>
                 <strong>Firefox</strong><br>
                 <small>Windows, macOS, Linux</small>
             </td>
             <td>
                 <a href="https://addons.mozilla.org/firefox/addon/tampermonkey/" title="Tampermonkey">
-                    <img width=16 src="https://assets.aiwebextensions.com/images/icons/userscript-managers/tampermonkey/icon28.png">
+                    <img width=16 src="https://gitlab.com/adamlui/ai-web-extensions/-/raw/main/assets/images/icons/userscript-managers/tampermonkey/icon28.png">
                     Tampermonkey</a><br>
                 <a href="https://addons.mozilla.org/firefox/addon/violentmonkey/" title="Violentmonkey">
-                    <img width=16 src="https://assets.aiwebextensions.com/images/icons/userscript-managers/violentmonkey/icon25.png">
+                    <img width=16 src="https://gitlab.com/adamlui/ai-web-extensions/-/raw/main/assets/images/icons/userscript-managers/violentmonkey/icon25.png">
                     Violentmonkey</a><br>
                 <a href="https://addons.mozilla.org/firefox/addon/scriptcat/" title="ScriptCat">
-                    <img width=16 src="https://assets.aiwebextensions.com/images/icons/userscript-managers/scriptcat/icon16.png">
+                    <img width=16 src="https://lh3.googleusercontent.com/SAwxV3v76ZFiLyi69sE1zNXy5x4eQgG2Q3JqilcYRM1ZuASV_dbCU5_DNBYwq4wm8xQJMTfFTnI_gOjagdEDhpab">
                     ScriptCat</a>
             </td>
             <td>
                 <a href="https://www.firefox.com" title="Firefox">
-                    <img src="https://assets.aiwebextensions.com/images/icons/browsers/firefox/icon16.png" width=16 alt="Firefox"></a>
+                    <img src="https://gitlab.com/adamlui/ai-web-extensions/-/raw/main/assets/images/icons/browsers/firefox/icon16.png" width=16 alt="Firefox"></a>
             </td>
         </tr>
     </tbody>

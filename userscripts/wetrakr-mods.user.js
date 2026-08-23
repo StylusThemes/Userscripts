@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       1.6.1
+// @version       1.6.2
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
@@ -118,6 +118,10 @@
     .detail-grid--min .detail-status-line.detail-meta-line .detail-status-badge { background: none !important; padding: 0 !important; }
     .detail-grid--min .detail-status-line.detail-meta-line .detail-status-badge + .detail-status-badge::before { content: "∙"; margin: 0 10px 0 4px; font-weight: bold; }
 
+    /* ===== All Watched Block ===== */
+    /* Hide the "still ongoing" hint and its remove-all-watched toggle shown for ongoing shows. */
+    .watching-details--all-watched { display: none !important; }
+
     /* ===== Dub Information ===== */
     .detail-meta-box .rs-dub-info { display: flex; flex-direction: row; align-items: baseline; justify-content: space-between; gap: var(--space-3); padding: var(--space-4) var(--space-4); }
     .detail-meta-box .rs-dub-info .detail-meta-box__label { display: flex; align-items: center; gap: var(--space-2); flex-shrink: 0; font-size: var(--font-size-0); font-weight: 600; color: #fff; letter-spacing: 0.04em; line-height: 1.4; margin: 0; }
@@ -140,6 +144,7 @@
 
     /* ===== Empty Cards ===== */
     [class="we-empty-card"] { display: none; }
+    [class="tracking-layout"] { display: unset !important; } /* Seems to be needed otherwise there is a huge gap between the tabs and watching when hiding the empty card */
 
     /* ========================================================================== */
     /* Action Buttons                                                             */
