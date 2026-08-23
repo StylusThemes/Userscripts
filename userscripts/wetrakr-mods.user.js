@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       1.6.2
+// @version       1.7.0
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
@@ -147,24 +147,6 @@
     [class="tracking-layout"] { display: unset !important; } /* Seems to be needed otherwise there is a huge gap between the tabs and watching when hiding the empty card */
 
     /* ========================================================================== */
-    /* Action Buttons                                                             */
-    /* ========================================================================== */
-
-    /* ===== Active Button Colours ===== */
-    /* Watched: sort badge */
-    .media-item__sort-badge { background: #6B3041 !important; }
-    /* Watched: action button */
-    [aria-label="Mark as watched"].media-item__action-btn--active.media-item__action-btn--active, .detail-grid .detail-grid__cast [aria-label="Mark as watched"].media-item__action-btn--active.media-item__action-btn--active, [aria-label="Unmark all episodes"].media-item__action-btn--active.media-item__action-btn--active, html body .detail-grid .detail-grid__cast [aria-label="Unmark all episodes"].media-item__action-btn--active.media-item__action-btn--active, .episode-item--season.episode-item--row .episode-item__actions [aria-label="Mark as watched"].episode-item__action-btn--active { background-color: #2E6B48 !important; }
-    /* Waiting */
-    [aria-label="Waiting for new episodes"].media-item__action-btn--active.media-item__action-btn--active, .detail-grid .detail-grid__cast [aria-label="Waiting for new episodes"].media-item__action-btn--active.media-item__action-btn--active { background-color: #7D5B2C !important; }
-    /* Planning */
-    [aria-label="Mark as planning"].media-item__action-btn--active.media-item__action-btn--active, .detail-grid .detail-grid__cast [aria-label="Mark as planning"].media-item__action-btn--active.media-item__action-btn--active { background-color: #366B7D !important; }
-    /* Favourite */
-    [aria-label="Mark as favorite"].media-item__action-btn--active.media-item__action-btn--active, html body .detail-grid .detail-grid__cast [aria-label="Mark as favorite"].media-item__action-btn--active.media-item__action-btn--active, .episode-item--season.episode-item--row .episode-item__actions [aria-label="Mark as favorite"].episode-item__action-btn--active { background-color: #895e77 !important; }
-    /* Add to list: active when count is 1 or greater */
-    [aria-label="Add to list"]:has(.action-btn__count), .detail-grid .detail-grid__cast .media-item__action-btn[aria-label="Add to list"]:has(.action-btn__count) { background-color: #3B6FB5 !important; color: #e9ecf2 !important; }
-
-    /* ========================================================================== */
     /* Navigation + Menus                                                         */
     /* ========================================================================== */
 
@@ -175,43 +157,66 @@
     /* Settings Modal                                                             */
     /* ========================================================================== */
 
-    /* ===== Modal Layout ===== */
-    .rs-settings-overlay { position: fixed; inset: 0; z-index: 10000; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.6); font-family: 'Proxima Nova', 'Open Sans', Arial, sans-serif; }
-    .rs-settings-modal { width: 480px; max-width: 90vw; max-height: 85vh; display: flex; flex-direction: column; overflow: hidden; background: #1e1e2e; color: #e0e0e0; border: 1px solid #333; border-radius: 10px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5); }
+    /* ===== Modal Overlay ===== */
+    .rs-settings-overlay { position: fixed; inset: 0; z-index: 10000; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.6); font-family: 'Proxima Nova', 'Open Sans', Arial, sans-serif; animation: rs-overlay-in 0.2s ease-out; }
+    @keyframes rs-overlay-in { from { opacity: 0; } }
+
+    /* ===== Modal Panel ===== */
+    .rs-settings-modal { width: 480px; max-width: 90vw; max-height: 85vh; display: flex; flex-direction: column; overflow: hidden; background: #1e1e2e; color: #e0e0e0; border: 1px solid #2d2d48; box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(73, 55, 233, 0.08); animation: rs-modal-in 0.25s ease-out; }
+    .rs-settings-modal::before { content: ""; display: block; height: 2px; flex-shrink: 0; background: #4937e9; }
+    @keyframes rs-modal-in { from { opacity: 0; transform: translateY(10px); } }
 
     /* ===== Modal Header ===== */
-    .rs-settings-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid #333; }
-    .rs-settings-header h2 { margin: 0; font-size: 17px; font-weight: 700; }
-    .rs-settings-close { background: none; border: none; color: #999; font-size: 22px; line-height: 1; cursor: pointer; }
-    .rs-settings-close:hover { color: #e0e0e0; }
+    .rs-settings-header { display: flex; justify-content: space-between; align-items: center; padding: 18px 22px; border-bottom: 1px solid #2d2d48; background: linear-gradient(180deg, rgba(73, 55, 233, 0.08) 0%, transparent 100%); }
+    .rs-settings-header h2 { margin: 0; font-size: 16px; font-weight: 700; letter-spacing: 0.3px; }
+    .rs-settings-close { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; background: none; border: 1px solid transparent; color: #666680; font-size: 20px; line-height: 1; cursor: pointer; transition: color 0.15s, border-color 0.15s, background 0.15s; }
+    .rs-settings-close:hover { color: #e0e0e0; border-color: #2d2d48; background: rgba(255, 255, 255, 0.03); }
 
     /* ===== Modal Body ===== */
-    .rs-settings-body { padding: 16px 20px; overflow-y: auto; }
-    .rs-settings-body h3 { margin: 0 0 12px; font-size: 13px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: #999; }
+    .rs-settings-body { padding: 20px 22px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #333348 transparent; }
+    .rs-settings-body::-webkit-scrollbar { width: 6px; }
+    .rs-settings-body::-webkit-scrollbar-track { background: transparent; }
+    .rs-settings-body::-webkit-scrollbar-thumb { background: #333348; }
+    .rs-settings-body h3 { margin: 0 0 10px; padding-bottom: 8px; font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #4937e9; border-bottom: 1px solid #2d2d48; }
+    .rs-settings-body h3:not(:first-child) { margin-top: 22px; }
 
     /* ===== Settings Rows ===== */
-    .rs-settings-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 12px 0; }
-    .rs-settings-row + .rs-settings-row { border-top: 1px solid #333; }
-    .rs-settings-row strong { display: block; font-size: 14px; }
-    .rs-settings-row small { display: block; margin-top: 2px; color: #999; font-size: 12px; }
+    .rs-settings-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 10px 12px; background: rgba(255, 255, 255, 0.015); border: 1px solid #2d2d48; transition: border-color 0.15s; }
+    .rs-settings-row:hover { border-color: #3d3d58; }
+    .rs-settings-row + .rs-settings-row { margin-top: 6px; }
+    .rs-settings-row strong { display: block; font-size: 13px; font-weight: 600; color: #e8e8f0; }
+    .rs-settings-row small { display: block; margin-top: 2px; color: #8888a8; font-size: 11.5px; }
 
-    /* ===== Toggle ===== */
-    .rs-settings-toggle { width: 42px; height: 24px; flex-shrink: 0; appearance: none; position: relative; background: #444; border-radius: 24px; cursor: pointer; transition: background 0.2s; }
-    .rs-settings-toggle::before { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; background: #fff; border-radius: 50%; transition: transform 0.2s; }
+    /* ===== Toggle Switch ===== */
+    .rs-settings-toggle { width: 40px; height: 22px; flex-shrink: 0; appearance: none; position: relative; background: #333348; cursor: pointer; transition: background 0.2s; }
+    .rs-settings-toggle::before { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; background: #666680; transition: transform 0.2s, background 0.2s; }
     .rs-settings-toggle:checked { background: #4937e9; }
-    .rs-settings-toggle:checked::before { transform: translateX(18px); }
+    .rs-settings-toggle:checked::before { transform: translateX(18px); background: #fff; }
 
     /* ===== Select Menu ===== */
-    .rs-settings-row select { flex-shrink: 0; padding: 8px 10px; background: #2a2a3d; color: #e0e0e0; border: 1px solid #444; border-radius: 6px; font-size: 13px; outline: none; }
+    .rs-settings-row select { flex-shrink: 0; padding: 7px 28px 7px 10px; background: #262640; color: #e0e0e0; border: 1px solid #2d2d48; font-size: 12.5px; outline: none; cursor: pointer; transition: border-color 0.15s; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5L6 7.5L9 4.5' stroke='%238888a8' fill='none' stroke-width='1.5'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 8px center; }
     .rs-settings-row select:focus { border-color: #4937e9; }
 
+    /* ===== Colour Grid ===== */
+    .rs-color-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .rs-color-card { display: flex; flex-direction: column; background: rgba(255, 255, 255, 0.015); border: 1px solid #2d2d48; cursor: pointer; transition: border-color 0.15s; overflow: hidden; }
+    .rs-color-card:hover { border-color: #3d3d58; }
+    .rs-color-swatch { width: 100%; height: 32px; padding: 0; border: none; display: block; cursor: pointer; background: none; }
+    .rs-color-swatch::-webkit-color-swatch-wrapper { padding: 0; }
+    .rs-color-swatch::-webkit-color-swatch { border: none; }
+    .rs-color-swatch::-moz-color-swatch { border: none; }
+    .rs-color-card-info { padding: 8px 10px; }
+    .rs-color-card-info strong { display: block; font-size: 12.5px; font-weight: 600; color: #e8e8f0; line-height: 1.3; }
+    .rs-color-card-info small { display: block; margin-top: 1px; font-size: 10.5px; color: #8888a8; line-height: 1.3; }
+
     /* ===== Modal Footer ===== */
-    .rs-settings-footer { display: flex; justify-content: space-between; padding: 14px 20px; border-top: 1px solid #333; }
+    .rs-settings-footer { display: flex; justify-content: space-between; align-items: center; padding: 14px 22px; border-top: 1px solid #2d2d48; background: rgba(0, 0, 0, 0.15); }
+    .rs-settings-footer-group { display: flex; gap: 8px; }
 
     /* ===== Footer Buttons ===== */
-    .rs-settings-btn { padding: 8px 16px; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
-    .rs-settings-btn--ghost { background: transparent; color: #999; }
-    .rs-settings-btn--ghost:hover { background: #2a2a3d; color: #e0e0e0; }
+    .rs-settings-btn { padding: 8px 18px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s; }
+    .rs-settings-btn--ghost { background: transparent; color: #8888a8; border: 1px solid #2d2d48; }
+    .rs-settings-btn--ghost:hover { background: rgba(255, 255, 255, 0.03); color: #e0e0e0; border-color: #3d3d58; }
     .rs-settings-btn--primary { background: #4937e9; color: #fff; }
     .rs-settings-btn--primary:hover { background: #5a4bf1; }
   `);
@@ -240,15 +245,57 @@
     { name: 'Norwegian', value: 'NORWEGIAN' }
   ];
 
+  const ACTION_COLORS = [
+    { key: 'watched', label: 'Watched', hint: 'Mark as watched / Unmark all', default: '#2E6B48' },
+    { key: 'watchedBadge', label: 'Watched badge', hint: 'Sort badge on watched items', default: '#6B3041' },
+    { key: 'waiting', label: 'Waiting', hint: 'Waiting for new episodes', default: '#7D5B2C' },
+    { key: 'planning', label: 'Planning', hint: 'Mark as planning', default: '#366B7D' },
+    { key: 'favorite', label: 'Favourite', hint: 'Mark as favorite', default: '#895e77' },
+    { key: 'addToList', label: 'Add to list', hint: 'When items are added', default: '#3B6FB5', extra: 'color: #e9ecf2 !important;' }
+  ];
+  // Selector lists per colour; backgrounds go through --wt-* variables so live updates never rebuild this CSS.
+  const ACTION_COLOR_RULES = {
+    watchedBadge: '.media-item__sort-badge',
+    watched: '[aria-label="Mark as watched"].media-item__action-btn--active.media-item__action-btn--active, html body .detail-grid .detail-grid__cast [aria-label="Mark as watched"].media-item__action-btn--active.media-item__action-btn--active, [aria-label="Unmark all episodes"].media-item__action-btn--active.media-item__action-btn--active, html body .detail-grid .detail-grid__cast [aria-label="Unmark all episodes"].media-item__action-btn--active.media-item__action-btn--active, .episode-item--season.episode-item--row .episode-item__actions [aria-label="Mark as watched"].episode-item__action-btn--active',
+    waiting: '[aria-label="Waiting for new episodes"].media-item__action-btn--active.media-item__action-btn--active, html body .detail-grid .detail-grid__cast [aria-label="Waiting for new episodes"].media-item__action-btn--active.media-item__action-btn--active',
+    planning: '[aria-label="Mark as planning"].media-item__action-btn--active.media-item__action-btn--active, html body .detail-grid .detail-grid__cast [aria-label="Mark as planning"].media-item__action-btn--active.media-item__action-btn--active',
+    favorite: '[aria-label="Mark as favorite"].media-item__action-btn--active.media-item__action-btn--active, html body .detail-grid .detail-grid__cast [aria-label="Mark as favorite"].media-item__action-btn--active.media-item__action-btn--active, .episode-item--season.episode-item--row .episode-item__actions [aria-label="Mark as favorite"].episode-item__action-btn--active',
+    addToList: '[aria-label="Add to list"]:has(.action-btn__count), html body .detail-grid .detail-grid__cast .media-item__action-btn[aria-label="Add to list"]:has(.action-btn__count)'
+  };
+  const DEFAULT_ACTION_COLORS = Object.fromEntries(ACTION_COLORS.map(({ key, default: value }) => [key, value]));
+
+  const DEFAULT_CONFIG = { dubInfo: true, dubLanguage: 'ENGLISH' };
+
   const ModuleConfig = {
     get() {
-      const defaults = { dubInfo: true, dubLanguage: 'ENGLISH' };
-      return { ...defaults, ...GM_getValue(CONFIG_KEY, {}) };
+      const stored = GM_getValue(CONFIG_KEY, {});
+      return {
+        dubInfo: stored.dubInfo ?? DEFAULT_CONFIG.dubInfo,
+        dubLanguage: stored.dubLanguage ?? DEFAULT_CONFIG.dubLanguage,
+        actionColors: { ...DEFAULT_ACTION_COLORS, ...(stored.actionColors || {}) }
+      };
     },
     set(newConfig) {
       GM_setValue(CONFIG_KEY, newConfig);
     }
   };
+
+  function applyActionColors() {
+    let styleElement = document.getElementById('wetrakr-action-colors');
+    if (!styleElement) {
+      styleElement = document.createElement('style');
+      styleElement.id = 'wetrakr-action-colors';
+      document.head.appendChild(styleElement);
+      styleElement.textContent = ACTION_COLORS.map(({ key, default: value, extra }) =>
+        `${ACTION_COLOR_RULES[key]} { background-color: var(--wt-${key}, ${value}) !important;${extra ? ` ${extra}` : ''} }`
+      ).join('\n');
+    }
+
+    const colors = ModuleConfig.get().actionColors;
+    for (const { key } of ACTION_COLORS) {
+      document.documentElement.style.setProperty(`--wt-${key}`, colors[key]);
+    }
+  }
 
   // ==========================================
   // Cache Manager
@@ -587,7 +634,7 @@
               </span>
               <input type="checkbox" class="rs-settings-toggle" id="rs-setting-dub-info" ${config.dubInfo ? 'checked' : ''}>
             </label>
-            <label class="rs-settings-row rs-settings-row--select">
+            <label class="rs-settings-row">
               <span>
                 <strong>Preferred Dub Language</strong>
                 <small>Language to check for</small>
@@ -596,10 +643,24 @@
                 ${DUB_LANGUAGES.map(lang => `<option value="${lang.value}" ${config.dubLanguage === lang.value ? 'selected' : ''}>${lang.name}</option>`).join('')}
               </select>
             </label>
+            <h3>Action Button Colours</h3>
+            <div class="rs-color-grid">
+              ${ACTION_COLORS.map(color => `
+              <label class="rs-color-card">
+                <input type="color" class="rs-color-swatch" id="rs-color-${color.key}" value="${config.actionColors[color.key]}">
+                <div class="rs-color-card-info">
+                  <strong>${color.label}</strong>
+                  <small>${color.hint}</small>
+                </div>
+              </label>`).join('')}
+            </div>
           </div>
           <div class="rs-settings-footer">
-            <button type="button" class="rs-settings-btn rs-settings-btn--ghost" id="rs-clear-cache">Clear Cache</button>
-            <button type="button" class="rs-settings-btn rs-settings-btn--primary" id="rs-save">Save</button>
+            <div class="rs-settings-footer-group">
+              <button type="button" class="rs-settings-btn rs-settings-btn--ghost" id="rs-clear-cache">Clear Cache</button>
+              <button type="button" class="rs-settings-btn rs-settings-btn--ghost" id="rs-reset">Restore Defaults</button>
+            </div>
+            <button type="button" class="rs-settings-btn rs-settings-btn--primary" id="rs-save">Save &amp; Close</button>
           </div>
         </div>
       `;
@@ -619,15 +680,55 @@
         setTimeout(() => { event.target.textContent = 'Clear Cache'; }, 1500);
       });
 
-      overlay.querySelector('#rs-save').addEventListener('click', () => {
-        ModuleConfig.set({
-          ...ModuleConfig.get(),
-          dubInfo: overlay.querySelector('#rs-setting-dub-info').checked,
-          dubLanguage: overlay.querySelector('#rs-setting-dub-language').value
-        });
-        this.close();
-        window.location.reload();
+      // Dub settings apply live (no reload needed)
+      overlay.querySelector('#rs-setting-dub-info').addEventListener('change', (event) => {
+        const cfg = ModuleConfig.get();
+        cfg.dubInfo = event.target.checked;
+        ModuleConfig.set(cfg);
+        if (event.target.checked) {
+          DubService.reset();
+          DubService.apply();
+        } else {
+          document.querySelector('.rs-dub-info')?.remove();
+        }
       });
+
+      overlay.querySelector('#rs-setting-dub-language').addEventListener('change', (event) => {
+        const cfg = ModuleConfig.get();
+        cfg.dubLanguage = event.target.value;
+        ModuleConfig.set(cfg);
+        if (cfg.dubInfo) {
+          DubService.reset();
+          DubService.apply();
+        }
+      });
+
+      // Action button colours apply live via CSS variables
+      for (const { key } of ACTION_COLORS) {
+        overlay.querySelector('#rs-color-' + key).addEventListener('input', (event) => {
+          const cfg = ModuleConfig.get();
+          cfg.actionColors[key] = event.target.value;
+          ModuleConfig.set(cfg);
+          document.documentElement.style.setProperty(`--wt-${key}`, event.target.value);
+        });
+      }
+
+      overlay.querySelector('#rs-reset').addEventListener('click', (event) => {
+        ModuleConfig.set({ ...DEFAULT_CONFIG, actionColors: { ...DEFAULT_ACTION_COLORS } });
+        overlay.querySelector('#rs-setting-dub-info').checked = DEFAULT_CONFIG.dubInfo;
+        overlay.querySelector('#rs-setting-dub-language').value = DEFAULT_CONFIG.dubLanguage;
+        for (const { key } of ACTION_COLORS) {
+          overlay.querySelector('#rs-color-' + key).value = DEFAULT_ACTION_COLORS[key];
+        }
+        applyActionColors();
+        document.querySelector('.rs-dub-info')?.remove();
+        DubService.reset();
+        DubService.apply();
+        event.target.textContent = 'Restored!';
+        setTimeout(() => { event.target.textContent = 'Restore Defaults'; }, 1500);
+      });
+
+      overlay.querySelector('#rs-save').addEventListener('click', () => this.close());
     }
   };
 
@@ -680,6 +781,7 @@
   function init() {
     GM_registerMenuCommand('WeTrakr Mods Settings', () => SettingsUI.open());
     ModuleCache.clearExpired();
+    applyActionColors();
 
     observer.observe(document.body, {
       childList: true,
