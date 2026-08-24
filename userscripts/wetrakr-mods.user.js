@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       1.8.0
+// @version       1.9.0
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
@@ -42,6 +42,9 @@
     /* ===== Progress Ring ===== */
     /* Hide the circular progress ring on the avatar because it clashes with the square theme. */
     svg.ring { display: none !important; }
+
+    /* ==== Actor credit bar ===== */
+    .media-item__sort-badge { background: #6B3041 !important; } /* not 100% sure on where to stick this at yet, but global is fine for now */
 
     /* ========================================================================== */
     /* Detail Pages                                                               */
@@ -280,20 +283,18 @@
 
   const ACTION_COLORS = [
     { key: 'watched', label: 'Watched', hint: 'Mark as watched / Unmark all', default: '#2E6B48' },
-    { key: 'watchedBadge', label: 'Watched badge', hint: 'Sort badge on watched items', default: '#6B3041' },
     { key: 'waiting', label: 'Waiting', hint: 'Waiting for new episodes', default: '#7D5B2C' },
     { key: 'planning', label: 'Planning', hint: 'Mark as planning', default: '#366B7D' },
     { key: 'favorite', label: 'Favourite', hint: 'Mark as favorite', default: '#895e77' },
-    { key: 'addToList', label: 'Add to list', hint: 'When items are added', default: '#3B6FB5', extra: 'color: #e9ecf2 !important;' }
+    { key: 'addToList', label: 'Add to list', hint: 'Item is in a list', default: '#3B6FB5', extra: 'color: #e9ecf2 !important;' }
   ];
   // Selector lists per colour; backgrounds go through --wt-* variables so live updates never rebuild this CSS.
   const ACTION_COLOR_RULES = {
-    watchedBadge: '.media-item__sort-badge',
-    watched: '[aria-label="Mark as watched"].media-item__action-btn--active.media-item__action-btn--active, html body .detail-grid .detail-grid__cast [aria-label="Mark as watched"].media-item__action-btn--active.media-item__action-btn--active, [aria-label="Unmark all episodes"].media-item__action-btn--active.media-item__action-btn--active, html body .detail-grid .detail-grid__cast [aria-label="Unmark all episodes"].media-item__action-btn--active.media-item__action-btn--active, .episode-item--season.episode-item--row .episode-item__actions [aria-label="Mark as watched"].episode-item__action-btn--active',
-    waiting: '[aria-label="Waiting for new episodes"].media-item__action-btn--active.media-item__action-btn--active, html body .detail-grid .detail-grid__cast [aria-label="Waiting for new episodes"].media-item__action-btn--active.media-item__action-btn--active',
-    planning: '[aria-label="Mark as planning"].media-item__action-btn--active.media-item__action-btn--active, html body .detail-grid .detail-grid__cast [aria-label="Mark as planning"].media-item__action-btn--active.media-item__action-btn--active',
-    favorite: '[aria-label="Mark as favorite"].media-item__action-btn--active.media-item__action-btn--active, html body .detail-grid .detail-grid__cast [aria-label="Mark as favorite"].media-item__action-btn--active.media-item__action-btn--active, .episode-item--season.episode-item--row .episode-item__actions [aria-label="Mark as favorite"].episode-item__action-btn--active',
-    addToList: '[aria-label="Add to list"]:has(.action-btn__count), html body .detail-grid .detail-grid__cast .media-item__action-btn[aria-label="Add to list"]:has(.action-btn__count)'
+    watched: '.media-item__action-btn--active[aria-label="Mark as watched"]:not(#tm-date-override), .media-item__action-btn--active[aria-label="Unmark all episodes"]:not(#tm-date-override), .episode-item__action-btn--active[aria-label="Mark as watched"]:not(#tm-date-override)',
+    waiting: '.media-item__action-btn--active[aria-label="Waiting for new episodes"]:not(#tm-date-override)',
+    planning: '.media-item__action-btn--active[aria-label="Mark as planning"]:not(#tm-date-override)',
+    favorite: '.media-item__action-btn--active[aria-label="Mark as favorite"]:not(#tm-date-override)',
+    addToList: '.media-item__action-btn[aria-label="Add to list"]:has(.action-btn__count):not(#tm-date-override), .episode-item__action-btn[aria-label="Add to list"]:has(.action-btn__count):not(#tm-date-override)'
   };
   const DEFAULT_ACTION_COLORS = Object.fromEntries(ACTION_COLORS.map(({ key, default: value }) => [key, value]));
 
@@ -313,7 +314,7 @@
     }
   };
 
-  function applyActionColors() {
+  function applyActionColors(config = ModuleConfig.get()) {
     let styleElement = document.getElementById('wetrakr-action-colors');
     if (!styleElement) {
       styleElement = document.createElement('style');
@@ -324,7 +325,7 @@
       ).join('\n');
     }
 
-    const colors = ModuleConfig.get().actionColors;
+    const colors = config.actionColors;
     for (const { key } of ACTION_COLORS) {
       document.documentElement.style.setProperty(`--wt-${key}`, colors[key]);
     }
@@ -547,14 +548,10 @@
       const cached = ModuleCache.get(cacheKey);
       if (cached !== undefined) return cached;
 
-      let anilistId = null;
-      try {
-        const data = await armhaglund.fetchIds(ids.imdb ? 'imdb' : 'themoviedb', titleKey);
-        anilistId = data?.anilist || null;
-      } catch (error) {
-        logger.error(`Error resolving ID for ${titleKey}:`, error);
-      }
-
+      // Let the caller handle failures so a transient lookup error isn't cached
+      // as a definitive "no AniList ID" result.
+      const data = await armhaglund.fetchIds(ids.imdb ? 'imdb' : 'themoviedb', titleKey);
+      const anilistId = data?.anilist || null;
       ModuleCache.set(cacheKey, anilistId);
       if (!anilistId) logger.warn(`No AniList ID for ${titleKey} (cached 24h)`);
       return anilistId;
@@ -593,18 +590,31 @@
       metaBox.appendChild(row);
     },
 
-    async apply() {
+    async apply(configOverride) {
       // Runs once per page; reset() re-enables it on SPA navigation
       if (this.hasStarted || !document.querySelector('.detail-meta-box--desktop')) return;
 
-      const config = ModuleConfig.get();
+      const config = configOverride || ModuleConfig.get();
       if (!config.dubInfo) return;
+
+      const ids = this.getExternalIds();
+      // External ID links can sometimes render after the metadata box. Don't lock in a
+      // premature "no ID" result; retry on the next DOM update instead.
+      if (!ids.anilist && !ids.imdb && !ids.tmdb) return;
 
       this.hasStarted = true;
       const generation = this.generation;
       const route = location.pathname;
 
-      const anilistId = await this.resolveAnilistId(this.getExternalIds());
+      let anilistId;
+      try {
+        anilistId = await this.resolveAnilistId(ids);
+      } catch (error) {
+        if (!this.isCurrent(generation, route)) return;
+        logger.error(`Failed to resolve AniList ID: ${error.message}`);
+        this.hasStarted = false;
+        return;
+      }
       if (!this.isCurrent(generation, route)) return;
 
       if (!anilistId) {
@@ -631,14 +641,19 @@
         this.displayDubInfo(hasDub, language);
       } catch (error) {
         if (!this.isCurrent(generation, route)) return;
+        // A failed lookup is transient; don't cache it as "no dub" and allow a
+        // later retry once the DOM or route changes again.
         logger.error(`Failed to fetch dub info for ${anilistId}: ${error.message}`);
-        ModuleCache.set(cacheKey, false);
+        this.hasStarted = false;
       }
     },
 
     reset() {
       this.hasStarted = false;
       this.generation++;
+      for (const element of document.querySelectorAll('.rs-dub-info')) {
+        element.remove();
+      }
     }
   };
 
@@ -647,15 +662,33 @@
   // ==========================================
   const SettingsUI = {
     modal: null,
+    isOpen: false,
 
     close() {
       this.modal?.remove();
       this.modal = null;
+      this.isOpen = false;
+    },
+
+    // Live preview helpers; none of these touch persistent storage.
+    applyColorPreview(config) {
+      applyActionColors(config);
+    },
+
+    applyDubPreview(config) {
+      // Always invalidate any in-flight lookup and clear stale rows.
+      DubService.reset();
+
+      if (config.dubInfo) {
+        DubService.apply(config);
+      }
     },
 
     open() {
       if (this.modal) return;
-      const config = ModuleConfig.get();
+      this.isOpen = true;
+      const saved = ModuleConfig.get();
+      const draft = { ...saved, actionColors: { ...saved.actionColors } };
 
       const overlay = document.createElement('div');
       overlay.className = 'rs-settings-overlay';
@@ -672,7 +705,7 @@
                 <strong>Dub Information</strong>
                 <small>Show dub availability for anime shows</small>
               </span>
-              <input type="checkbox" class="rs-settings-toggle" id="rs-setting-dub-info" ${config.dubInfo ? 'checked' : ''}>
+              <input type="checkbox" class="rs-settings-toggle" id="rs-setting-dub-info" ${draft.dubInfo ? 'checked' : ''}>
             </label>
             <label class="rs-settings-row">
               <span>
@@ -680,14 +713,14 @@
                 <small>Language to check for</small>
               </span>
               <select id="rs-setting-dub-language">
-                ${DUB_LANGUAGES.map(lang => `<option value="${lang.value}" ${config.dubLanguage === lang.value ? 'selected' : ''}>${lang.name}</option>`).join('')}
+                ${DUB_LANGUAGES.map(lang => `<option value="${lang.value}" ${draft.dubLanguage === lang.value ? 'selected' : ''}>${lang.name}</option>`).join('')}
               </select>
             </label>
             <h3>Action Button Colours</h3>
             <div class="rs-color-grid">
               ${ACTION_COLORS.map(color => `
               <label class="rs-color-card">
-                <input type="color" class="rs-color-swatch" id="rs-color-${color.key}" value="${config.actionColors[color.key]}">
+                <input type="color" class="rs-color-swatch" id="rs-color-${color.key}" value="${draft.actionColors[color.key]}">
                 <div class="rs-color-card-info">
                   <strong>${color.label}</strong>
                   <small>${color.hint}</small>
@@ -708,10 +741,16 @@
       document.body.appendChild(overlay);
       this.modal = overlay;
 
-      // Event Listeners
-      overlay.querySelector('.rs-settings-close').addEventListener('click', () => this.close());
+      // Closing without saving reverts the preview back to the saved config.
+      const cancel = () => {
+        this.applyColorPreview(saved);
+        this.applyDubPreview(saved);
+        this.close();
+      };
+
+      overlay.querySelector('.rs-settings-close').addEventListener('click', cancel);
       overlay.addEventListener('click', (event) => {
-        if (event.target === overlay) this.close();
+        if (event.target === overlay) cancel();
       });
 
       overlay.querySelector('#rs-clear-cache').addEventListener('click', (event) => {
@@ -720,55 +759,41 @@
         setTimeout(() => { event.target.textContent = 'Clear Cache'; }, 1500);
       });
 
-      // Dub settings apply live (no reload needed)
+      // Edits update the draft and preview live, but are not committed until Save & Close.
       overlay.querySelector('#rs-setting-dub-info').addEventListener('change', (event) => {
-        const cfg = ModuleConfig.get();
-        cfg.dubInfo = event.target.checked;
-        ModuleConfig.set(cfg);
-        if (event.target.checked) {
-          DubService.reset();
-          DubService.apply();
-        } else {
-          document.querySelector('.rs-dub-info')?.remove();
-        }
+        draft.dubInfo = event.target.checked;
+        this.applyDubPreview(draft);
       });
 
       overlay.querySelector('#rs-setting-dub-language').addEventListener('change', (event) => {
-        const cfg = ModuleConfig.get();
-        cfg.dubLanguage = event.target.value;
-        ModuleConfig.set(cfg);
-        if (cfg.dubInfo) {
-          DubService.reset();
-          DubService.apply();
-        }
+        draft.dubLanguage = event.target.value;
+        this.applyDubPreview(draft);
       });
 
-      // Action button colours apply live via CSS variables
       for (const { key } of ACTION_COLORS) {
         overlay.querySelector('#rs-color-' + key).addEventListener('input', (event) => {
-          const cfg = ModuleConfig.get();
-          cfg.actionColors[key] = event.target.value;
-          ModuleConfig.set(cfg);
-          document.documentElement.style.setProperty(`--wt-${key}`, event.target.value);
+          draft.actionColors[key] = event.target.value;
+          this.applyColorPreview(draft);
         });
       }
 
       overlay.querySelector('#rs-reset').addEventListener('click', (event) => {
-        ModuleConfig.set({ ...DEFAULT_CONFIG, actionColors: { ...DEFAULT_ACTION_COLORS } });
-        overlay.querySelector('#rs-setting-dub-info').checked = DEFAULT_CONFIG.dubInfo;
-        overlay.querySelector('#rs-setting-dub-language').value = DEFAULT_CONFIG.dubLanguage;
+        Object.assign(draft, { ...DEFAULT_CONFIG, actionColors: { ...DEFAULT_ACTION_COLORS } });
+        overlay.querySelector('#rs-setting-dub-info').checked = draft.dubInfo;
+        overlay.querySelector('#rs-setting-dub-language').value = draft.dubLanguage;
         for (const { key } of ACTION_COLORS) {
-          overlay.querySelector('#rs-color-' + key).value = DEFAULT_ACTION_COLORS[key];
+          overlay.querySelector('#rs-color-' + key).value = draft.actionColors[key];
         }
-        applyActionColors();
-        document.querySelector('.rs-dub-info')?.remove();
-        DubService.reset();
-        DubService.apply();
+        this.applyColorPreview(draft);
+        this.applyDubPreview(draft);
         event.target.textContent = 'Restored!';
         setTimeout(() => { event.target.textContent = 'Restore Defaults'; }, 1500);
       });
 
-      overlay.querySelector('#rs-save').addEventListener('click', () => this.close());
+      overlay.querySelector('#rs-save').addEventListener('click', () => {
+        ModuleConfig.set(draft);
+        this.close();
+      });
     }
   };
 
@@ -794,7 +819,9 @@
     DOMModifiers.updateTimestamps();
     DOMModifiers.updateDurations();
     DOMModifiers.expandReviews();
-    DubService.apply();
+    // While the settings modal is open, dub changes are driven by the live
+    // preview; skip this so saved config doesn't clobber the preview.
+    if (!SettingsUI.isOpen) DubService.apply();
   }
 
   function scheduleRun() {
