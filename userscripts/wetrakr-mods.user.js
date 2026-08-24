@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       1.7.0
+// @version       1.8.0
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
@@ -145,6 +145,39 @@
     /* ===== Empty Cards ===== */
     [class="we-empty-card"] { display: none; }
     [class="tracking-layout"] { display: unset !important; } /* Seems to be needed otherwise there is a huge gap between the tabs and watching when hiding the empty card */
+
+    /* ========================================================================== */
+    /* Reviews                                                                    */
+    /* ========================================================================== */
+
+    /* ===== Review Card ===== */
+    /* Give every review a visible containing shape so author, text, pills, and Reply all clearly belong to one card. */
+    html body we-review-card { display: block !important; background: rgba(255, 255, 255, 0.03) !important; border: 1px solid #2d2d48 !important; margin-bottom: 16px !important; padding: 16px !important; transition: border-color 0.15s !important; }
+    html body we-review-card:hover { border-color: #3d3d58 !important; }
+    /* Position the buttons on a single line */
+    .review-card__body { position: relative; }
+    .review-card__text { margin-bottom: 15px !important; }
+    .review-card__reactions { display: flex; align-items: center; }
+    .review-card__reactions-meta { position: absolute; right: 0; bottom: 0; }
+    .review-card__action { padding: var(--space-2) var(--space-3) !important; color: #96a4af !important; border-radius: var(--radius-1); background: #282e38 !important; }
+    .review-card__action:hover { color: #ffffff !important; background: #323a46 !important; }
+    .review-card__reaction-pill { background: none !important; color: #96a4af !important; }
+    .review-card__reaction-pill:hover { color: #ffffff !important; }
+    /* Tighten the gap between profile picture and rating and change size of rating font slightly */
+    .review-card__rating { margin-top: 0 !important; font-size: 14px !important; }
+    /* Move translate button closer to the other pills */
+    .review-card__translate-pill { margin-left: 5px !important; }
+
+    /* ===== Review Text ===== */
+    /* Long reviews become scrollable instead of clamped with no way to read the rest. Short reviews are unaffected since they never exceed the cap. */
+    .review-card__text--clamp, .review-card__text--highlight { display: block !important; -webkit-line-clamp: unset !important; max-height: 360px !important; overflow-y: auto !important; scrollbar-width: thin; scrollbar-color: #333348 transparent; padding-right: 6px; }
+    .review-card__text--clamp::-webkit-scrollbar, .review-card__text--highlight::-webkit-scrollbar { width: 6px; }
+    .review-card__text--clamp::-webkit-scrollbar-track, .review-card__text--highlight::-webkit-scrollbar-track { background: transparent; }
+    .review-card__text--clamp::-webkit-scrollbar-thumb, .review-card__text--highlight::-webkit-scrollbar-thumb { background: #333348; }
+    /* Hide the site's read more button now that long reviews scroll instead. */
+    .review-card__readmore { display: none !important; }
+    /* Spoiler and non-spoiler review text share one size; the we-spoiler-text rule guards against site styles targeting the custom element directly. */
+    .review-card__text, .review-card__text we-spoiler-text { font-size: 14px !important; }
 
     /* ========================================================================== */
     /* Navigation + Menus                                                         */
@@ -472,6 +505,13 @@
         }
       }
       if (converted) logger.debug(`Converted ${converted} durations`);
+    },
+
+    expandReviews() {
+      const buttons = document.querySelectorAll('.review-card__readmore[aria-expanded="false"]');
+      if (!buttons.length) return;
+      for (const button of buttons) button.click();
+      logger.debug(`Expanded ${buttons.length} review cards`);
     }
   };
 
@@ -753,6 +793,7 @@
     DOMModifiers.applyEpisodeLineBreaks();
     DOMModifiers.updateTimestamps();
     DOMModifiers.updateDurations();
+    DOMModifiers.expandReviews();
     DubService.apply();
   }
 
