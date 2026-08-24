@@ -130,6 +130,11 @@
     .detail-meta-box .rs-dub-info .detail-meta-box__label { display: flex; align-items: center; gap: var(--space-2); flex-shrink: 0; font-size: var(--font-size-0); font-weight: 600; color: #fff; letter-spacing: 0.04em; line-height: 1.4; margin: 0; }
     .detail-meta-box .rs-dub-info .detail-meta-box__value { font-size: var(--font-size-0); font-weight: 400; color: #96a4af; line-height: 1.4; text-align: right; margin: 0; min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
 
+    /* ===== Plex Library Availability ===== */
+    .rs-plex-badge { text-decoration: none; cursor: pointer; }
+    .rs-plex-badge .provider-logo-wrap { background: transparent !important; }
+    .rs-plex-badge .rs-plex-logo { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; border-radius: 50%; background: #e5a00d; color: #1a1a1a; font-weight: 700; font-size: 11px; letter-spacing: 0.02em; }
+
     /* ========================================================================== */
     /* Media Items                                                                */
     /* ========================================================================== */
@@ -223,6 +228,10 @@
     .rs-settings-row strong { display: block; font-size: 13px; font-weight: 600; color: #e8e8f0; }
     .rs-settings-row small { display: block; margin-top: 2px; color: #8888a8; font-size: 11.5px; }
 
+    .rs-settings-row--stack { flex-direction: column; align-items: stretch; gap: var(--space-2); }
+    .rs-settings-input { width: 100%; padding: var(--space-2) var(--space-3); border-radius: var(--radius-1); border: 1px solid #2d2d48; background: #1e1e2e; color: #e0e0e0; font-size: 13px; }
+    .rs-settings-input:focus { outline: none; border-color: #4937e9; }
+
     /* ===== Toggle Switch ===== */
     .rs-settings-toggle { width: 40px; height: 22px; flex-shrink: 0; appearance: none; position: relative; background: #333348; cursor: pointer; transition: background 0.2s; }
     .rs-settings-toggle::before { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; background: #666680; transition: transform 0.2s, background 0.2s; }
@@ -298,7 +307,7 @@
   };
   const DEFAULT_ACTION_COLORS = Object.fromEntries(ACTION_COLORS.map(({ key, default: value }) => [key, value]));
 
-  const DEFAULT_CONFIG = { dubInfo: true, dubLanguage: 'ENGLISH' };
+  const DEFAULT_CONFIG = { dubInfo: true, dubLanguage: 'ENGLISH', plexServer: '', plexToken: '', plexTarget: 'web' };
 
   const ModuleConfig = {
     get() {
@@ -306,6 +315,9 @@
       return {
         dubInfo: stored.dubInfo ?? DEFAULT_CONFIG.dubInfo,
         dubLanguage: stored.dubLanguage ?? DEFAULT_CONFIG.dubLanguage,
+        plexServer: stored.plexServer ?? DEFAULT_CONFIG.plexServer,
+        plexToken: stored.plexToken ?? DEFAULT_CONFIG.plexToken,
+        plexTarget: stored.plexTarget ?? DEFAULT_CONFIG.plexTarget,
         actionColors: { ...DEFAULT_ACTION_COLORS, ...(stored.actionColors || {}) }
       };
     },
@@ -657,6 +669,183 @@
     }
   };
 
+  const PlexService = {
+    hasStarted: false,
+    generation: 0,
+
+    isCurrent(generation, route) {
+      return generation === this.generation && route === location.pathname;
+    },
+
+    reset() {
+      this.hasStarted = false;
+      this.generation++;
+      logger.debug('[Plex] reset()');
+      for (const element of document.querySelectorAll('.rs-plex-badge')) {
+        element.remove();
+      }
+    },
+
+    async apply() {
+      if (this.hasStarted) {
+        logger.debug('[Plex] apply() skipped: already started for this page');
+        return;
+      }
+      const config = ModuleConfig.get();
+      const server = (config.plexServer || '').trim();
+      const token = (config.plexToken || '').trim();
+      logger.debug(`[Plex] apply() server=${server ? 'set' : 'empty'} token=${token ? 'set' : 'empty'} target=${config.plexTarget}`);
+      // Mark as handled so we don't re-check on every mutation when unconfigured.
+      if (!server || !token) { this.hasStarted = true; return; }
+
+      const path = location.pathname;
+      if (!/^\/(shows|movies)(\/|$)/.test(path)) {
+        logger.debug(`[Plex] not a show/movie page (${path}), skipping`);
+        return;
+      }
+
+      const grid = document.querySelector('.providers-grid');
+      logger.debug(`[Plex] providers grid ${grid ? 'found' : 'not found, will retry on next update'}`);
+      if (!grid) return;
+
+      if (grid.querySelector('.rs-plex-badge')) {
+        logger.debug('[Plex] badge already present, skipping');
+        this.hasStarted = true;
+        return;
+      }
+
+      this.hasStarted = true;
+      const generation = this.generation;
+      const route = location.pathname;
+      logger.debug('[Plex] starting lookup');
+
+      try {
+        const machineId = await this.fetchMachineId(server, token, generation, route);
+        if (machineId === null) {
+          logger.debug('[Plex] no machineId resolved, aborting');
+          return;
+        }
+        const ids = DubService.getExternalIds();
+        logger.debug(`[Plex] external IDs: imdb=${ids.imdb || 'none'} tmdb=${ids.tmdb || 'none'}`);
+        if (!ids.imdb && !ids.tmdb) {
+          logger.debug('[Plex] no external IDs available, aborting');
+          return;
+        }
+        const ratingKey = await this.searchByGuid(server, token, ids, generation, route);
+        if (ratingKey === null) {
+          logger.debug('[Plex] no library match found, aborting');
+          return;
+        }
+        if (!this.isCurrent(generation, route)) {
+          logger.debug('[Plex] route changed during lookup, discarding result');
+          return;
+        }
+        this.injectBadge(server, machineId, ratingKey, config.plexTarget, grid);
+      } catch (error) {
+        if (!this.isCurrent(generation, route)) return;
+        logger.error(`Plex lookup failed: ${error.message}`);
+      }
+    },
+
+    fetchMachineId(server, token, generation, route) {
+      return new Promise((resolve) => {
+        GM_xmlhttpRequest({
+          method: 'GET',
+          url: `${server.replace(/\/$/, '')}/identity?X-Plex-Token=${encodeURIComponent(token)}`,
+          headers: { Accept: 'application/json' },
+          onload: (response) => {
+            if (!this.isCurrent(generation, route)) return resolve(null);
+            try {
+              const mc = JSON.parse(response.responseText).MediaContainer;
+              logger.debug(`[Plex] /identity -> machineIdentifier=${mc?.machineIdentifier || 'none'}`);
+              resolve(mc?.machineIdentifier || null);
+            } catch {
+              logger.debug('[Plex] /identity response parse failed');
+              resolve(null);
+            }
+          },
+          onerror: () => {
+            logger.debug('[Plex] /identity request error');
+            resolve(null);
+          }
+        });
+      });
+    },
+
+    searchByGuid(server, token, ids, generation, route) {
+      const candidateGuids = [];
+      if (ids.imdb) candidateGuids.push(`imdb://${ids.imdb}`);
+      if (ids.tmdb) candidateGuids.push(`tmdb://${ids.tmdb}`);
+      if (ids.tvdb) candidateGuids.push(`tvdb://${ids.tvdb}`);
+      if (!candidateGuids.length) return Promise.resolve(null);
+
+      return new Promise((resolve) => {
+        const tryNext = (index) => {
+          if (index >= candidateGuids.length) return resolve(null);
+          const guid = candidateGuids[index];
+          GM_xmlhttpRequest({
+            method: 'GET',
+            url: `${server.replace(/\/$/, '')}/library/all?guid=${encodeURIComponent(guid)}&X-Plex-Token=${encodeURIComponent(token)}`,
+            headers: { Accept: 'application/json' },
+            onload: (response) => {
+              if (!this.isCurrent(generation, route)) return resolve(null);
+              if (response.status !== 200) {
+                logger.debug(`[Plex] /library/all?guid=${guid} -> HTTP ${response.status}`);
+                return tryNext(index + 1);
+              }
+              try {
+                const mc = JSON.parse(response.responseText).MediaContainer;
+                const matches = mc?.Metadata;
+                logger.debug(`[Plex] /library/all?guid=${guid} -> ${matches?.length || 0} matches`);
+                if (matches && matches.length > 0) {
+                  resolve(matches[0].ratingKey || null);
+                } else {
+                  tryNext(index + 1);
+                }
+              } catch {
+                logger.debug(`[Plex] /library/all parse failed for ${guid}`);
+                tryNext(index + 1);
+              }
+            },
+            onerror: () => {
+              logger.debug(`[Plex] /library/all request error for ${guid}`);
+              tryNext(index + 1);
+            }
+          });
+        };
+        tryNext(0);
+      });
+    },
+
+    buildUrl(server, machineId, ratingKey, target) {
+      const key = `/library/metadata/${ratingKey}`;
+      if (target === 'desktop') {
+        return `plex://preplay?metadataKey=${encodeURIComponent(key)}&server=${machineId}`;
+      }
+      return `https://app.plex.tv/desktop#!/server/${machineId}/details?key=${encodeURIComponent(key)}`;
+    },
+
+    injectBadge(server, machineId, ratingKey, target, grid) {
+      if (grid.querySelector('.rs-plex-badge')) return;
+      const url = this.buildUrl(server, machineId, ratingKey, target);
+      logger.debug(`[Plex] injecting badge -> ${url}`);
+      const badge = document.createElement('a');
+      badge.className = 'provider-item rs-plex-badge';
+      badge.href = url;
+      badge.target = '_blank';
+      badge.rel = 'noopener noreferrer';
+      badge.title = 'Open in Plex';
+      badge.innerHTML = `
+        <div class="provider-logo-wrap we-img-skel we-img-skel--circle">
+          <span class="rs-plex-logo">Plex</span>
+        </div>
+        <div class="provider-badges" aria-label="Available on Plex">
+          <span class="provider-badge provider-badge--stream">PLEX</span>
+        </div>`;
+      grid.appendChild(badge);
+    }
+  };
+
   // ==========================================
   // Settings UI
   // ==========================================
@@ -727,6 +916,22 @@
                 </div>
               </label>`).join('')}
             </div>
+            <h3>Plex Library</h3>
+            <label class="rs-settings-row rs-settings-row--stack">
+              <span><strong>Plex Server</strong><small>e.g. http://192.168.1.50:32400</small></span>
+              <input type="text" class="rs-settings-input" id="rs-setting-plex-server" value="${draft.plexServer}">
+            </label>
+            <label class="rs-settings-row rs-settings-row--stack">
+              <span><strong>Plex Token</strong><small>Plex Web → Account → Authorized Devices → Token</small></span>
+              <input type="password" class="rs-settings-input" id="rs-setting-plex-token" value="${draft.plexToken}">
+            </label>
+            <label class="rs-settings-row">
+              <span><strong>Open Plex In</strong><small>Where the badge link sends you</small></span>
+              <select id="rs-setting-plex-target">
+                <option value="web" ${draft.plexTarget === 'web' ? 'selected' : ''}>Plex Web App</option>
+                <option value="desktop" ${draft.plexTarget === 'desktop' ? 'selected' : ''}>Desktop App</option>
+              </select>
+            </label>
           </div>
           <div class="rs-settings-footer">
             <div class="rs-settings-footer-group">
@@ -777,6 +982,16 @@
         });
       }
 
+      overlay.querySelector('#rs-setting-plex-server').addEventListener('input', (event) => {
+        draft.plexServer = event.target.value;
+      });
+      overlay.querySelector('#rs-setting-plex-token').addEventListener('input', (event) => {
+        draft.plexToken = event.target.value;
+      });
+      overlay.querySelector('#rs-setting-plex-target').addEventListener('change', (event) => {
+        draft.plexTarget = event.target.value;
+      });
+
       overlay.querySelector('#rs-reset').addEventListener('click', (event) => {
         Object.assign(draft, { ...DEFAULT_CONFIG, actionColors: { ...DEFAULT_ACTION_COLORS } });
         overlay.querySelector('#rs-setting-dub-info').checked = draft.dubInfo;
@@ -784,6 +999,9 @@
         for (const { key } of ACTION_COLORS) {
           overlay.querySelector('#rs-color-' + key).value = draft.actionColors[key];
         }
+        overlay.querySelector('#rs-setting-plex-server').value = draft.plexServer;
+        overlay.querySelector('#rs-setting-plex-token').value = draft.plexToken;
+        overlay.querySelector('#rs-setting-plex-target').value = draft.plexTarget;
         this.applyColorPreview(draft);
         this.applyDubPreview(draft);
         event.target.textContent = 'Restored!';
@@ -792,6 +1010,8 @@
 
       overlay.querySelector('#rs-save').addEventListener('click', () => {
         ModuleConfig.set(draft);
+        PlexService.reset();
+        PlexService.apply();
         this.close();
       });
     }
@@ -807,6 +1027,7 @@
     if (location.pathname === lastPath) return false;
     lastPath = location.pathname;
     DubService.reset();
+    PlexService.reset();
     logger.debug(`SPA navigation detected: ${lastPath}`);
     return true;
   }
@@ -821,7 +1042,10 @@
     DOMModifiers.expandReviews();
     // While the settings modal is open, dub changes are driven by the live
     // preview; skip this so saved config doesn't clobber the preview.
-    if (!SettingsUI.isOpen) DubService.apply();
+    if (!SettingsUI.isOpen) {
+      DubService.apply();
+      PlexService.apply();
+    }
   }
 
   function scheduleRun() {
