@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       1.9.1
+// @version       1.9.2
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
@@ -49,6 +49,13 @@
     /* ========================================================================== */
     /* Detail Pages                                                               */
     /* ========================================================================== */
+
+    /* Center the detail info block */
+    .detail-grid .detail-grid__info .detail-info { justify-content: center !important; }
+    /* Unstick the season nav links from their position */
+    .detail-grid .detail-grid__info .detail-nav-links--season { position: unset !important; }
+    /* Remove some of the exra gap below the nav links */
+    .detail-grid .detail-grid__info .detail-nav-links { margin-bottom: 20px !important; }
 
     /* ===== Title Stack: Actor ===== */
     .detail-grid--person .person-badge-department { font-size: 14px !important; margin: 5px 0 0 12px !important; }
@@ -396,29 +403,6 @@
       }
       return false;
     },
-    convertDurationNode(node) {
-      // Converts "10053h 10m" / "77h 18m" / "61h" style durations into
-      // "1y 1mo 23d 21h 10m" / "3d 5h 18m" / "2d 13h".
-      // Idempotent: the hours portion after conversion is always < 24, so a
-      // re-run matches it back to itself and leaves the text unchanged.
-      const original = node.textContent;
-      const newText = original.replace(/(\d+)\s*h(?:\s*(\d+)\s*m(?:in)?)?/gi, (match, hours, minutes) => {
-        let rem = +hours * 60 + (+minutes || 0);
-        const parts = [];
-        for (const [divisor, unit] of [[525600, 'y'], [43200, 'mo'], [1440, 'd'], [60, 'h'], [1, 'm']]) {
-          if (rem >= divisor) {
-            parts.push(`${Math.floor(rem / divisor)}${unit}`);
-            rem %= divisor;
-          }
-        }
-        return parts.join(' ') || '0m';
-      });
-      if (newText !== original) {
-        node.textContent = newText;
-        return true;
-      }
-      return false;
-    }
   };
 
   // ==========================================
@@ -493,21 +477,6 @@
         }
       }
       if (converted) logger.debug(`Converted ${converted} timestamps`);
-    },
-
-    updateDurations() {
-      const elements = document.querySelectorAll('.episode-item__progress-bar-text--episode, .grid-header-total__time, .results-count__time-total');
-      if (!elements.length) return;
-
-      let converted = 0;
-      for (const element of elements) {
-        for (const child of element.childNodes) {
-          if (child.nodeType === Node.TEXT_NODE && TimeUtilities.convertDurationNode(child)) {
-            converted++;
-          }
-        }
-      }
-      if (converted) logger.debug(`Converted ${converted} durations`);
     },
 
     expandReviews() {
@@ -819,7 +788,6 @@
     DOMModifiers.moveStatusBadge();
     DOMModifiers.applyEpisodeLineBreaks();
     DOMModifiers.updateTimestamps();
-    DOMModifiers.updateDurations();
     DOMModifiers.expandReviews();
     // While the settings modal is open, dub changes are driven by the live
     // preview; skip this so saved config doesn't clobber the preview.
