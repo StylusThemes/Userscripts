@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       1.9.0
+// @version       1.9.1
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
@@ -153,25 +153,24 @@
     /* Reviews                                                                    */
     /* ========================================================================== */
 
+    /* Add New */
+    /* Change the "Add New" font coloring to match "Top" */
+    .reviews-section__add-btn { color: #96a4af !important; }
+
     /* ===== Review Card ===== */
     /* Give every review a visible containing shape so author, text, pills, and Reply all clearly belong to one card. */
-    html body we-review-card { display: block !important; background: rgba(255, 255, 255, 0.03) !important; border: 1px solid #2d2d48 !important; margin-bottom: 16px !important; padding: 16px !important; transition: border-color 0.15s !important; }
-    html body we-review-card:hover { border-color: #3d3d58 !important; }
-    /* Position the buttons on a single line */
-    .review-card__body { position: relative; }
-    .review-card__text { margin-bottom: 15px !important; }
-    .review-card__reactions { display: flex; align-items: center; }
-    .review-card__reactions-meta { position: absolute; right: 0; bottom: 0; }
-    .review-card__action { padding: var(--space-2) var(--space-3) !important; color: #96a4af !important; border-radius: var(--radius-1); background: #282e38 !important; }
-    .review-card__action:hover { color: #ffffff !important; background: #323a46 !important; }
-    .review-card__reaction-pill { background: none !important; color: #96a4af !important; }
-    .review-card__reaction-pill:hover { color: #ffffff !important; }
+     we-review-card { display: block !important; background: rgba(255, 255, 255, 0.03) !important; border: 1px solid #2d2d48 !important; margin-bottom: 16px !important; padding: 16px !important; transition: border-color 0.15s !important; }
+    .review-card:not(.review-card--reply) { background: unset !important; }
     /* Tighten the gap between profile picture and rating and change size of rating font slightly */
-    .review-card__rating { margin-top: 0 !important; font-size: 14px !important; }
-    /* Move translate button closer to the other pills */
-    .review-card__translate-pill { margin-left: 5px !important; }
+    .review-card__rating { margin-top: 0 !important; font-size: 13px !important; }
+    /* Slightly reduce the font size of the author name, date and handle */
+    .review-card__author-name, .review-card__date, .review-card__handle { font-size: 13px !important; }
+    /* Make the pills text color match the other pills */
+    .review-card__reaction-pill, .review-card__view-replies { color: #96a4af !important; }
 
     /* ===== Review Text ===== */
+    /* Slightly darken the text instead of just making white */
+    .review-card__text { color: #cacdd1 !important; }
     /* Long reviews become scrollable instead of clamped with no way to read the rest. Short reviews are unaffected since they never exceed the cap. */
     .review-card__text--clamp, .review-card__text--highlight { display: block !important; -webkit-line-clamp: unset !important; max-height: 360px !important; overflow-y: auto !important; scrollbar-width: thin; scrollbar-color: #333348 transparent; padding-right: 6px; }
     .review-card__text--clamp::-webkit-scrollbar, .review-card__text--highlight::-webkit-scrollbar { width: 6px; }
@@ -188,6 +187,9 @@
 
     /* ===== Profile Menu Overflow ===== */
     .profile-menu .profile-menu-content { overflow-x: unset !important; }
+
+    /* ===== Hide Profile Header Toggle ===== */
+    .profile-menu .profile-header-toggle { display: none !important; }
 
     /* ========================================================================== */
     /* Settings Modal                                                             */
