@@ -40,97 +40,42 @@
     * { border-radius: 0 !important; }
 
     /* ===== Progress Ring ===== */
-    /* Hide the circular progress ring on the avatar because it clashes with the square theme. */
+    /* Hide the circular progress ring on the avatar because it clashes with the square theme */
     svg.ring { display: none !important; }
 
-    /* ==== Actor credit bar ===== */
-    .media-item__sort-badge { background: #6B3041 !important; } /* not 100% sure on where to stick this at yet, but global is fine for now */
+    /* ===== Actor Credit Bar ===== */
+    .media-item__sort-badge { background: #6B3041 !important; }
 
     /* ========================================================================== */
     /* Detail Pages                                                               */
     /* ========================================================================== */
 
+    /* ===== Detail Information ===== */
     /* Center the detail info block */
     .detail-grid .detail-grid__info .detail-info { justify-content: center !important; }
-    /* Unstick the season nav links from their position */
-    .detail-grid .detail-grid__info .detail-nav-links--season { position: unset !important; }
-    /* Remove some of the exra gap below the nav links */
-    .detail-grid .detail-grid__info .detail-nav-links { margin-bottom: 20px !important; }
+    /* Remove the artificial blank padding on both ends */
+    .detail-pager__pad, .detail-pager__ghost { display: none !important; }
+    /* Make the season track size around the actual seasons */
+    .detail-pager__track { flex: 0 1 auto !important; max-width: 100% !important; }
+    .detail-pager__item--centered { transform: none !important; }
+    /* Reduce the gap below the pager */
+    .detail-title-pager { margin-bottom: 20px !important; }
 
-    /* ===== Title Stack: Actor ===== */
-    .detail-grid--person .person-badge-department { font-size: 14px !important; margin: 5px 0 0 12px !important; }
-    .detail-grid--person [class="detail-status-line"] .detail-status-badge { background: none !important; padding: 0 !important; }
-    .detail-grid--person [class="detail-status-line"] .detail-status-badge + .detail-status-badge::before { content: "∙"; margin: 0 10px 0 4px; font-weight: bold; }
+    /* ===== Episode Header ===== */
+    /* Move episode info up */
+    .detail-head-block--episode .title-stack { min-height: unset !important; }
 
-    /* ===== Title Stack: Movies + Shows ===== */
-    /* Exact class match targets only the plain detail grid, never modifier grids such as --person, --season, or --episode. */
-    [class="detail-grid"] .title-stack { display: flex; flex-direction: column; }
-    [class="detail-grid"] .title-stack .we-heading-1 { order: 1; }
-    [class="detail-grid"] .title-stack .detail-status-line.detail-meta-line { order: 2; margin-bottom: var(--space-2); }
-    [class="detail-grid"] .title-stack .detail-status-line:not(.detail-meta-line) { order: 3; margin-bottom: 15px; }
-    [class="detail-grid"] .detail-status-badge.rs-clone { align-self: center; margin-left: var(--space-2); margin-right: 0; margin-bottom: -4px; }
-    [class="detail-grid"] .detail-status-badge.rs-clone:not(.detail-status-badge--airing) { border: 1px solid currentColor; border-radius: var(--radius-1); padding: 2px 6px; background: none; }
-    [class="detail-grid"] .detail-status-line.detail-meta-line .detail-status-badge { background: none !important; padding: 0 !important; }
-    [class="detail-grid"] .detail-status-line.detail-meta-line .detail-status-badge + .detail-status-badge::before { content: "∙"; margin: 0 10px 0 4px; font-weight: bold; }
-    [class="detail-grid"] .detail-overview-block .we-text-body.detail-directed-by { padding-bottom: 15px; }
+    /* ===== Share Button ===== */
+    /* Hide "share" option */
+    .title-share { display: none !important; }
 
-    /* ===== Title Stack: Season ===== */
-    .detail-grid--season .detail-grid__info .title-stack.title-center { display: flex !important; flex-direction: column !important; }
-    /* 1. Season navigation pill */
-    .detail-grid--season .detail-grid__info .title-stack .detail-nav-links--season { order: 1; }
-    /* 2. Show title: promoted to main heading while hiding the "/ Season X" portion */
-    .detail-grid--season .detail-grid__info .title-stack .detail-breadcrumb { order: 2; }
-    .detail-grid--season .detail-grid__info .title-stack .detail-breadcrumb a.we-link-body { font-size: var(--font-size-4) !important; font-weight: 800 !important; letter-spacing: -0.02em; line-height: var(--line-height-0); color: #fff; text-decoration: none; }
-    .detail-grid--season .detail-grid__info .title-stack .detail-breadcrumb a.we-link-body:hover { color: #8283ff; }
-    .detail-grid--season .detail-grid__info .title-stack .detail-breadcrumb span, .detail-grid--season .detail-grid__info .title-stack .detail-breadcrumb .detail-breadcrumb__current { display: none !important; }
-    /* 3. Season number: demoted to secondary heading */
-    .detail-grid--season .detail-grid__info .title-stack .we-heading-1 { order: 3; font-size: 22px !important; font-weight: 700 !important; letter-spacing: 0.4px !important; }
-    .detail-grid--season .detail-grid__info .title-stack .we-heading-1 .we-text-accent { display: none; }
-    /* 4. Date and episode count */
-    .detail-grid--season .detail-grid__info .title-stack > p.we-text-body:not(.detail-breadcrumb) { order: 4; margin-bottom: 10px !important; font-size: var(--font-size-0); font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; }
-
-    /* ===== Title Stack: Episode ===== */
-    .detail-grid--episode .detail-grid__info .title-stack.title-center { display: flex !important; flex-flow: row wrap !important; align-items: baseline !important; }
-    /* 1. Episode navigation pill */
-    .detail-grid--episode .detail-grid__info .title-stack .detail-nav-links { order: 1; flex-basis: 100%; }
-    /* Breadcrumb becomes invisible as a box so its children participate directly in the flex layout. */
-    .detail-grid--episode .detail-grid__info .title-stack .detail-breadcrumb { display: contents; }
-    /* 2. New Episode and New Season badges */
-    .detail-grid--episode .detail-grid__info .title-stack .episode-milestone-badge-detail, .detail-grid--episode .detail-grid__info .title-stack .episode-upcoming-icon-detail { position: static !important; margin-right: 7px; order: 2; }
-    .detail-grid--episode .detail-grid__info .title-stack .badge-linebreak { order: 2; flex-basis: 100%; width: 0; height: 0; }
-    /* 3. Episode title: placed on its own line and enlarged */
-    .detail-grid--episode .detail-grid__info .title-stack .detail-breadcrumb a.we-link-body:first-child { order: 3; font-size: var(--font-size-4) !important; font-weight: 800 !important; letter-spacing: -0.02em; line-height: var(--line-height-0); color: #fff; text-decoration: none; margin-bottom: -3px; }
-    .detail-grid--episode .detail-grid__info .title-stack .detail-breadcrumb a.we-link-body:hover { color: #8283ff; }
-    .detail-grid--episode .detail-grid__info .title-stack .ep-linebreak { order: 3; flex-basis: 100%; width: 0; height: 0; }
-    .detail-grid--episode .detail-grid__info .title-stack .detail-breadcrumb span:not(.detail-breadcrumb__current):not(.ep-linebreak) { display: none !important; }
-    /* 4. Episode details: season number, episode number, and episode title */
-    .detail-grid--episode .detail-grid__info .title-stack .detail-breadcrumb a.we-link-body:nth-of-type(2) { order: 4; font-size: 22px !important; font-weight: 700 !important; letter-spacing: 0.4px !important; text-decoration: none; }
-    .detail-grid--episode .detail-grid__info .title-stack .detail-breadcrumb .detail-breadcrumb__current { order: 5; font-size: 22px !important; font-weight: 700 !important; letter-spacing: 0.4px !important; }
-    .detail-grid--episode .detail-grid__info .title-stack .detail-breadcrumb .detail-breadcrumb__current::before { content: "∙"; margin: 0 6px; }
-    .detail-grid--episode .detail-grid__info .title-stack .we-heading-1 { order: 6; font-size: 22px !important; font-weight: 700 !important; letter-spacing: 0.4px !important; }
-    .detail-grid--episode .detail-grid__info .title-stack .we-heading-1::before { content: "–"; margin: 0 2px 0 6px; }
-    .detail-grid--episode .detail-grid__info .title-stack .we-heading-1 .we-text-accent { display: none; }
-    /* 5. Date and runtime */
-    .detail-grid--episode .detail-grid__info .title-stack > p.we-text-body:not(.detail-breadcrumb) { order: 7; flex-basis: 100%; margin-bottom: 10px !important; font-size: var(--font-size-0); font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; }
-
-    /* ===== Title Stack: Tracking ===== */
-    .detail-grid--min .title-stack.title-center { display: flex; flex-direction: column; }
-    /* 1. Title */
-    .detail-grid--min .title-stack .we-heading-1 { order: 1; }
-    /* 2. Meta line: dates, seasons, and runtime */
-    .detail-grid--min .title-stack .detail-status-line.detail-meta-line { order: 2; margin-bottom: var(--space-2); }
-    /* 3. Status line: airing status and genres */
-    .detail-grid--min .title-stack .detail-status-line:not(.detail-meta-line) { order: 3; margin-bottom: 15px; }
-    /* Airing badge: cloned beside the title and vertically centered */
-    .detail-grid--min .detail-status-badge.rs-clone { align-self: center; margin-left: var(--space-2); margin-right: 0; margin-bottom: -4px; }
-    .detail-grid--min .detail-status-badge.rs-clone:not(.detail-status-badge--airing) { border: 1px solid currentColor; border-radius: var(--radius-1); padding: 2px 6px; background: none; }
-    /* Meta badges: flattened and separated with dots */
-    .detail-grid--min .detail-status-line.detail-meta-line .detail-status-badge { background: none !important; padding: 0 !important; }
-    .detail-grid--min .detail-status-line.detail-meta-line .detail-status-badge + .detail-status-badge::before { content: "∙"; margin: 0 10px 0 4px; font-weight: bold; }
-
-    /* ===== All Watched Block ===== */
-    /* Hide the "still ongoing" hint and its remove-all-watched toggle shown for ongoing shows. */
+    /* ===== All Watched ===== */
+    /* Hide the "still ongoing" hint and its remove-all-watched toggle shown for ongoing shows */
     .watching-details--all-watched { display: none !important; }
+
+    /* ===== Where to Watch ===== */
+    /* Hide "Where to Watch" block */
+    .detail-grid .sidebar-streaming { display: none !important; }
 
     /* ===== Dub Information ===== */
     .detail-meta-box .rs-dub-info { display: flex; flex-direction: row; align-items: baseline; justify-content: space-between; gap: var(--space-3); padding: var(--space-4) var(--space-4); }
@@ -142,50 +87,53 @@
     /* ========================================================================== */
 
     /* ===== Hover Border ===== */
+    /* Remove the default hover border overlays */
     .media-item__border-overlay, .episode-item__border-overlay { display: none !important; }
 
     /* ===== Upcoming Section ===== */
-    /* Hide upcoming items without a progress bar, such as already-watched episodes. */
+    /* Hide upcoming items without a progress bar, such as already-watched episodes */
     #upcoming we-item-poster:not(:has(.media-item__progress)) { display: none !important; }
 
     /* ===== Release / Watched Date ===== */
-    /* Keep the eye icon, date, and time on one line to prevent wrapping and misalignment on narrow cards. */
+    /* Keep the eye icon, date, and time on one line to prevent wrapping and misalignment on narrow cards */
     .entity-release-date .wd-full { flex-wrap: unset !important; }
 
     /* ===== Empty Cards ===== */
+    /* Hide empty placeholder cards */
     [class="we-empty-card"] { display: none; }
-    [class="tracking-layout"] { display: unset !important; } /* Seems to be needed otherwise there is a huge gap between the tabs and watching when hiding the empty card */
+    /* Restore the tracking layout to prevent a large gap between the tabs and Watching */
+    [class="tracking-layout"] { display: unset !important; }
 
     /* ========================================================================== */
     /* Reviews                                                                    */
     /* ========================================================================== */
 
-    /* Add New */
-    /* Change the "Add New" font coloring to match "Top" */
+    /* ===== Review Controls ===== */
+    /* Change the "Add New" text color to match "Top" */
     .reviews-section__add-btn { color: #96a4af !important; }
 
     /* ===== Review Card ===== */
-    /* Give every review a visible containing shape so author, text, pills, and Reply all clearly belong to one card. */
-     we-review-card { display: block !important; background: rgba(255, 255, 255, 0.03) !important; border: 1px solid #2d2d48 !important; margin-bottom: 16px !important; padding: 16px !important; transition: border-color 0.15s !important; }
+    /* Give every review a visible containing shape so the author, text, pills, and Reply action clearly belong to one card */
+    we-review-card { display: block !important; background: rgba(255, 255, 255, 0.03) !important; border: 1px solid #2d2d48 !important; margin-bottom: 16px !important; padding: 16px !important; transition: border-color 0.15s !important; }
     .review-card:not(.review-card--reply) { background: unset !important; }
-    /* Tighten the gap between profile picture and rating and change size of rating font slightly */
+    /* Tighten the gap between the profile picture and rating and slightly reduce the rating font size */
     .review-card__rating { margin-top: 0 !important; font-size: 13px !important; }
-    /* Slightly reduce the font size of the author name, date and handle */
+    /* Slightly reduce the font size of the author name, date, and handle */
     .review-card__author-name, .review-card__date, .review-card__handle { font-size: 13px !important; }
-    /* Make the pills text color match the other pills */
+    /* Match the reaction and reply pill text color to the other pills */
     .review-card__reaction-pill, .review-card__view-replies { color: #96a4af !important; }
 
     /* ===== Review Text ===== */
-    /* Slightly darken the text instead of just making white */
+    /* Slightly darken the text instead of using pure white */
     .review-card__text { color: #cacdd1 !important; }
-    /* Long reviews become scrollable instead of clamped with no way to read the rest. Short reviews are unaffected since they never exceed the cap. */
+    /* Make long reviews scrollable instead of clamping them. Short reviews are unaffected since they never exceed the cap */
     .review-card__text--clamp, .review-card__text--highlight { display: block !important; -webkit-line-clamp: unset !important; max-height: 360px !important; overflow-y: auto !important; scrollbar-width: thin; scrollbar-color: #333348 transparent; padding-right: 6px; }
     .review-card__text--clamp::-webkit-scrollbar, .review-card__text--highlight::-webkit-scrollbar { width: 6px; }
     .review-card__text--clamp::-webkit-scrollbar-track, .review-card__text--highlight::-webkit-scrollbar-track { background: transparent; }
     .review-card__text--clamp::-webkit-scrollbar-thumb, .review-card__text--highlight::-webkit-scrollbar-thumb { background: #333348; }
-    /* Hide the site's read more button now that long reviews scroll instead. */
+    /* Hide the site's "Read More" button now that long reviews scroll instead */
     .review-card__readmore { display: none !important; }
-    /* Spoiler and non-spoiler review text share one size; the we-spoiler-text rule guards against site styles targeting the custom element directly. */
+    /* Keep spoiler and non-spoiler review text at the same size */
     .review-card__text, .review-card__text we-spoiler-text { font-size: 14px !important; }
 
     /* ========================================================================== */
@@ -193,9 +141,11 @@
     /* ========================================================================== */
 
     /* ===== Profile Menu Overflow ===== */
+    /* Allow profile menu content to overflow horizontally when needed */
     .profile-menu .profile-menu-content { overflow-x: unset !important; }
 
-    /* ===== Hide Profile Header Toggle ===== */
+    /* ===== Profile Header Toggle ===== */
+    /* Hide the profile header toggle */
     .profile-menu .profile-header-toggle { display: none !important; }
 
     /* ========================================================================== */
@@ -409,60 +359,6 @@
   // DOM Modification Modules
   // ==========================================
   const DOMModifiers = {
-    getVisibleTitleStack() {
-      return [...document.querySelectorAll('.title-stack')].find(element => element.offsetParent !== null);
-    },
-
-    getVisibleEpisodeTitleStack() {
-      const grid = document.querySelector('.detail-grid--episode .detail-grid__info');
-      return grid ? [...grid.querySelectorAll('.title-stack')].find(element => element.offsetParent !== null) : null;
-    },
-
-    moveStatusBadge() {
-      const titleStack = this.getVisibleTitleStack();
-      const h1 = titleStack?.querySelector('.we-heading-1');
-      const cert = h1?.querySelector('.detail-certification');
-      const statusBadge = titleStack?.querySelector('.detail-status-line:not(.detail-meta-line) .detail-status-badge:not(.rs-hidden-original):not(.rs-clone):not(.detail-status-badge--genre)');
-
-      if (!h1 || !cert || !statusBadge || h1.querySelector('.rs-clone')) return;
-
-      statusBadge.classList.add('rs-hidden-original');
-      statusBadge.style.display = 'none';
-
-      const clone = statusBadge.cloneNode(true);
-      clone.classList.remove('rs-hidden-original');
-      clone.classList.add('rs-clone');
-      clone.style.display = '';
-      cert.after(clone);
-    },
-
-    ensureLineBreakAfter(container, targetSelector, spacerClass) {
-      if (!container) return;
-
-      const targets = container.querySelectorAll(targetSelector);
-      if (!targets.length) return;
-
-      const lastTarget = targets[targets.length - 1];
-
-      if (lastTarget.nextElementSibling?.classList.contains(spacerClass)) {
-        return;
-      }
-
-      for (const element of container.querySelectorAll(`.${spacerClass}`)) {
-        element.remove();
-      }
-
-      const spacer = document.createElement('span');
-      spacer.className = spacerClass;
-      lastTarget.after(spacer);
-    },
-
-    applyEpisodeLineBreaks() {
-      const titleStack = this.getVisibleEpisodeTitleStack();
-      if (!titleStack) return;
-      this.ensureLineBreakAfter(titleStack, '.detail-breadcrumb a.we-link-body:first-child', 'ep-linebreak');
-      this.ensureLineBreakAfter(titleStack, '.episode-milestone-badge-detail, .episode-upcoming-icon-detail', 'badge-linebreak');
-    },
 
     updateTimestamps() {
       const elements = document.querySelectorAll('.entity-release-date, .detail-status-badge--airing, .media-item__progress-bar-text--episode');
@@ -785,8 +681,6 @@
   function runMods() {
     handleRouteChange();
 
-    DOMModifiers.moveStatusBadge();
-    DOMModifiers.applyEpisodeLineBreaks();
     DOMModifiers.updateTimestamps();
     DOMModifiers.expandReviews();
     // While the settings modal is open, dub changes are driven by the live
