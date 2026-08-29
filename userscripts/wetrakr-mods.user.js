@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       1.10.0
+// @version       1.10.1
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
@@ -90,7 +90,7 @@
     /* Airing badge clone: first, own line, above h1 */
     [class="detail-grid"] .title-stack .detail-status-badge.rs-clone { order: 0; width: fit-content; margin-bottom: 8px; }
     /* Title: second */
-    [class="detail-grid"] .title-stack .we-heading-1 { order: 1; }
+    [class="detail-grid"] .title-stack .we-heading-1 { order: 1; display: unset !important; font-size: 26px; }
     /* Date, seasons, episodes, and runtime line: third */
     [class="detail-grid"] .title-stack .detail-status-line.detail-meta-line { order: 2; margin-bottom: var(--space-2); }
     /* Genre line with hidden airing badge: fourth, below meta line */
