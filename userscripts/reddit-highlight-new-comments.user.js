@@ -6,7 +6,7 @@
 // @license       MIT
 // @match         *://*.reddit.com/r/*/comments/*/*
 // @require       https://cdn.jsdelivr.net/gh/bgrins/TinyColor@13851a7f4950040d9ad8557c3a92d9f4d8d02843/tinycolor.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@0171b6b6f24caea737beafbc2a8dacd220b729d8/libs/utils/utils.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@9e8f1b9bdc1acac2e76f3e8d2348f76817ec5bf4/libs/utils/utils.min.js
 // @grant         GM_setValue
 // @grant         GM_getValue
 // @grant         GM_addStyle

@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       1.11.0
+// @version       1.12.0
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
@@ -8,6 +8,7 @@
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@9e8f1b9bdc1acac2e76f3e8d2348f76817ec5bf4/libs/utils/utils.min.js
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@644b86d55bf5816a4fa2a165bdb011ef7c22dfe1/libs/metadata/anilist/anilist.min.js
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@644b86d55bf5816a4fa2a165bdb011ef7c22dfe1/libs/metadata/armhaglund/armhaglund.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@eae99ac26ef29201a290d86013a5976fa95333d6/libs/metadata/maldubs/maldubs.min.js
 // @grant         GM_addStyle
 // @grant         GM_xmlhttpRequest
 // @grant         GM_getValue
@@ -25,6 +26,7 @@
   const logger = Logger('WeTrakr - Mods', { debug: false });
   const anilist = new AniList();
   const armhaglund = new ArmHaglund();
+  const maldubs = new MalDubs();
 
   // ==========================================
   // CSS Styles
@@ -237,9 +239,41 @@
   // Configuration & Constants
   // ==========================================
   const CONFIG_KEY = 'wetrakr-mods-config';
-  const CACHE_KEY = 'wetrakr-mods-cache';
-  const CACHE_DURATION = 24 * 60 * 60 * 1000;
 
+  // Selectors referenced from more than one place below, so there's exactly
+  // one string to update if WeTrakr renames a class.
+  const SELECTORS = {
+    metaBox: '.detail-meta-box--desktop',
+    titleStack: '.title-stack'
+  };
+
+  // How long a successful provider response stays cached in memory (ms).
+  // Dub/ID data is never written to GM storage, so this cache is lost on reload.
+  //   anilistDub / malDub : dub-availability lookups (cheap, refreshed often)
+  //   armPositive         : ArmHaglund resolved an id (rarely changes)
+  //   armNegative         : ArmHaglund found nothing (recheck sooner)
+  const REQUEST_TTL = {
+    anilistDub: 30 * 60 * 1000,
+    malDub: 30 * 60 * 1000,
+    armPositive: 24 * 60 * 60 * 1000,
+    armNegative: 30 * 60 * 1000
+  };
+
+  // After a provider request fails, block retries for this long (ms) so a broken
+  // lookup can't hammer the provider on every page mutation.
+  const FAILURE_COOLDOWN = 60 * 1000;
+
+  // Minimum gap between the start of two requests to the same provider (ms).
+  // AniList is currently capped at 30 req/min (~2000ms) while degraded, so its
+  // interval sits at that ceiling; the others are polite pacing under churn.
+  const SERVICE_MIN_INTERVAL = {
+    anilist: 2000,
+    armhaglund: 750,
+    maldubs: 1000
+  };
+
+  // Languages offered in the settings dropdown. `value` is the AniList
+  // StaffLanguage enum consumed by the dub query; `name` is the display label.
   const DUB_LANGUAGES = [
     { name: 'English', value: 'ENGLISH' },
     { name: 'German', value: 'GERMAN' },
@@ -258,25 +292,67 @@
     { name: 'Norwegian', value: 'NORWEGIAN' }
   ];
 
+  // Action buttons whose active/listed state we recolour. `hint` is shown in
+  // the settings UI, `selector` is the CSS rule target, and `extra` is
+  // optional inline CSS appended to the generated rule.
   const ACTION_COLORS = [
-    { key: 'watched', label: 'Watched', hint: 'Mark as watched / Unmark all', default: '#2E6B48' },
-    { key: 'waiting', label: 'Waiting', hint: 'Waiting for new episodes', default: '#7D5B2C' },
-    { key: 'planning', label: 'Planning', hint: 'Mark as planning', default: '#366B7D' },
-    { key: 'favorite', label: 'Favourite', hint: 'Mark as favorite', default: '#895e77' },
-    { key: 'addToList', label: 'Add to list', hint: 'Item is in a list', default: '#3B6FB5', extra: 'color: #e9ecf2 !important;' }
+    {
+      key: 'watched',
+      label: 'Watched',
+      hint: 'Mark as watched / Unmark all',
+      default: '#2E6B48',
+      selector: '.media-item__action-btn--active[aria-label="Mark as watched"]:not(#tm-date-override), .media-item__action-btn--active[aria-label="Unmark all episodes"]:not(#tm-date-override), .episode-item__action-btn--active[aria-label="Mark as watched"]:not(#tm-date-override)'
+    },
+    {
+      key: 'waiting',
+      label: 'Waiting',
+      hint: 'Waiting for new episodes',
+      default: '#7D5B2C',
+      selector: '.media-item__action-btn--active[aria-label="Waiting for new episodes"]:not(#tm-date-override)'
+    },
+    {
+      key: 'planning',
+      label: 'Planning',
+      hint: 'Mark as planning',
+      default: '#366B7D',
+      selector: '.media-item__action-btn--active[aria-label="Mark as planning"]:not(#tm-date-override)'
+    },
+    {
+      key: 'favorite',
+      label: 'Favourite',
+      hint: 'Mark as favorite',
+      default: '#895e77',
+      selector: '.media-item__action-btn--active[aria-label="Mark as favorite"]:not(#tm-date-override)'
+    },
+    {
+      key: 'addToList',
+      label: 'Add to list',
+      hint: 'Item is in a list',
+      default: '#3B6FB5',
+      extra: 'color: #e9ecf2 !important;',
+      selector: '.media-item__action-btn[aria-label="Add to list"]:has(.action-btn__count):not(#tm-date-override), .episode-item__action-btn[aria-label="Add to list"]:has(.action-btn__count):not(#tm-date-override)'
+    }
   ];
-  // Selector lists per colour; backgrounds go through --wt-* variables so live updates never rebuild this CSS.
-  const ACTION_COLOR_RULES = {
-    watched: '.media-item__action-btn--active[aria-label="Mark as watched"]:not(#tm-date-override), .media-item__action-btn--active[aria-label="Unmark all episodes"]:not(#tm-date-override), .episode-item__action-btn--active[aria-label="Mark as watched"]:not(#tm-date-override)',
-    waiting: '.media-item__action-btn--active[aria-label="Waiting for new episodes"]:not(#tm-date-override)',
-    planning: '.media-item__action-btn--active[aria-label="Mark as planning"]:not(#tm-date-override)',
-    favorite: '.media-item__action-btn--active[aria-label="Mark as favorite"]:not(#tm-date-override)',
-    addToList: '.media-item__action-btn[aria-label="Add to list"]:has(.action-btn__count):not(#tm-date-override), .episode-item__action-btn[aria-label="Add to list"]:has(.action-btn__count):not(#tm-date-override)'
-  };
+  // Flat { key: defaultColour } map, used as the base for any stored overrides.
   const DEFAULT_ACTION_COLORS = Object.fromEntries(ACTION_COLORS.map(({ key, default: value }) => [key, value]));
 
+  // Fallback settings used when storage is empty or a key is missing.
   const DEFAULT_CONFIG = { dubInfo: true, dubLanguage: 'ENGLISH' };
 
+  // Declarative description of every field shown in the settings modal. This
+  // drives HTML generation, live-preview binding, and "restore defaults" in
+  // one place, instead of three separate hand-written blocks per field.
+  //   type    : 'toggle' | 'select' | 'color'
+  //   key     : dotted path into the settings draft (e.g. 'actionColors.watched')
+  //   preview : which live-preview function a change should trigger
+  const SETTINGS_FIELDS = [
+    { key: 'dubInfo', type: 'toggle', label: 'Dub Information', hint: 'Show dub availability for anime shows', preview: 'dub' },
+    { key: 'dubLanguage', type: 'select', label: 'Preferred Dub Language', hint: 'Language to check for', options: DUB_LANGUAGES, preview: 'dub' },
+    ...ACTION_COLORS.map(({ key, label, hint }) => ({ key: `actionColors.${key}`, type: 'color', label, hint, preview: 'color' }))
+  ];
+
+  // Read/write access to persisted settings. `get` merges stored values over
+  // defaults; `set` replaces the whole stored object.
   const ModuleConfig = {
     get() {
       const stored = GM_getValue(CONFIG_KEY, {});
@@ -291,14 +367,29 @@
     }
   };
 
+  // Get/set a settings-draft value by a SETTINGS_FIELDS key, which may be a
+  // plain property ('dubInfo') or a dotted nested path ('actionColors.watched').
+  function getFieldValue(draft, key) {
+    return key.includes('.') ? key.split('.').reduce((object, part) => object[part], draft) : draft[key];
+  }
+
+  function setFieldValue(draft, key, value) {
+    if (!key.includes('.')) {
+      draft[key] = value;
+      return;
+    }
+    const [parent, child] = key.split('.');
+    draft[parent][child] = value;
+  }
+
   function applyActionColors(config = ModuleConfig.get()) {
     let styleElement = document.getElementById('wetrakr-action-colors');
     if (!styleElement) {
       styleElement = document.createElement('style');
       styleElement.id = 'wetrakr-action-colors';
       document.head.appendChild(styleElement);
-      styleElement.textContent = ACTION_COLORS.map(({ key, default: value, extra }) =>
-        `${ACTION_COLOR_RULES[key]} { background-color: var(--wt-${key}, ${value}) !important;${extra ? ` ${extra}` : ''} }`
+      styleElement.textContent = ACTION_COLORS.map(({ key, default: value, extra, selector }) =>
+        `${selector} { background-color: var(--wt-${key}, ${value}) !important;${extra ? ` ${extra}` : ''} }`
       ).join('\n');
     }
 
@@ -314,8 +405,10 @@
   // A cached record represents a WeTrakr title page. The identity is derived
   // solely from the WeTrakr URL, never from external IDs or the title text,
   // so it stays stable regardless of which external IDs happen to be present.
+  const WETRAKR_PATH_PATTERN = /^\/(shows|movies)\/(\d+)/;
+
   function getWeTrakrIdentity() {
-    const match = location.pathname.match(/^\/(shows|movies)\/(\d+)/);
+    const match = location.pathname.match(WETRAKR_PATH_PATTERN);
     if (!match) return null;
 
     const [, section, id] = match;
@@ -329,221 +422,111 @@
   }
 
   // ==========================================
-  // Cache Manager
+  // Runtime Request Management
   // ==========================================
-  // Cache shape:
-  // {
-  //   version: 1,
-  //   titles: {
-  //     "show:1529301": {
-  //       title: "Chainsmoker Cat",
-  //       ids: { imdb: "tt39551330", tmdb: 312949, anilist: 207141 },
-  //       anilistResolution: { source: "imdb", checkedAt: 1787973058345 },
-  //       dubs: { english: { available: true, checkedAt: 1787973058550 } }
-  //     }
-  //   }
-  // }
-  function createEmptyCache() {
+  // All provider requests live only in memory for the lifetime of the page.
+  // Cache keys describe the external lookup itself (e.g. an AniList id +
+  // language), not the WeTrakr title, so there is no per-title cache to keep
+  // in sync.
+  function sleep(milliseconds) {
+    return new Promise(resolve => setTimeout(resolve, milliseconds));
+  }
+
+  // Serialises tasks for one provider and enforces a minimum gap between starts.
+  // Each limiter owns a promise chain; a rejected task is swallowed so one
+  // failure can't wedge the queue for later requests.
+  function createRateLimiter(minInterval) {
+    let queue = Promise.resolve();
+    let nextAllowedAt = 0;
+
     return {
-      version: 1,
-      titles: {}
+      run(task) {
+        const request = queue.then(async () => {
+          const wait = Math.max(0, nextAllowedAt - Date.now());
+          if (wait > 0) await sleep(wait);
+
+          nextAllowedAt = Date.now() + minInterval;
+          return task();
+        });
+
+        // A rejected request must not permanently break the queue.
+        queue = request.catch(() => {});
+        return request;
+      }
     };
   }
 
-  function createEmptyTitleRecord() {
-    return {
-      title: null,
-      ids: { imdb: null, tmdb: null, anilist: null },
-      dubs: {}
-    };
-  }
+  const ServiceLimiters = {
+    anilist: createRateLimiter(SERVICE_MIN_INTERVAL.anilist),
+    armhaglund: createRateLimiter(SERVICE_MIN_INTERVAL.armhaglund),
+    maldubs: createRateLimiter(SERVICE_MIN_INTERVAL.maldubs)
+  };
 
-  function isDubEntryValid(entry) {
-    return !!entry &&
-      typeof entry.available === 'boolean' &&
-      typeof entry.checkedAt === 'number' &&
-      (Date.now() - entry.checkedAt) < CACHE_DURATION;
-  }
+  // Single entry point for any provider lookup, keyed by an arbitrary string
+  // the caller defines (e.g. `anilist:123:ENGLISH`). Each key owns one entry
+  // holding whatever of its lifecycle currently applies: a fresh cached
+  // value, an in-flight promise, and/or a failure cooldown. `generation` is
+  // bumped by clear() so a still-in-flight request from before a clear can't
+  // repopulate a key after the fact — its result lands on an entry object
+  // that's no longer reachable from `entries`.
+  const RequestManager = {
+    entries: new Map(),
+    generation: 0,
 
-  function isAnilistResolutionValid(resolution) {
-    return !!resolution &&
-      (resolution.source === 'imdb' || resolution.source === 'tmdb') &&
-      typeof resolution.checkedAt === 'number' &&
-      (Date.now() - resolution.checkedAt) < CACHE_DURATION;
-  }
-
-  const ModuleCache = {
-    _read() {
-      const stored = GM_getValue(CACHE_KEY);
-      if (!stored || typeof stored !== 'object' || typeof stored.titles !== 'object' || stored.titles === null) {
-        return createEmptyCache();
+    entryFor(key) {
+      let entry = this.entries.get(key);
+      if (!entry) {
+        entry = { value: undefined, expiresAt: 0, retryAt: 0, pending: null };
+        this.entries.set(key, entry);
       }
-      return stored;
+      return entry;
     },
 
-    _write(cache) {
-      GM_setValue(CACHE_KEY, cache);
-    },
+    async request({ key, service, ttl, fetcher }) {
+      const entry = this.entryFor(key);
+      const now = Date.now();
 
-    // Returns a shallow copy of the full title record, or undefined if none exists.
-    getTitle(titleKey) {
-      const cache = this._read();
-      const record = cache.titles[titleKey];
-      return record ? { ...record, ids: { ...record.ids }, dubs: { ...record.dubs } } : undefined;
-    },
+      if (entry.expiresAt > now) return entry.value;
+      if (entry.pending) return entry.pending;
 
-    // Merges freshly read page metadata (title + external IDs) into the cached record.
-    // A direct AniList ID from the page always wins; if it differs from what's cached,
-    // the resolution info and all dub results are cleared since they belonged to the
-    // previous AniList ID. Absence of a direct AniList ID on the page does NOT erase a
-    // previously resolved AniList mapping.
-    updateMetadata(titleKey, title, pageIds) {
-      const cache = this._read();
-      const existing = cache.titles[titleKey];
-      const record = existing
-        ? { ...existing, ids: { ...existing.ids }, dubs: { ...existing.dubs } }
-        : createEmptyTitleRecord();
-
-      let changed = !existing;
-
-      if (title && record.title !== title) {
-        record.title = title;
-        changed = true;
+      if (entry.retryAt > now) {
+        const error = new Error(`Request cooldown active until ${new Date(entry.retryAt).toISOString()}`);
+        error.code = 'REQUEST_COOLDOWN';
+        error.retryAt = entry.retryAt;
+        throw error;
       }
 
-      if (record.ids.imdb !== pageIds.imdb) {
-        record.ids.imdb = pageIds.imdb;
-        changed = true;
-      }
+      const limiter = ServiceLimiters[service];
+      if (!limiter) throw new Error(`Unknown request service: ${service}`);
 
-      if (record.ids.tmdb !== pageIds.tmdb) {
-        record.ids.tmdb = pageIds.tmdb;
-        changed = true;
-      }
+      const generation = this.generation;
 
-      if (pageIds.anilist !== null && record.ids.anilist !== pageIds.anilist) {
-        record.ids.anilist = pageIds.anilist;
-        record.dubs = {};
-        delete record.anilistResolution;
-        changed = true;
-      }
-
-      if (changed) {
-        cache.titles[titleKey] = record;
-        this._write(cache);
-      }
-
-      return record;
-    },
-
-    // Returns: positive integer (valid mapping), null (valid negative mapping),
-    // or undefined (missing / expired -- resolution required).
-    getResolvedAnilistId(titleKey) {
-      const cache = this._read();
-      const record = cache.titles[titleKey];
-      if (!record) return undefined;
-
-      // A direct AniList ID from WeTrakr (no resolution metadata) never expires.
-      if (typeof record.ids.anilist === 'number' && !record.anilistResolution) {
-        return record.ids.anilist;
-      }
-
-      if (!isAnilistResolutionValid(record.anilistResolution)) return undefined;
-
-      if (record.ids.anilist === null || typeof record.ids.anilist === 'number') {
-        return record.ids.anilist;
-      }
-
-      return undefined;
-    },
-
-    // Stores the outcome of an ArmHaglund resolution (positive integer or null for a
-    // valid negative result). Clears cached dub results only when the AniList ID
-    // genuinely changed, preserving them when it stayed the same.
-    setResolvedAnilistId(titleKey, anilistId, source) {
-      const cache = this._read();
-      const record = cache.titles[titleKey];
-      if (!record) return;
-
-      const previousAnilist = record.ids.anilist;
-      record.ids.anilist = anilistId;
-      record.anilistResolution = { source, checkedAt: Date.now() };
-
-      if (previousAnilist !== anilistId) {
-        record.dubs = {};
-      }
-
-      this._write(cache);
-    },
-
-    // Returns true/false for a valid cached result, or undefined if missing/malformed/expired.
-    getDub(titleKey, language) {
-      const cache = this._read();
-      const record = cache.titles[titleKey];
-      const entry = record?.dubs?.[language.toLowerCase()];
-      return isDubEntryValid(entry) ? entry.available : undefined;
-    },
-
-    // Only commits the result if the record's currently resolved AniList ID still
-    // matches the one the query was made against, avoiding a race with a mapping change.
-    setDub(titleKey, anilistId, language, available) {
-      if (typeof available !== 'boolean') return;
-
-      const cache = this._read();
-      const record = cache.titles[titleKey];
-      if (!record || record.ids.anilist !== anilistId) return;
-
-      if (!record.dubs) record.dubs = {};
-      record.dubs[language.toLowerCase()] = { available, checkedAt: Date.now() };
-      this._write(cache);
-    },
-
-    clearExpired() {
-      const cache = this._read();
-      let changed = false;
-
-      for (const [key, record] of Object.entries(cache.titles)) {
-        if (!record || typeof record !== 'object') {
-          delete cache.titles[key];
-          changed = true;
-          continue;
-        }
-
-        if (record.dubs && typeof record.dubs === 'object') {
-          for (const [language, entry] of Object.entries(record.dubs)) {
-            if (!isDubEntryValid(entry)) {
-              delete record.dubs[language];
-              changed = true;
+      entry.pending = limiter.run(fetcher)
+        .then(value => {
+          entry.retryAt = 0;
+          if (generation === this.generation) {
+            const duration = typeof ttl === 'function' ? ttl(value) : ttl;
+            if (Number.isFinite(duration) && duration > 0) {
+              entry.value = value;
+              entry.expiresAt = Date.now() + duration;
             }
           }
-        } else {
-          record.dubs = {};
-        }
+          return value;
+        })
+        .catch(error => {
+          if (generation === this.generation) entry.retryAt = Date.now() + FAILURE_COOLDOWN;
+          throw error;
+        })
+        .finally(() => {
+          entry.pending = null;
+        });
 
-        // An expired resolution isn't usable for lookups, but the previous AniList ID
-        // is intentionally left in place so a refresh can detect if it changes.
-        if (record.anilistResolution && !isAnilistResolutionValid(record.anilistResolution) &&
-          typeof record.anilistResolution.checkedAt !== 'number') {
-          delete record.anilistResolution;
-          changed = true;
-        }
-
-        const hasIds = !!(record.ids?.imdb || record.ids?.tmdb || typeof record.ids?.anilist === 'number');
-        const hasNegativeAnilist = record.ids?.anilist === null && !!record.anilistResolution;
-        const hasDubs = record.dubs && Object.keys(record.dubs).length > 0;
-        const hasTitle = !!record.title;
-
-        if (!hasIds && !hasNegativeAnilist && !hasDubs && !hasTitle) {
-          delete cache.titles[key];
-          changed = true;
-        }
-      }
-
-      if (changed) this._write(cache);
+      return entry.pending;
     },
 
-    clearAll() {
-      this._write(createEmptyCache());
+    clear() {
+      this.generation++;
+      this.entries.clear();
     }
   };
 
@@ -559,8 +542,11 @@
     convertNode(node) {
       const original = node.textContent;
       const newText = original
+        // "05/12/2026 | 14:30" -> "05/12/2026 | 2:30 PM"
         .replace(/(\d{2}\/\d{2}\/\d{4}) \| (\d{2}):(\d{2})(?!\s*[AP]M)/gi, (_, date, hour, minute) => `${date} | ${this.to12Hour(+hour, +minute)}`)
+        // "· 14:30" -> "· 2:30 PM"
         .replace(/· (\d{2}):(\d{2})(?!\s*[AP]M)/gi, (_, hour, minute) => `· ${this.to12Hour(+hour, +minute)}`)
+        // "2.30 PM" -> "2:30 PM"
         .replace(/(\d{1,2})\.(\d{2})\s?(AM|PM)/gi, '$1:$2 $3');
 
       if (newText !== original) {
@@ -576,7 +562,7 @@
   // ==========================================
   const DOMModifiers = {
     getVisibleTitleStack() {
-      return [...document.querySelectorAll('.title-stack')].find(element => element.offsetParent !== null);
+      return [...document.querySelectorAll(SELECTORS.titleStack)].find(element => element.offsetParent !== null);
     },
 
     moveStatusBadge() {
@@ -590,6 +576,9 @@
 
       if (!titleStack || !h1 || !statusBadge || titleStack.querySelector('.rs-clone')) return;
 
+      // Clone rather than move the badge so its original position in the DOM
+      // (and anything else relying on it) is undisturbed; the clone is what
+      // gets repositioned above the heading via the CSS `order` rules.
       statusBadge.classList.add('rs-hidden-original');
       statusBadge.style.display = 'none';
 
@@ -627,20 +616,31 @@
   // ==========================================
   // Dub Information Processing
   // ==========================================
+  // Resolves whether a title has a dub in the user's preferred language and
+  // renders that into the detail meta box. Orchestrates the external providers
+  // (AniList, MAL-Dubs, ArmHaglund) and guards against stale or duplicate work.
   const DubService = {
-    hasStarted: false,
+    // Signature of the most recent attempt; used to ignore superseded results.
+    lastSignature: null,
+    // Last failure details (signature + retry timestamp) for cooldown checks.
+    lastFailure: null,
+    // Bumped on reset so in-flight applies from a previous page are discarded.
     generation: 0,
 
-    isCurrent(generation, route) {
-      return generation === this.generation && route === location.pathname;
+    // True only if this attempt still belongs to the current page generation and
+    // matches the latest signature (no newer or richer attempt superseded it).
+    isCurrent(generation, signature) {
+      return generation === this.generation && signature === this.lastSignature;
     },
 
-    getPageTitle() {
-      return document.querySelector('.title-stack .we-heading-1 .we-link-none')?.textContent?.trim() || null;
+    getLanguageName(language) {
+      return DUB_LANGUAGES.find(lang => lang.value === language)?.name || 'Dub';
     },
 
+    // Scrape AniList / IMDb / TMDB / MAL ids from the page's external links.
+    // Any of them can be absent; callers decide which are usable.
     getExternalIds() {
-      const ids = { anilist: null, imdb: null, tmdb: null };
+      const ids = { anilist: null, imdb: null, tmdb: null, mal: null };
       for (const link of document.querySelectorAll('.detail-tags a.detail-tag')) {
         const href = link.getAttribute('href') || '';
 
@@ -652,10 +652,15 @@
 
         const tmdbMatch = href.match(/themoviedb\.org\/(?:movie|tv)\/(\d+)/);
         if (tmdbMatch) ids.tmdb = Number(tmdbMatch[1]);
+
+        const malMatch = href.match(/myanimelist\.net\/anime\/(\d+)/);
+        if (malMatch) ids.mal = Number(malMatch[1]);
       }
       return ids;
     },
 
+    // Ask AniList whether any main-character voice actor exists for the given
+    // language. Returns true when at least one dub voice actor is present.
     async queryAnilistDub(anilistId, language) {
       const query = `
         query($id: Int!, $type: MediaType, $page: Int = 1, $language: StaffLanguage){
@@ -674,105 +679,193 @@
         type: 'ANIME',
         language
       });
-      return response.data.Media.characters.edges;
+
+      const edges = response?.data?.Media?.characters?.edges;
+      if (!Array.isArray(edges)) throw new Error('Unexpected AniList response structure');
+      return edges.some(edge => edge.voiceActors?.length > 0);
     },
 
-    displayDubInfo(hasDub, language) {
-      if (!hasDub) return;
-      const metaBox = document.querySelector('.detail-meta-box--desktop');
-      if (!metaBox || metaBox.querySelector('.rs-dub-info')) return;
+    // Insert, update, or remove the "Dub" row in the desktop meta box. A null
+    // `label` clears the row; otherwise `label` becomes the displayed value.
+    renderDubRow(label) {
+      const metaBox = document.querySelector(SELECTORS.metaBox);
+      if (!metaBox) return;
 
-      const languageName = DUB_LANGUAGES.find(lang => lang.value === language)?.name || 'Dub';
-      const row = document.createElement('div');
-      row.className = 'detail-meta-box__row rs-dub-info';
-      row.innerHTML = `<dt class="detail-meta-box__label">Dub</dt><dd class="detail-meta-box__value">${languageName} Dub Exists</dd>`;
-      metaBox.appendChild(row);
+      let row = metaBox.querySelector('.rs-dub-info');
+
+      if (!label) {
+        row?.remove();
+        return;
+      }
+
+      if (!row) {
+        row = document.createElement('div');
+        row.className = 'detail-meta-box__row rs-dub-info';
+
+        const dt = document.createElement('dt');
+        dt.className = 'detail-meta-box__label';
+        dt.textContent = 'Dub';
+
+        const dd = document.createElement('dd');
+        dd.className = 'detail-meta-box__value';
+
+        row.append(dt, dd);
+        metaBox.appendChild(row);
+      }
+
+      row.querySelector('.detail-meta-box__value').textContent = label;
     },
 
+    // Stable key for a dub attempt: title + every known external id + language.
+    // Changing any part yields a new signature, letting newer attempts supersede
+    // older ones.
+    getSignature(identity, pageIds, language) {
+      return `${identity.key}|${pageIds.anilist}|${pageIds.imdb}|${pageIds.tmdb}|${pageIds.mal}|${language}`;
+    },
+
+    // Decide whether a fresh attempt for `signature` is allowed: always for a new
+    // signature, never while an identical failure is still cooling down, and only
+    // after the cooldown passes for a repeated failure.
+    canAttempt(signature) {
+      if (signature !== this.lastSignature) return true;
+      if (!this.lastFailure || this.lastFailure.signature !== signature) return false;
+      return Date.now() >= this.lastFailure.retryAt;
+    },
+
+    // Record a failed attempt so identical retries wait out the cooldown. Uses the
+    // error's retryAt when provided (request cooldown), else a default window.
+    noteFailure(signature, error) {
+      this.lastFailure = {
+        signature,
+        retryAt: error?.retryAt || (Date.now() + FAILURE_COOLDOWN)
+      };
+    },
+
+    // Pick which provider can answer the dub question for this page, in priority
+    // order (kept aligned with the previously working behaviour):
+    //   1. AniList id on the page        -> query AniList directly
+    //   2. MAL id on the page (English)  -> query MAL-Dubs directly
+    //   3. TMDB/IMDb on the page         -> ArmHaglund resolves an AniList or
+    //                                       MAL id, then use that (MAL only for English)
+    // Returns { type, id } or null when no usable source exists.
+    async resolveDubSource(pageIds, generation, signature, language) {
+      const englishOnly = language === 'ENGLISH';
+
+      if (pageIds.anilist) return { type: 'anilist', id: pageIds.anilist };
+      if (pageIds.mal && englishOnly) return { type: 'mal', id: pageIds.mal };
+
+      const source = pageIds.tmdb ? 'tmdb' : (pageIds.imdb ? 'imdb' : null);
+      if (!source) return null;
+
+      const lookupValue = source === 'tmdb' ? pageIds.tmdb : pageIds.imdb;
+      const requestKey = `arm:${source}:${lookupValue}`;
+
+      const data = await RequestManager.request({
+        key: requestKey,
+        service: 'armhaglund',
+        ttl: result => (result?.anilist || result?.myanimelist) ?
+          REQUEST_TTL.armPositive :
+          REQUEST_TTL.armNegative,
+        fetcher: () => armhaglund.fetchIds(source === 'tmdb' ? 'themoviedb' : 'imdb', lookupValue)
+      });
+
+      if (!this.isCurrent(generation, signature)) return null;
+
+      const resolvedAnilist = data?.anilist ? Number(data.anilist) : null;
+      const resolvedMal = data?.myanimelist ? Number(data.myanimelist) : null;
+
+      if (resolvedAnilist) return { type: 'anilist', id: resolvedAnilist };
+      if (resolvedMal && englishOnly) return { type: 'mal', id: resolvedMal };
+      return null;
+    },
+
+    // Resolves a source (from resolveDubSource) to a display label, or null
+    // when no dub was found. Isolates the two providers' differing response
+    // shapes (a status string vs. a boolean) behind one return type.
+    async fetchDubLabel(source, language) {
+      if (source.type === 'mal') {
+        const status = await RequestManager.request({
+          key: `mal-dubs:${source.id}`,
+          service: 'maldubs',
+          ttl: REQUEST_TTL.malDub,
+          fetcher: () => maldubs.getStatus(source.id)
+        });
+        if (!status) return null;
+        return status === 'incomplete' ? 'English Dub Incomplete' : 'English Dub Exists';
+      }
+
+      const hasDub = await RequestManager.request({
+        key: `anilist:${source.id}:${language}`,
+        service: 'anilist',
+        ttl: REQUEST_TTL.anilistDub,
+        fetcher: () => this.queryAnilistDub(source.id, language)
+      });
+      return hasDub ? `${this.getLanguageName(language)} Dub Exists` : null;
+    },
+
+    // Main entry point: determine dub availability for the current title and
+    // render the result. No-ops when the meta box is absent, dub info is
+    // disabled, or no external ids are present yet. Every provider call routes
+    // through RequestManager and is guarded by isCurrent() so a slower earlier
+    // attempt can't overwrite a newer one.
     async apply(configOverride) {
-      // Runs once per page; reset() re-enables it on SPA navigation
-      if (this.hasStarted || !document.querySelector('.detail-meta-box--desktop')) return;
+      if (!document.querySelector(SELECTORS.metaBox)) return;
 
       const config = configOverride || ModuleConfig.get();
-      if (!config.dubInfo) return;
+      if (!config.dubInfo) {
+        this.renderDubRow(null);
+        return;
+      }
 
       const identity = getWeTrakrIdentity();
       if (!identity) return;
 
       const pageIds = this.getExternalIds();
-      // External ID links can sometimes render after the metadata box. Don't lock in a
-      // premature "no ID" result; retry on the next DOM update instead.
-      if (!pageIds.anilist && !pageIds.imdb && !pageIds.tmdb) return;
 
-      ModuleCache.updateMetadata(identity.key, this.getPageTitle(), pageIds);
-
-      this.hasStarted = true;
-      const generation = this.generation;
-      const route = location.pathname;
-
-      let anilistId = ModuleCache.getResolvedAnilistId(identity.key);
-
-      if (anilistId === undefined) {
-        const record = ModuleCache.getTitle(identity.key);
-        const source = record?.ids?.tmdb ? 'tmdb' : (record?.ids?.imdb ? 'imdb' : null);
-
-        if (!source) {
-          anilistId = null;
-        } else {
-          try {
-            const lookupValue = source === 'tmdb' ? record.ids.tmdb : record.ids.imdb;
-            const data = await armhaglund.fetchIds(source === 'tmdb' ? 'themoviedb' : 'imdb', lookupValue);
-            if (!this.isCurrent(generation, route)) return;
-
-            const resolvedId = data?.anilist ? Number(data.anilist) : null;
-            ModuleCache.setResolvedAnilistId(identity.key, resolvedId, source);
-            anilistId = resolvedId;
-          } catch (error) {
-            if (!this.isCurrent(generation, route)) return;
-            logger.error(`Failed to resolve AniList ID: ${error.message}`);
-            this.hasStarted = false;
-            return;
-          }
-        }
-      }
-
-      if (!this.isCurrent(generation, route)) return;
-
-      if (!anilistId) {
-        logger.warn('No AniList ID available for dub info');
-        return;
-      }
+      // External ID links can render after the metadata box. Do not mark the page
+      // as processed until at least one usable external identifier exists.
+      if (!pageIds.anilist && !pageIds.mal && !pageIds.imdb && !pageIds.tmdb) return;
 
       const { dubLanguage: language } = config;
-      const cachedDub = ModuleCache.getDub(identity.key, language);
+      const signature = this.getSignature(identity, pageIds, language);
+      if (!this.canAttempt(signature)) return;
 
-      if (cachedDub !== undefined) {
-        this.displayDubInfo(cachedDub, language);
-        return;
-      }
+      this.lastSignature = signature;
+      this.lastFailure = null;
+      const generation = this.generation;
 
       try {
-        const edges = await this.queryAnilistDub(anilistId, language);
-        if (!this.isCurrent(generation, route)) return;
-        const hasDub = edges.some(edge => edge.voiceActors?.length > 0);
-        ModuleCache.setDub(identity.key, anilistId, language, hasDub);
-        if (!this.isCurrent(generation, route)) return;
-        this.displayDubInfo(hasDub, language);
+        const source = await this.resolveDubSource(pageIds, generation, signature, language);
+        if (!this.isCurrent(generation, signature)) return;
+
+        if (!source) {
+          this.renderDubRow(null);
+          return;
+        }
+
+        const label = await this.fetchDubLabel(source, language);
+        if (!this.isCurrent(generation, signature)) return;
+
+        this.renderDubRow(label);
       } catch (error) {
-        if (!this.isCurrent(generation, route)) return;
-        // A failed lookup is transient; don't cache it as "no dub" and allow a
-        // later retry once the DOM or route changes again.
-        logger.error(`Failed to fetch dub info for ${anilistId}: ${error.message}`);
-        this.hasStarted = false;
+        if (!this.isCurrent(generation, signature)) return;
+
+        this.noteFailure(signature, error);
+        this.lastSignature = null;
+
+        if (error?.code !== 'REQUEST_COOLDOWN') {
+          logger.error(`Failed to fetch dub information: ${error?.message || error}`);
+        }
       }
     },
 
+    // Forget the current attempt and clear any rendered row. Bumps generation so
+    // in-flight applies from before a route change are discarded on arrival.
     reset() {
-      this.hasStarted = false;
+      this.lastSignature = null;
+      this.lastFailure = null;
       this.generation++;
-      for (const element of document.querySelectorAll('.rs-dub-info')) {
-        element.remove();
-      }
+      this.renderDubRow(null);
     }
   };
 
@@ -803,11 +896,88 @@
       }
     },
 
+    applyPreview(field, draft) {
+      if (field.preview === 'dub') this.applyDubPreview(draft);
+      else this.applyColorPreview(draft);
+    },
+
+    fieldId(field) {
+      return `rs-field-${field.key.replace('.', '-')}`;
+    },
+
+    renderField(field, draft) {
+      const value = getFieldValue(draft, field.key);
+      const id = this.fieldId(field);
+
+      if (field.type === 'toggle') {
+        return `
+          <label class="rs-settings-row">
+            <span>
+              <strong>${field.label}</strong>
+              <small>${field.hint}</small>
+            </span>
+            <input type="checkbox" class="rs-settings-toggle" id="${id}" ${value ? 'checked' : ''}>
+          </label>`;
+      }
+
+      if (field.type === 'select') {
+        return `
+          <label class="rs-settings-row">
+            <span>
+              <strong>${field.label}</strong>
+              <small>${field.hint}</small>
+            </span>
+            <select id="${id}">
+              ${field.options.map(option => `<option value="${option.value}" ${value === option.value ? 'selected' : ''}>${option.name}</option>`).join('')}
+            </select>
+          </label>`;
+      }
+
+      // 'color'
+      return `
+        <label class="rs-color-card">
+          <input type="color" class="rs-color-swatch" id="${id}" value="${value}">
+          <div class="rs-color-card-info">
+            <strong>${field.label}</strong>
+            <small>${field.hint}</small>
+          </div>
+        </label>`;
+    },
+
+    // Wire every field's input to update the draft, trigger its live preview,
+    // and (for colour swatches) use 'input' rather than 'change' so the preview
+    // updates continuously as the user drags the picker.
+    bindFields(overlay, draft) {
+      for (const field of SETTINGS_FIELDS) {
+        const input = overlay.querySelector('#' + this.fieldId(field));
+        const eventName = field.type === 'color' ? 'input' : 'change';
+
+        input.addEventListener(eventName, (event) => {
+          const value = field.type === 'toggle' ? event.target.checked : event.target.value;
+          setFieldValue(draft, field.key, value);
+          this.applyPreview(field, draft);
+        });
+      }
+    },
+
+    // Reflects a reset draft (e.g. from "Restore Defaults") back into the inputs.
+    syncFieldInputs(overlay, draft) {
+      for (const field of SETTINGS_FIELDS) {
+        const input = overlay.querySelector('#' + this.fieldId(field));
+        const value = getFieldValue(draft, field.key);
+        if (field.type === 'toggle') input.checked = value;
+        else input.value = value;
+      }
+    },
+
     open() {
       if (this.modal) return;
       this.isOpen = true;
       const saved = ModuleConfig.get();
       const draft = { ...saved, actionColors: { ...saved.actionColors } };
+
+      const dubFieldsHtml = SETTINGS_FIELDS.filter(field => field.preview === 'dub').map(field => this.renderField(field, draft)).join('');
+      const colorFieldsHtml = SETTINGS_FIELDS.filter(field => field.preview === 'color').map(field => this.renderField(field, draft)).join('');
 
       const overlay = document.createElement('div');
       overlay.className = 'rs-settings-overlay';
@@ -819,37 +989,15 @@
           </div>
           <div class="rs-settings-body">
             <h3>Dubbing</h3>
-            <label class="rs-settings-row">
-              <span>
-                <strong>Dub Information</strong>
-                <small>Show dub availability for anime shows</small>
-              </span>
-              <input type="checkbox" class="rs-settings-toggle" id="rs-setting-dub-info" ${draft.dubInfo ? 'checked' : ''}>
-            </label>
-            <label class="rs-settings-row">
-              <span>
-                <strong>Preferred Dub Language</strong>
-                <small>Language to check for</small>
-              </span>
-              <select id="rs-setting-dub-language">
-                ${DUB_LANGUAGES.map(lang => `<option value="${lang.value}" ${draft.dubLanguage === lang.value ? 'selected' : ''}>${lang.name}</option>`).join('')}
-              </select>
-            </label>
+            ${dubFieldsHtml}
             <h3>Action Button Colours</h3>
             <div class="rs-color-grid">
-              ${ACTION_COLORS.map(color => `
-              <label class="rs-color-card">
-                <input type="color" class="rs-color-swatch" id="rs-color-${color.key}" value="${draft.actionColors[color.key]}">
-                <div class="rs-color-card-info">
-                  <strong>${color.label}</strong>
-                  <small>${color.hint}</small>
-                </div>
-              </label>`).join('')}
+              ${colorFieldsHtml}
             </div>
           </div>
           <div class="rs-settings-footer">
             <div class="rs-settings-footer-group">
-              <button type="button" class="rs-settings-btn rs-settings-btn--ghost" id="rs-clear-cache">Clear Cache</button>
+              <button type="button" class="rs-settings-btn rs-settings-btn--ghost" id="rs-clear-cache">Clear Request Cache</button>
               <button type="button" class="rs-settings-btn rs-settings-btn--ghost" id="rs-reset">Restore Defaults</button>
             </div>
             <button type="button" class="rs-settings-btn rs-settings-btn--primary" id="rs-save">Save &amp; Close</button>
@@ -873,36 +1021,18 @@
       });
 
       overlay.querySelector('#rs-clear-cache').addEventListener('click', (event) => {
-        ModuleCache.clearAll();
+        RequestManager.clear();
+        DubService.reset();
+        if (draft.dubInfo) DubService.apply(draft);
         event.target.textContent = 'Cleared!';
-        setTimeout(() => { event.target.textContent = 'Clear Cache'; }, 1500);
+        setTimeout(() => { event.target.textContent = 'Clear Request Cache'; }, 1500);
       });
 
-      // Edits update the draft and preview live, but are not committed until Save & Close.
-      overlay.querySelector('#rs-setting-dub-info').addEventListener('change', (event) => {
-        draft.dubInfo = event.target.checked;
-        this.applyDubPreview(draft);
-      });
-
-      overlay.querySelector('#rs-setting-dub-language').addEventListener('change', (event) => {
-        draft.dubLanguage = event.target.value;
-        this.applyDubPreview(draft);
-      });
-
-      for (const { key } of ACTION_COLORS) {
-        overlay.querySelector('#rs-color-' + key).addEventListener('input', (event) => {
-          draft.actionColors[key] = event.target.value;
-          this.applyColorPreview(draft);
-        });
-      }
+      this.bindFields(overlay, draft);
 
       overlay.querySelector('#rs-reset').addEventListener('click', (event) => {
         Object.assign(draft, { ...DEFAULT_CONFIG, actionColors: { ...DEFAULT_ACTION_COLORS } });
-        overlay.querySelector('#rs-setting-dub-info').checked = draft.dubInfo;
-        overlay.querySelector('#rs-setting-dub-language').value = draft.dubLanguage;
-        for (const { key } of ACTION_COLORS) {
-          overlay.querySelector('#rs-color-' + key).value = draft.actionColors[key];
-        }
+        this.syncFieldInputs(overlay, draft);
         this.applyColorPreview(draft);
         this.applyDubPreview(draft);
         event.target.textContent = 'Restored!';
@@ -965,7 +1095,6 @@
 
   function init() {
     GM_registerMenuCommand('WeTrakr Mods Settings', () => SettingsUI.open());
-    ModuleCache.clearExpired();
     applyActionColors();
 
     observer.observe(document.body, {
