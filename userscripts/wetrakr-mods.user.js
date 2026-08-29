@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       1.10.1
+// @version       1.11.0
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
@@ -12,8 +12,6 @@
 // @grant         GM_xmlhttpRequest
 // @grant         GM_getValue
 // @grant         GM_setValue
-// @grant         GM_listValues
-// @grant         GM_deleteValue
 // @grant         GM_registerMenuCommand
 // @icon          https://www.google.com/s2/favicons?sz=64&domain=wetrakr.com
 // @homepageURL   https://github.com/StylusThemes/Userscripts
@@ -239,6 +237,7 @@
   // Configuration & Constants
   // ==========================================
   const CONFIG_KEY = 'wetrakr-mods-config';
+  const CACHE_KEY = 'wetrakr-mods-cache';
   const CACHE_DURATION = 24 * 60 * 60 * 1000;
 
   const DUB_LANGUAGES = [
@@ -310,43 +309,241 @@
   }
 
   // ==========================================
+  // WeTrakr Page Identity
+  // ==========================================
+  // A cached record represents a WeTrakr title page. The identity is derived
+  // solely from the WeTrakr URL, never from external IDs or the title text,
+  // so it stays stable regardless of which external IDs happen to be present.
+  function getWeTrakrIdentity() {
+    const match = location.pathname.match(/^\/(shows|movies)\/(\d+)/);
+    if (!match) return null;
+
+    const [, section, id] = match;
+    const type = section === 'shows' ? 'show' : 'movie';
+
+    return {
+      id: Number(id),
+      type,
+      key: `${type}:${id}`
+    };
+  }
+
+  // ==========================================
   // Cache Manager
   // ==========================================
+  // Cache shape:
+  // {
+  //   version: 1,
+  //   titles: {
+  //     "show:1529301": {
+  //       title: "Chainsmoker Cat",
+  //       ids: { imdb: "tt39551330", tmdb: 312949, anilist: 207141 },
+  //       anilistResolution: { source: "imdb", checkedAt: 1787973058345 },
+  //       dubs: { english: { available: true, checkedAt: 1787973058550 } }
+  //     }
+  //   }
+  // }
+  function createEmptyCache() {
+    return {
+      version: 1,
+      titles: {}
+    };
+  }
+
+  function createEmptyTitleRecord() {
+    return {
+      title: null,
+      ids: { imdb: null, tmdb: null, anilist: null },
+      dubs: {}
+    };
+  }
+
+  function isDubEntryValid(entry) {
+    return !!entry &&
+      typeof entry.available === 'boolean' &&
+      typeof entry.checkedAt === 'number' &&
+      (Date.now() - entry.checkedAt) < CACHE_DURATION;
+  }
+
+  function isAnilistResolutionValid(resolution) {
+    return !!resolution &&
+      (resolution.source === 'imdb' || resolution.source === 'tmdb') &&
+      typeof resolution.checkedAt === 'number' &&
+      (Date.now() - resolution.checkedAt) < CACHE_DURATION;
+  }
+
   const ModuleCache = {
-    isKey(key) {
-      return key.startsWith('dub-') || key.startsWith('anilist-');
-    },
-    get(key) {
-      const entry = GM_getValue(key);
-      if (entry && (Date.now() - entry.time) < CACHE_DURATION) {
-        return entry.value;
+    _read() {
+      const stored = GM_getValue(CACHE_KEY);
+      if (!stored || typeof stored !== 'object' || typeof stored.titles !== 'object' || stored.titles === null) {
+        return createEmptyCache();
       }
-      return undefined; // Distinguishes from null which might be a cached negative response
+      return stored;
     },
-    set(key, value) {
-      GM_setValue(key, { value, time: Date.now() });
+
+    _write(cache) {
+      GM_setValue(CACHE_KEY, cache);
     },
+
+    // Returns a shallow copy of the full title record, or undefined if none exists.
+    getTitle(titleKey) {
+      const cache = this._read();
+      const record = cache.titles[titleKey];
+      return record ? { ...record, ids: { ...record.ids }, dubs: { ...record.dubs } } : undefined;
+    },
+
+    // Merges freshly read page metadata (title + external IDs) into the cached record.
+    // A direct AniList ID from the page always wins; if it differs from what's cached,
+    // the resolution info and all dub results are cleared since they belonged to the
+    // previous AniList ID. Absence of a direct AniList ID on the page does NOT erase a
+    // previously resolved AniList mapping.
+    updateMetadata(titleKey, title, pageIds) {
+      const cache = this._read();
+      const existing = cache.titles[titleKey];
+      const record = existing
+        ? { ...existing, ids: { ...existing.ids }, dubs: { ...existing.dubs } }
+        : createEmptyTitleRecord();
+
+      let changed = !existing;
+
+      if (title && record.title !== title) {
+        record.title = title;
+        changed = true;
+      }
+
+      if (record.ids.imdb !== pageIds.imdb) {
+        record.ids.imdb = pageIds.imdb;
+        changed = true;
+      }
+
+      if (record.ids.tmdb !== pageIds.tmdb) {
+        record.ids.tmdb = pageIds.tmdb;
+        changed = true;
+      }
+
+      if (pageIds.anilist !== null && record.ids.anilist !== pageIds.anilist) {
+        record.ids.anilist = pageIds.anilist;
+        record.dubs = {};
+        delete record.anilistResolution;
+        changed = true;
+      }
+
+      if (changed) {
+        cache.titles[titleKey] = record;
+        this._write(cache);
+      }
+
+      return record;
+    },
+
+    // Returns: positive integer (valid mapping), null (valid negative mapping),
+    // or undefined (missing / expired -- resolution required).
+    getResolvedAnilistId(titleKey) {
+      const cache = this._read();
+      const record = cache.titles[titleKey];
+      if (!record) return undefined;
+
+      // A direct AniList ID from WeTrakr (no resolution metadata) never expires.
+      if (typeof record.ids.anilist === 'number' && !record.anilistResolution) {
+        return record.ids.anilist;
+      }
+
+      if (!isAnilistResolutionValid(record.anilistResolution)) return undefined;
+
+      if (record.ids.anilist === null || typeof record.ids.anilist === 'number') {
+        return record.ids.anilist;
+      }
+
+      return undefined;
+    },
+
+    // Stores the outcome of an ArmHaglund resolution (positive integer or null for a
+    // valid negative result). Clears cached dub results only when the AniList ID
+    // genuinely changed, preserving them when it stayed the same.
+    setResolvedAnilistId(titleKey, anilistId, source) {
+      const cache = this._read();
+      const record = cache.titles[titleKey];
+      if (!record) return;
+
+      const previousAnilist = record.ids.anilist;
+      record.ids.anilist = anilistId;
+      record.anilistResolution = { source, checkedAt: Date.now() };
+
+      if (previousAnilist !== anilistId) {
+        record.dubs = {};
+      }
+
+      this._write(cache);
+    },
+
+    // Returns true/false for a valid cached result, or undefined if missing/malformed/expired.
+    getDub(titleKey, language) {
+      const cache = this._read();
+      const record = cache.titles[titleKey];
+      const entry = record?.dubs?.[language.toLowerCase()];
+      return isDubEntryValid(entry) ? entry.available : undefined;
+    },
+
+    // Only commits the result if the record's currently resolved AniList ID still
+    // matches the one the query was made against, avoiding a race with a mapping change.
+    setDub(titleKey, anilistId, language, available) {
+      if (typeof available !== 'boolean') return;
+
+      const cache = this._read();
+      const record = cache.titles[titleKey];
+      if (!record || record.ids.anilist !== anilistId) return;
+
+      if (!record.dubs) record.dubs = {};
+      record.dubs[language.toLowerCase()] = { available, checkedAt: Date.now() };
+      this._write(cache);
+    },
+
     clearExpired() {
-      let cleared = 0;
-      for (const key of GM_listValues()) {
-        if (!this.isKey(key)) continue;
-        const entry = GM_getValue(key);
-        if (!entry || (Date.now() - entry.time) > CACHE_DURATION) {
-          GM_deleteValue(key);
-          cleared++;
+      const cache = this._read();
+      let changed = false;
+
+      for (const [key, record] of Object.entries(cache.titles)) {
+        if (!record || typeof record !== 'object') {
+          delete cache.titles[key];
+          changed = true;
+          continue;
+        }
+
+        if (record.dubs && typeof record.dubs === 'object') {
+          for (const [language, entry] of Object.entries(record.dubs)) {
+            if (!isDubEntryValid(entry)) {
+              delete record.dubs[language];
+              changed = true;
+            }
+          }
+        } else {
+          record.dubs = {};
+        }
+
+        // An expired resolution isn't usable for lookups, but the previous AniList ID
+        // is intentionally left in place so a refresh can detect if it changes.
+        if (record.anilistResolution && !isAnilistResolutionValid(record.anilistResolution) &&
+          typeof record.anilistResolution.checkedAt !== 'number') {
+          delete record.anilistResolution;
+          changed = true;
+        }
+
+        const hasIds = !!(record.ids?.imdb || record.ids?.tmdb || typeof record.ids?.anilist === 'number');
+        const hasNegativeAnilist = record.ids?.anilist === null && !!record.anilistResolution;
+        const hasDubs = record.dubs && Object.keys(record.dubs).length > 0;
+        const hasTitle = !!record.title;
+
+        if (!hasIds && !hasNegativeAnilist && !hasDubs && !hasTitle) {
+          delete cache.titles[key];
+          changed = true;
         }
       }
-      if (cleared) logger.debug(`Cleared ${cleared} expired cache entries`);
+
+      if (changed) this._write(cache);
     },
+
     clearAll() {
-      let cleared = 0;
-      for (const key of GM_listValues()) {
-        if (this.isKey(key)) {
-          GM_deleteValue(key);
-          cleared++;
-        }
-      }
-      logger.debug(`Cleared ${cleared} cache entries manually`);
+      this._write(createEmptyCache());
     }
   };
 
@@ -438,34 +635,25 @@
       return generation === this.generation && route === location.pathname;
     },
 
+    getPageTitle() {
+      return document.querySelector('.title-stack .we-heading-1 .we-link-none')?.textContent?.trim() || null;
+    },
+
     getExternalIds() {
       const ids = { anilist: null, imdb: null, tmdb: null };
       for (const link of document.querySelectorAll('.detail-tags a.detail-tag')) {
         const href = link.getAttribute('href') || '';
-        ids.anilist = href.match(/anilist\.co\/anime\/(\d+)/)?.[1] || ids.anilist;
-        ids.imdb = href.match(/imdb\.com\/title\/(tt\d+)/)?.[1] || ids.imdb;
-        ids.tmdb = href.match(/themoviedb\.org\/(?:movie|tv)\/(\d+)/)?.[1] || ids.tmdb;
+
+        const anilistMatch = href.match(/anilist\.co\/anime\/(\d+)/);
+        if (anilistMatch) ids.anilist = Number(anilistMatch[1]);
+
+        const imdbMatch = href.match(/imdb\.com\/title\/(tt\d+)/);
+        if (imdbMatch) ids.imdb = imdbMatch[1];
+
+        const tmdbMatch = href.match(/themoviedb\.org\/(?:movie|tv)\/(\d+)/);
+        if (tmdbMatch) ids.tmdb = Number(tmdbMatch[1]);
       }
       return ids;
-    },
-
-    async resolveAnilistId(ids) {
-      if (ids.anilist) return ids.anilist;
-
-      const titleKey = ids.imdb || ids.tmdb;
-      if (!titleKey) return null;
-
-      const cacheKey = `anilist-${titleKey}`;
-      const cached = ModuleCache.get(cacheKey);
-      if (cached !== undefined) return cached;
-
-      // Let the caller handle failures so a transient lookup error isn't cached
-      // as a definitive "no AniList ID" result.
-      const data = await armhaglund.fetchIds(ids.imdb ? 'imdb' : 'themoviedb', titleKey);
-      const anilistId = data?.anilist || null;
-      ModuleCache.set(cacheKey, anilistId);
-      if (!anilistId) logger.warn(`No AniList ID for ${titleKey} (cached 24h)`);
-      return anilistId;
     },
 
     async queryAnilistDub(anilistId, language) {
@@ -508,24 +696,46 @@
       const config = configOverride || ModuleConfig.get();
       if (!config.dubInfo) return;
 
-      const ids = this.getExternalIds();
+      const identity = getWeTrakrIdentity();
+      if (!identity) return;
+
+      const pageIds = this.getExternalIds();
       // External ID links can sometimes render after the metadata box. Don't lock in a
       // premature "no ID" result; retry on the next DOM update instead.
-      if (!ids.anilist && !ids.imdb && !ids.tmdb) return;
+      if (!pageIds.anilist && !pageIds.imdb && !pageIds.tmdb) return;
+
+      ModuleCache.updateMetadata(identity.key, this.getPageTitle(), pageIds);
 
       this.hasStarted = true;
       const generation = this.generation;
       const route = location.pathname;
 
-      let anilistId;
-      try {
-        anilistId = await this.resolveAnilistId(ids);
-      } catch (error) {
-        if (!this.isCurrent(generation, route)) return;
-        logger.error(`Failed to resolve AniList ID: ${error.message}`);
-        this.hasStarted = false;
-        return;
+      let anilistId = ModuleCache.getResolvedAnilistId(identity.key);
+
+      if (anilistId === undefined) {
+        const record = ModuleCache.getTitle(identity.key);
+        const source = record?.ids?.tmdb ? 'tmdb' : (record?.ids?.imdb ? 'imdb' : null);
+
+        if (!source) {
+          anilistId = null;
+        } else {
+          try {
+            const lookupValue = source === 'tmdb' ? record.ids.tmdb : record.ids.imdb;
+            const data = await armhaglund.fetchIds(source === 'tmdb' ? 'themoviedb' : 'imdb', lookupValue);
+            if (!this.isCurrent(generation, route)) return;
+
+            const resolvedId = data?.anilist ? Number(data.anilist) : null;
+            ModuleCache.setResolvedAnilistId(identity.key, resolvedId, source);
+            anilistId = resolvedId;
+          } catch (error) {
+            if (!this.isCurrent(generation, route)) return;
+            logger.error(`Failed to resolve AniList ID: ${error.message}`);
+            this.hasStarted = false;
+            return;
+          }
+        }
       }
+
       if (!this.isCurrent(generation, route)) return;
 
       if (!anilistId) {
@@ -534,12 +744,10 @@
       }
 
       const { dubLanguage: language } = config;
-      const cacheKey = `dub-${anilistId}-${language}`;
-      const cached = ModuleCache.get(cacheKey);
+      const cachedDub = ModuleCache.getDub(identity.key, language);
 
-      if (cached !== undefined) {
-        if (!this.isCurrent(generation, route)) return;
-        this.displayDubInfo(cached, language);
+      if (cachedDub !== undefined) {
+        this.displayDubInfo(cachedDub, language);
         return;
       }
 
@@ -547,7 +755,7 @@
         const edges = await this.queryAnilistDub(anilistId, language);
         if (!this.isCurrent(generation, route)) return;
         const hasDub = edges.some(edge => edge.voiceActors?.length > 0);
-        ModuleCache.set(cacheKey, hasDub);
+        ModuleCache.setDub(identity.key, anilistId, language, hasDub);
         if (!this.isCurrent(generation, route)) return;
         this.displayDubInfo(hasDub, language);
       } catch (error) {
