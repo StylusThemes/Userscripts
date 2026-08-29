@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       1.9.2
+// @version       1.10.0
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
@@ -50,59 +50,56 @@
     /* Detail Pages                                                               */
     /* ========================================================================== */
 
-    /* ===== Detail Information ===== */
-    /* Center the detail info block */
-    .detail-grid .detail-grid__info .detail-info { justify-content: center !important; }
-    /* Remove the artificial blank padding on both ends */
-    .detail-pager__pad, .detail-pager__ghost { display: none !important; }
-    /* Make the season track size around the actual seasons */
-    .detail-pager__track { flex: 0 1 auto !important; max-width: 100% !important; }
-    .detail-pager__item--centered { transform: none !important; }
+    /* ===== Shared ===== */
+    /* Hide "share" button */
+    .title-share { display: none !important; }
+    /* Keep previous and next pager links limited to their visible content  */
+    .detail-pager--simple .detail-pager__simple-side { width: fit-content !important; flex: 0 0 auto !important; justify-self: auto !important; }
+    .detail-pager--simple .detail-pager__simple-side--prev { justify-self: end !important; }
+    .detail-pager--simple .detail-pager__simple-side--next { justify-self: start !important; }
     /* Reduce the gap below the pager */
     .detail-title-pager { margin-bottom: 20px !important; }
-
-    /* ===== Episode Header ===== */
-    /* Move episode info up */
-    .detail-head-block--episode .title-stack { min-height: unset !important; }
-
-    /* ===== Share Button ===== */
-    /* Hide "share" option */
-    .title-share { display: none !important; }
-
-    /* ===== All Watched ===== */
     /* Hide the "still ongoing" hint and its remove-all-watched toggle shown for ongoing shows */
     .watching-details--all-watched { display: none !important; }
+    /* Director + Creator */
+    .detail-grid__info .detail-overview-block .detail-directed-by { margin-bottom: 20px !important; }
+    .detail-grid__info .detail-overview-block .we-text-body.detail-directed-by { font-weight: 700; }
+    .detail-grid__info .detail-overview-block .we-text-body.detail-directed-by a.we-link-body { font-weight: 400; text-decoration: none; }
+    .detail-grid__info .detail-overview-block .we-text-body.detail-directed-by a.we-link-body:hover { color: #8283ff; }
+    .detail-grid__info .detail-overview-block .we-text-body.detail-directed-by a.we-link-body:first-of-type { margin-left: 4px; }
+    /* Remove backgrounds on info items */
+    .detail-grid--person [class="detail-status-line"] .detail-status-badge, [class="detail-grid"] .detail-status-line.detail-meta-line .detail-status-badge, .detail-status-line.detail-meta-row .detail-status-badge { background: none !important; padding: 0px !important; }
+    .detail-grid--person [class="detail-status-line"] .detail-status-badge + .detail-status-badge::before, [class="detail-grid"] .detail-status-line.detail-meta-line .detail-status-badge + .detail-status-badge::before, .detail-status-line.detail-meta-row .detail-status-badge + .detail-status-badge::before { content: "∙"; margin: 0 10px 0 4px; font-weight: bold; }
+    /* Add background on tag buttons */
+    .detail-status-badge--genre { text-decoration: none !important; background: #ffffff30 !important; padding: 3px 10px !important; margin: 0 6px 0px 0 !important; }
+    /* Spacing for ratings element */
+    .detail-info-stats { margin-top: 15px; height: 40px; }
+    /* 'See more' link [Actor / Show] */
+    .overview-toggle .see-toggle { display: block; margin: 12px 0 0px 0; }
+    .overview-toggle .see-toggle::first-letter { text-transform: uppercase; }
+    .overview-toggle .see-toggle::after { content: "➜"; }
 
-    /* ===== Where to Watch ===== */
-    /* Hide "Where to Watch" block */
-    .detail-grid .sidebar-streaming { display: none !important; }
+    /* ===== Title Stack: Actor ===== */
+    /* Remove margin on the department badge (e.g., "Acting") next to name */
+    .detail-grid--person .person-badge-department { margin-left: 0px !important; }
+    /* Hide 'rate now' button */
+    .detail-grid--person .detail-info-stats { display: none; }
+
+    /* ===== Title Stack: Movies + Shows ===== */
+    [class="detail-grid"] .title-stack { display: flex; flex-direction: column; }
+    /* Airing badge clone: first, own line, above h1 */
+    [class="detail-grid"] .title-stack .detail-status-badge.rs-clone { order: 0; width: fit-content; margin-bottom: 8px; }
+    /* Title: second */
+    [class="detail-grid"] .title-stack .we-heading-1 { order: 1; }
+    /* Date, seasons, episodes, and runtime line: third */
+    [class="detail-grid"] .title-stack .detail-status-line.detail-meta-line { order: 2; margin-bottom: var(--space-2); }
+    /* Genre line with hidden airing badge: fourth, below meta line */
+    [class="detail-grid"] .title-stack .detail-status-line:not(.detail-meta-line) { order: 3; }
 
     /* ===== Dub Information ===== */
     .detail-meta-box .rs-dub-info { display: flex; flex-direction: row; align-items: baseline; justify-content: space-between; gap: var(--space-3); padding: var(--space-4) var(--space-4); }
     .detail-meta-box .rs-dub-info .detail-meta-box__label { display: flex; align-items: center; gap: var(--space-2); flex-shrink: 0; font-size: var(--font-size-0); font-weight: 600; color: #fff; letter-spacing: 0.04em; line-height: 1.4; margin: 0; }
     .detail-meta-box .rs-dub-info .detail-meta-box__value { font-size: var(--font-size-0); font-weight: 400; color: #96a4af; line-height: 1.4; text-align: right; margin: 0; min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
-
-    /* ========================================================================== */
-    /* Media Items                                                                */
-    /* ========================================================================== */
-
-    /* ===== Hover Border ===== */
-    /* Remove the default hover border overlays */
-    .media-item__border-overlay, .episode-item__border-overlay { display: none !important; }
-
-    /* ===== Upcoming Section ===== */
-    /* Hide upcoming items without a progress bar, such as already-watched episodes */
-    #upcoming we-item-poster:not(:has(.media-item__progress)) { display: none !important; }
-
-    /* ===== Release / Watched Date ===== */
-    /* Keep the eye icon, date, and time on one line to prevent wrapping and misalignment on narrow cards */
-    .entity-release-date .wd-full { flex-wrap: unset !important; }
-
-    /* ===== Empty Cards ===== */
-    /* Hide empty placeholder cards */
-    [class="we-empty-card"] { display: none; }
-    /* Restore the tracking layout to prevent a large gap between the tabs and Watching */
-    [class="tracking-layout"] { display: unset !important; }
 
     /* ========================================================================== */
     /* Reviews                                                                    */
@@ -135,6 +132,28 @@
     .review-card__readmore { display: none !important; }
     /* Keep spoiler and non-spoiler review text at the same size */
     .review-card__text, .review-card__text we-spoiler-text { font-size: 14px !important; }
+
+    /* ========================================================================== */
+    /* Media Items                                                                */
+    /* ========================================================================== */
+
+    /* ===== Hover Border ===== */
+    /* Remove the default hover border overlays */
+    .media-item__border-overlay, .episode-item__border-overlay { display: none !important; }
+
+    /* ===== Upcoming Section ===== */
+    /* Hide upcoming items without a progress bar, such as already-watched episodes */
+    #upcoming we-item-poster:not(:has(.media-item__progress)) { display: none !important; }
+
+    /* ===== Release / Watched Date ===== */
+    /* Keep the eye icon, date, and time on one line to prevent wrapping and misalignment on narrow cards */
+    .entity-release-date .wd-full { flex-wrap: unset !important; }
+
+    /* ===== Empty Cards ===== */
+    /* Hide empty placeholder cards */
+    [class="we-empty-card"] { display: none; }
+    /* Restore the tracking layout to prevent a large gap between the tabs and Watching */
+    [class="tracking-layout"] { display: unset !important; }
 
     /* ========================================================================== */
     /* Navigation + Menus                                                         */
@@ -359,6 +378,31 @@
   // DOM Modification Modules
   // ==========================================
   const DOMModifiers = {
+    getVisibleTitleStack() {
+      return [...document.querySelectorAll('.title-stack')].find(element => element.offsetParent !== null);
+    },
+
+    moveStatusBadge() {
+      const titleStack = this.getVisibleTitleStack();
+      const h1 = titleStack?.querySelector('.we-heading-1');
+      const statusLine = titleStack?.querySelector('.detail-status-line:not(.detail-meta-line)');
+      const statusBadge = statusLine?.querySelector(
+        '.detail-status-badge--airing:not(.rs-hidden-original):not(.rs-clone), ' +
+        '.detail-status-badge--status:not(.rs-hidden-original):not(.rs-clone)'
+      );
+
+      if (!titleStack || !h1 || !statusBadge || titleStack.querySelector('.rs-clone')) return;
+
+      statusBadge.classList.add('rs-hidden-original');
+      statusBadge.style.display = 'none';
+
+      const clone = statusBadge.cloneNode(true);
+      clone.classList.remove('rs-hidden-original');
+      clone.classList.add('rs-clone');
+      clone.style.display = '';
+
+      titleStack.prepend(clone);
+    },
 
     updateTimestamps() {
       const elements = document.querySelectorAll('.entity-release-date, .detail-status-badge--airing, .media-item__progress-bar-text--episode');
@@ -681,6 +725,7 @@
   function runMods() {
     handleRouteChange();
 
+    DOMModifiers.moveStatusBadge();
     DOMModifiers.updateTimestamps();
     DOMModifiers.expandReviews();
     // While the settings modal is open, dub changes are driven by the live
