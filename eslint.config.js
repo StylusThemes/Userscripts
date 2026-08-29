@@ -26,6 +26,7 @@ export default [
         AnimeAPI: 'readonly',
         ArmHaglund: 'readonly',
         AniList: 'readonly',
+        MalDubs: 'readonly',
         Logger: 'readonly',
         GMC: 'readonly',
         GM: 'readonly',
