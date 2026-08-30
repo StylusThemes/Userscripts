@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       1.12.0
+// @version       1.12.1
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
@@ -140,10 +140,6 @@
     /* ===== Hover Border ===== */
     /* Remove the default hover border overlays */
     .media-item__border-overlay, .episode-item__border-overlay { display: none !important; }
-
-    /* ===== Upcoming Section ===== */
-    /* Hide upcoming items without a progress bar, such as already-watched episodes */
-    #upcoming we-item-poster:not(:has(.media-item__progress)) { display: none !important; }
 
     /* ===== Release / Watched Date ===== */
     /* Keep the eye icon, date, and time on one line to prevent wrapping and misalignment on narrow cards */
