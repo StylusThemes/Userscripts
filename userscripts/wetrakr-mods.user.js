@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       1.13.0
+// @version       1.13.1
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
@@ -29,8 +29,8 @@
   // ============================================================================
 
   const SCRIPT = Object.freeze({
-    name: 'WeTrakr - Mods',
-    version: '1.14.0'
+    name: globalThis.GM_info?.script?.name ?? 'WeTrakr - Mods',
+    version: globalThis.GM_info?.script?.version ?? '0.0.0'
   });
 
   const CONFIG_KEY = 'wetrakr-mods-config';
@@ -277,6 +277,12 @@
     /* ===== Hover Border ===== */
     /* Remove the default hover border overlays */
     .media-item__border-overlay, .episode-item__border-overlay { display: none !important; }
+
+    /* ===== Rating Badge ===== */
+    /* Hide "Rate Now" on posters when no rating exists */
+    .media-item__poster .media-item__rating-overlay:has(we-rating-badge.is-rate-now),
+    .media-item__poster we-rating-badge.is-rate-now,
+    .media-item__poster .we-rb--rate { display: none !important; }
 
     /* ===== Release / Watched Date ===== */
     /* Keep the eye icon, date, and time on one line to prevent wrapping and misalignment on narrow cards */

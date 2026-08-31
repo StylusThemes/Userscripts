@@ -118,6 +118,7 @@ async function processFile(file, options = {}) {
     console.log(`Unchanged: ${path.relative(root, file)}`);
   }
 
+  let minChanged = false;
   // Write minified version if needed
   if (shouldMinify) {
     const result = await minify(beautifiedBody, terserOptions);
@@ -126,7 +127,7 @@ async function processFile(file, options = {}) {
     const finalMinified = normalizeEnding(minified);
     const outPath = file.replace(/\.js$/, '.min.js');
 
-    let minChanged = true;
+    minChanged = true;
     try {
       const existing = await fs.readFile(outPath, 'utf8');
       if (normalizeLineEndings(existing) === normalizeLineEndings(finalMinified)) minChanged = false;
@@ -142,7 +143,7 @@ async function processFile(file, options = {}) {
     }
   }
 
-  return { changed, valid, error: valid ? null : 'Validation failed' };
+  return { changed, minChanged, valid, error: valid ? null : 'Validation failed' };
 }
 
 // -----------------------------
@@ -169,7 +170,7 @@ async function main() {
     );
 
     const libsChanged = libResults.filter(
-      r => r.status === 'fulfilled' && r.value.changed
+      r => r.status === 'fulfilled' && (r.value.changed || r.value.minChanged)
     ).length;
 
     const libErrors = libResults.filter(
