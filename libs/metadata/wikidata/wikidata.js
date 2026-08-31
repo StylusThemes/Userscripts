@@ -5,7 +5,7 @@
 // @name         @journeyover/wikidata
 // @description  Wikidata API client for fetching external IDs
 // @license      MIT
-// @version      1.2.2
+// @version      1.3.0
 // @homepageURL  https://github.com/StylusThemes/Userscripts
 // ==/UserLibrary==
 // @connect      query.wikidata.org
@@ -223,15 +223,91 @@ this.Wikidata = class {
   }
 
   /**
+   * Fetches external links and metadata directly from a Wikidata QID.
+   * @param {string} qid - Wikidata item ID (e.g., "Q137534207").
+   * @returns {Promise<Object>} A promise resolving to title, links, and item metadata.
+   * @private
+   */
+  _linksFromQid(qid) {
+    const query = `
+      SELECT DISTINCT ?item ?itemLabel ?IMDb ?TMDb_movie ?TMDb_tv ?TVDb_movie ?TVDb_tv ?Trakt ?RottenTomatoes ?Metacritic ?Letterboxd ?TVmaze ?MyAnimeList ?AniDB ?AniList ?Kitsu ?AniSearch ?LiveChart WHERE {
+        VALUES ?item { wd:${qid} }
+        OPTIONAL { ?item wdt:P345 ?IMDb. }
+        OPTIONAL { ?item wdt:P4947 ?TMDb_movie. }
+        OPTIONAL { ?item wdt:P4983 ?TMDb_tv. }
+        OPTIONAL { ?item wdt:P12196 ?TVDb_movie. }
+        OPTIONAL { ?item wdt:P4835 ?TVDb_tv. }
+        OPTIONAL { ?item wdt:P8013 ?Trakt. }
+        OPTIONAL { ?item wdt:P1258 ?RottenTomatoes. }
+        OPTIONAL { ?item wdt:P1712 ?Metacritic. }
+        OPTIONAL { ?item wdt:P6127 ?Letterboxd. }
+        OPTIONAL { ?item wdt:P8600 ?TVmaze. }
+        OPTIONAL { ?item wdt:P4086 ?MyAnimeList. }
+        OPTIONAL { ?item wdt:P5646 ?AniDB. }
+        OPTIONAL { ?item wdt:P8729 ?AniList. }
+        OPTIONAL { ?item wdt:P11495 ?Kitsu. }
+        OPTIONAL { ?item wdt:P12477 ?AniSearch. }
+        OPTIONAL { ?item wdt:P12489 ?LiveChart. }
+        SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
+      }
+      LIMIT 1
+    `;
+
+    return new Promise((resolve, reject) => {
+      GM_xmlhttpRequest({
+        method: 'GET',
+        url: `https://query.wikidata.org/sparql?query=${encodeURIComponent(query)}`,
+        headers: { Accept: 'application/sparql-results+json' },
+        timeout: 15e3,
+        onload: (response) => {
+          if (response.status !== 200) {
+            reject(new Error(`Wikidata request failed with status ${response.status}`));
+            return;
+          }
+
+          try {
+            const results = JSON.parse(response.responseText).results.bindings[0];
+
+            if (results && Object.keys(results).length > 0) {
+              resolve({
+                title: results.itemLabel ? results.itemLabel.value : void 0,
+                links: this._buildLinks(results),
+                item: results.item ? results.item.value : void 0,
+              });
+            } else {
+              resolve({ title: void 0, links: {}, item: void 0 });
+            }
+          } catch {
+            reject(new Error('Failed to parse Wikidata response'));
+          }
+        },
+        onerror: () => {
+          reject(new Error('An error occurs while processing the request'));
+        },
+        ontimeout: () => {
+          reject(new Error('Request times out'));
+        },
+      });
+    });
+  }
+
+  /**
    * Fetches external links and metadata for a given ID from Wikidata.
-   * @param {string} id - The ID value (e.g., IMDB ID like "tt0111161").
-   * @param {string} idSource - The source of the ID (e.g., "IMDb").
-   * @param {string} itemType - The type of item ("movie" or "tv").
+   * A Wikidata QID may also be passed directly as the only argument.
+   * @param {string} id - The ID value (e.g., IMDB ID like "tt0111161" or QID like "Q137534207").
+   * @param {string} [idSource] - The source of the ID (e.g., "IMDb"). Optional for a direct QID.
+   * @param {string} [itemType] - The type of item ("movie" or "tv"). Optional for a direct QID.
    * @returns {Promise<Object>} A promise that resolves to an object with title, links, and item properties.
    *                           If no data is found, resolves to { title: undefined, links: {}, item: undefined }.
    */
   links(id, idSource, itemType) {
     if (!id) throw new Error('An ID is required');
+
+    const idString = String(id);
+    if (/^Q\d+$/i.test(idString) && (!idSource || String(idSource).toLowerCase() === 'wikidata')) {
+      return this._linksFromQid(idString.toUpperCase());
+    }
+
     if (!/^[\w/.-]+$/.test(id)) throw new Error('ID contains invalid characters');
     if (!idSource) throw new Error('An ID source is required');
     if (!itemType || (itemType !== 'movie' && itemType !== 'tv')) throw new Error('Item type must be \'movie\' or \'tv\'');
