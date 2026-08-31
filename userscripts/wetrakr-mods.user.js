@@ -1,13 +1,14 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       1.12.1
+// @version       1.13.0
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
 // @match         *://wetrakr.com/*
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@9e8f1b9bdc1acac2e76f3e8d2348f76817ec5bf4/libs/utils/utils.min.js
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@644b86d55bf5816a4fa2a165bdb011ef7c22dfe1/libs/metadata/anilist/anilist.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@644b86d55bf5816a4fa2a165bdb011ef7c22dfe1/libs/metadata/armhaglund/armhaglund.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@e1613fcefb81ed7b05afe90edc479e06088039f2/libs/metadata/animeapi/animeapi.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@da634c26053b0dedb96eacc0870081e48abba069/libs/metadata/wikidata/wikidata.min.js
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@eae99ac26ef29201a290d86013a5976fa95333d6/libs/metadata/maldubs/maldubs.min.js
 // @grant         GM_addStyle
 // @grant         GM_xmlhttpRequest
@@ -23,14 +24,150 @@
 (function() {
   'use strict';
 
-  const logger = Logger('WeTrakr - Mods', { debug: false });
-  const anilist = new AniList();
-  const armhaglund = new ArmHaglund();
-  const maldubs = new MalDubs();
+  // ============================================================================
+  // Script metadata + shared constants
+  // ============================================================================
 
-  // ==========================================
-  // CSS Styles
-  // ==========================================
+  const SCRIPT = Object.freeze({
+    name: 'WeTrakr - Mods',
+    version: '1.14.0'
+  });
+
+  const CONFIG_KEY = 'wetrakr-mods-config';
+  const FAILURE_COOLDOWN = 60 * 1000;
+  const WETRAKR_PATH_PATTERN = /^\/(shows|movies)\/(\d+)/;
+
+  const SELECTORS = Object.freeze({
+    metaBox: '.detail-meta-box--desktop',
+    titleStack: '.title-stack',
+    externalLinks: '.detail-tags a.detail-tag',
+    timestampTargets: '.entity-release-date, .detail-status-badge--airing, .media-item__progress-bar-text--episode',
+    collapsedReviews: '.review-card__readmore[aria-expanded="false"]'
+  });
+
+  const REQUEST_TTL = Object.freeze({
+    anilistDub: 30 * 60 * 1000,
+    malDub: 30 * 60 * 1000,
+    mappingPositive: 24 * 60 * 60 * 1000,
+    mappingNegative: 30 * 60 * 1000
+  });
+
+  const SERVICE_MIN_INTERVAL = Object.freeze({
+    anilist: 2000,
+    animeapi: 750,
+    wikidata: 1000,
+    maldubs: 1000
+  });
+
+  const DUB_LANGUAGES = Object.freeze([
+    { name: 'English', value: 'ENGLISH' },
+    { name: 'German', value: 'GERMAN' },
+    { name: 'Italian', value: 'ITALIAN' },
+    { name: 'Spanish', value: 'SPANISH' },
+    { name: 'French', value: 'FRENCH' },
+    { name: 'Korean', value: 'KOREAN' },
+    { name: 'Portuguese', value: 'PORTUGUESE' },
+    { name: 'Hebrew', value: 'HEBREW' },
+    { name: 'Hungarian', value: 'HUNGARIAN' },
+    { name: 'Chinese', value: 'CHINESE' },
+    { name: 'Arabic', value: 'ARABIC' },
+    { name: 'Filipino', value: 'FILIPINO' },
+    { name: 'Catalan', value: 'CATALAN' },
+    { name: 'Polish', value: 'POLISH' },
+    { name: 'Norwegian', value: 'NORWEGIAN' }
+  ]);
+
+  const ACTION_COLORS = Object.freeze([
+    {
+      key: 'watched',
+      label: 'Watched',
+      hint: 'Mark as watched / Unmark all',
+      default: '#2E6B48',
+      selector: '.media-item__action-btn--active[aria-label="Mark as watched"]:not(#tm-date-override), .media-item__action-btn--active[aria-label="Unmark all episodes"]:not(#tm-date-override), .episode-item__action-btn--active[aria-label="Mark as watched"]:not(#tm-date-override)'
+    },
+    {
+      key: 'waiting',
+      label: 'Waiting',
+      hint: 'Waiting for new episodes',
+      default: '#7D5B2C',
+      selector: '.media-item__action-btn--active[aria-label="Waiting for new episodes"]:not(#tm-date-override)'
+    },
+    {
+      key: 'planning',
+      label: 'Planning',
+      hint: 'Mark as planning',
+      default: '#366B7D',
+      selector: '.media-item__action-btn--active[aria-label="Mark as planning"]:not(#tm-date-override)'
+    },
+    {
+      key: 'favorite',
+      label: 'Favourite',
+      hint: 'Mark as favorite',
+      default: '#895e77',
+      selector: '.media-item__action-btn--active[aria-label="Mark as favorite"]:not(#tm-date-override)'
+    },
+    {
+      key: 'addToList',
+      label: 'Add to list',
+      hint: 'Item is in a list',
+      default: '#3B6FB5',
+      extra: 'color: #e9ecf2 !important;',
+      selector: '.media-item__action-btn[aria-label="Add to list"]:has(.action-btn__count):not(#tm-date-override), .episode-item__action-btn[aria-label="Add to list"]:has(.action-btn__count):not(#tm-date-override)'
+    }
+  ]);
+
+  const DEFAULT_ACTION_COLORS = Object.freeze(
+    Object.fromEntries(ACTION_COLORS.map(({ key, default: value }) => [key, value]))
+  );
+
+  const DEFAULT_CONFIG = Object.freeze({
+    dubInfo: true,
+    dubLanguage: 'ENGLISH',
+    debugLogging: false
+  });
+
+  const SETTINGS_FIELDS = Object.freeze([
+    { key: 'dubInfo', type: 'toggle', label: 'Dub Information', hint: 'Show dub availability for anime shows', preview: 'dub' },
+    { key: 'dubLanguage', type: 'select', label: 'Preferred Dub Language', hint: 'Language to check for', options: DUB_LANGUAGES, preview: 'dub' },
+    { key: 'debugLogging', type: 'toggle', label: 'Debug Logging', hint: 'Show detailed diagnostic logs in the browser console', preview: 'logging' },
+    ...ACTION_COLORS.map(({ key, label, hint }) => ({ key: `actionColors.${key}`, type: 'color', label, hint, preview: 'color' }))
+  ]);
+
+  // ============================================================================
+  // Logging + providers
+  // ============================================================================
+
+  const loggerOptions = { debug: false };
+  const logger = Logger(SCRIPT.name, loggerOptions);
+  logger.info = logger;
+
+  const Providers = Object.freeze({
+    anilist: new AniList(),
+    animeapi: new AnimeAPI(),
+    wikidata: new Wikidata(),
+    maldubs: new MalDubs()
+  });
+
+  function setDebugLogging(enabled, announce = false) {
+    const next = Boolean(enabled);
+    const previous = loggerOptions.debug;
+
+    loggerOptions.debug = next;
+    logger.debugEnabled = next;
+
+    if (announce && previous !== next) {
+      logger.info(`Debug logging ${next ? 'enabled' : 'disabled'}`);
+    }
+  }
+
+  function errorMessage(error) {
+    return error?.message || String(error);
+  }
+
+  // ============================================================================
+  // Static styles
+  // ============================================================================
+
   GM_addStyle(`
     /* ========================================================================== */
     /* Global                                                                     */
@@ -231,259 +368,228 @@
     .rs-settings-btn--primary:hover { background: #5a4bf1; }
   `);
 
-  // ==========================================
-  // Configuration & Constants
-  // ==========================================
-  const CONFIG_KEY = 'wetrakr-mods-config';
+  // ============================================================================
+  // Configuration + action colours
+  // ============================================================================
 
-  // Selectors referenced from more than one place below, so there's exactly
-  // one string to update if WeTrakr renames a class.
-  const SELECTORS = {
-    metaBox: '.detail-meta-box--desktop',
-    titleStack: '.title-stack'
-  };
-
-  // How long a successful provider response stays cached in memory (ms).
-  // Dub/ID data is never written to GM storage, so this cache is lost on reload.
-  //   anilistDub / malDub : dub-availability lookups (cheap, refreshed often)
-  //   armPositive         : ArmHaglund resolved an id (rarely changes)
-  //   armNegative         : ArmHaglund found nothing (recheck sooner)
-  const REQUEST_TTL = {
-    anilistDub: 30 * 60 * 1000,
-    malDub: 30 * 60 * 1000,
-    armPositive: 24 * 60 * 60 * 1000,
-    armNegative: 30 * 60 * 1000
-  };
-
-  // After a provider request fails, block retries for this long (ms) so a broken
-  // lookup can't hammer the provider on every page mutation.
-  const FAILURE_COOLDOWN = 60 * 1000;
-
-  // Minimum gap between the start of two requests to the same provider (ms).
-  // AniList is currently capped at 30 req/min (~2000ms) while degraded, so its
-  // interval sits at that ceiling; the others are polite pacing under churn.
-  const SERVICE_MIN_INTERVAL = {
-    anilist: 2000,
-    armhaglund: 750,
-    maldubs: 1000
-  };
-
-  // Languages offered in the settings dropdown. `value` is the AniList
-  // StaffLanguage enum consumed by the dub query; `name` is the display label.
-  const DUB_LANGUAGES = [
-    { name: 'English', value: 'ENGLISH' },
-    { name: 'German', value: 'GERMAN' },
-    { name: 'Italian', value: 'ITALIAN' },
-    { name: 'Spanish', value: 'SPANISH' },
-    { name: 'French', value: 'FRENCH' },
-    { name: 'Korean', value: 'KOREAN' },
-    { name: 'Portuguese', value: 'PORTUGUESE' },
-    { name: 'Hebrew', value: 'HEBREW' },
-    { name: 'Hungarian', value: 'HUNGARIAN' },
-    { name: 'Chinese', value: 'CHINESE' },
-    { name: 'Arabic', value: 'ARABIC' },
-    { name: 'Filipino', value: 'FILIPINO' },
-    { name: 'Catalan', value: 'CATALAN' },
-    { name: 'Polish', value: 'POLISH' },
-    { name: 'Norwegian', value: 'NORWEGIAN' }
-  ];
-
-  // Action buttons whose active/listed state we recolour. `hint` is shown in
-  // the settings UI, `selector` is the CSS rule target, and `extra` is
-  // optional inline CSS appended to the generated rule.
-  const ACTION_COLORS = [
-    {
-      key: 'watched',
-      label: 'Watched',
-      hint: 'Mark as watched / Unmark all',
-      default: '#2E6B48',
-      selector: '.media-item__action-btn--active[aria-label="Mark as watched"]:not(#tm-date-override), .media-item__action-btn--active[aria-label="Unmark all episodes"]:not(#tm-date-override), .episode-item__action-btn--active[aria-label="Mark as watched"]:not(#tm-date-override)'
-    },
-    {
-      key: 'waiting',
-      label: 'Waiting',
-      hint: 'Waiting for new episodes',
-      default: '#7D5B2C',
-      selector: '.media-item__action-btn--active[aria-label="Waiting for new episodes"]:not(#tm-date-override)'
-    },
-    {
-      key: 'planning',
-      label: 'Planning',
-      hint: 'Mark as planning',
-      default: '#366B7D',
-      selector: '.media-item__action-btn--active[aria-label="Mark as planning"]:not(#tm-date-override)'
-    },
-    {
-      key: 'favorite',
-      label: 'Favourite',
-      hint: 'Mark as favorite',
-      default: '#895e77',
-      selector: '.media-item__action-btn--active[aria-label="Mark as favorite"]:not(#tm-date-override)'
-    },
-    {
-      key: 'addToList',
-      label: 'Add to list',
-      hint: 'Item is in a list',
-      default: '#3B6FB5',
-      extra: 'color: #e9ecf2 !important;',
-      selector: '.media-item__action-btn[aria-label="Add to list"]:has(.action-btn__count):not(#tm-date-override), .episode-item__action-btn[aria-label="Add to list"]:has(.action-btn__count):not(#tm-date-override)'
-    }
-  ];
-  // Flat { key: defaultColour } map, used as the base for any stored overrides.
-  const DEFAULT_ACTION_COLORS = Object.fromEntries(ACTION_COLORS.map(({ key, default: value }) => [key, value]));
-
-  // Fallback settings used when storage is empty or a key is missing.
-  const DEFAULT_CONFIG = { dubInfo: true, dubLanguage: 'ENGLISH' };
-
-  // Declarative description of every field shown in the settings modal. This
-  // drives HTML generation, live-preview binding, and "restore defaults" in
-  // one place, instead of three separate hand-written blocks per field.
-  //   type    : 'toggle' | 'select' | 'color'
-  //   key     : dotted path into the settings draft (e.g. 'actionColors.watched')
-  //   preview : which live-preview function a change should trigger
-  const SETTINGS_FIELDS = [
-    { key: 'dubInfo', type: 'toggle', label: 'Dub Information', hint: 'Show dub availability for anime shows', preview: 'dub' },
-    { key: 'dubLanguage', type: 'select', label: 'Preferred Dub Language', hint: 'Language to check for', options: DUB_LANGUAGES, preview: 'dub' },
-    ...ACTION_COLORS.map(({ key, label, hint }) => ({ key: `actionColors.${key}`, type: 'color', label, hint, preview: 'color' }))
-  ];
-
-  // Read/write access to persisted settings. `get` merges stored values over
-  // defaults; `set` replaces the whole stored object.
-  const ModuleConfig = {
-    get() {
-      const stored = GM_getValue(CONFIG_KEY, {});
-      return {
-        dubInfo: stored.dubInfo ?? DEFAULT_CONFIG.dubInfo,
-        dubLanguage: stored.dubLanguage ?? DEFAULT_CONFIG.dubLanguage,
-        actionColors: { ...DEFAULT_ACTION_COLORS, ...(stored.actionColors || {}) }
-      };
-    },
-    set(newConfig) {
-      GM_setValue(CONFIG_KEY, newConfig);
-    }
-  };
-
-  // Get/set a settings-draft value by a SETTINGS_FIELDS key, which may be a
-  // plain property ('dubInfo') or a dotted nested path ('actionColors.watched').
-  function getFieldValue(draft, key) {
-    return key.includes('.') ? key.split('.').reduce((object, part) => object[part], draft) : draft[key];
-  }
-
-  function setFieldValue(draft, key, value) {
-    if (!key.includes('.')) {
-      draft[key] = value;
-      return;
-    }
-    const [parent, child] = key.split('.');
-    draft[parent][child] = value;
-  }
-
-  function applyActionColors(config = ModuleConfig.get()) {
-    let styleElement = document.getElementById('wetrakr-action-colors');
-    if (!styleElement) {
-      styleElement = document.createElement('style');
-      styleElement.id = 'wetrakr-action-colors';
-      document.head.appendChild(styleElement);
-      styleElement.textContent = ACTION_COLORS.map(({ key, default: value, extra, selector }) =>
-        `${selector} { background-color: var(--wt-${key}, ${value}) !important;${extra ? ` ${extra}` : ''} }`
-      ).join('\n');
-    }
-
-    const colors = config.actionColors;
-    for (const { key } of ACTION_COLORS) {
-      document.documentElement.style.setProperty(`--wt-${key}`, colors[key]);
-    }
-  }
-
-  // ==========================================
-  // WeTrakr Page Identity
-  // ==========================================
-  // A cached record represents a WeTrakr title page. The identity is derived
-  // solely from the WeTrakr URL, never from external IDs or the title text,
-  // so it stays stable regardless of which external IDs happen to be present.
-  const WETRAKR_PATH_PATTERN = /^\/(shows|movies)\/(\d+)/;
-
-  function getWeTrakrIdentity() {
-    const match = location.pathname.match(WETRAKR_PATH_PATTERN);
-    if (!match) return null;
-
-    const [, section, id] = match;
-    const type = section === 'shows' ? 'show' : 'movie';
-
+  function cloneConfig(config) {
     return {
-      id: Number(id),
-      type,
-      key: `${type}:${id}`
+      dubInfo: Boolean(config.dubInfo),
+      dubLanguage: config.dubLanguage,
+      debugLogging: Boolean(config.debugLogging),
+      actionColors: { ...config.actionColors }
     };
   }
 
-  // ==========================================
-  // Runtime Request Management
-  // ==========================================
-  // All provider requests live only in memory for the lifetime of the page.
-  // Cache keys describe the external lookup itself (e.g. an AniList id +
-  // language), not the WeTrakr title, so there is no per-title cache to keep
-  // in sync.
+  const ConfigStore = {
+    defaults() {
+      return {
+        ...DEFAULT_CONFIG,
+        actionColors: { ...DEFAULT_ACTION_COLORS }
+      };
+    },
+
+    normalize(config = {}) {
+      const validLanguage = DUB_LANGUAGES.some(language => language.value === config.dubLanguage);
+      const colors = config.actionColors && typeof config.actionColors === 'object' ? config.actionColors : {};
+
+      return {
+        dubInfo: config.dubInfo ?? DEFAULT_CONFIG.dubInfo,
+        dubLanguage: validLanguage ? config.dubLanguage : DEFAULT_CONFIG.dubLanguage,
+        debugLogging: config.debugLogging ?? DEFAULT_CONFIG.debugLogging,
+        actionColors: { ...DEFAULT_ACTION_COLORS, ...colors }
+      };
+    },
+
+    load() {
+      return this.normalize(GM_getValue(CONFIG_KEY, {}));
+    },
+
+    save(config) {
+      const normalized = this.normalize(config);
+      GM_setValue(CONFIG_KEY, normalized);
+      return normalized;
+    }
+  };
+
+  const ActionColorTheme = {
+    styleId: 'wetrakr-action-colors',
+
+    ensureStyleSheet() {
+      if (document.getElementById(this.styleId)) return;
+
+      const style = document.createElement('style');
+      style.id = this.styleId;
+      style.textContent = ACTION_COLORS.map(({ key, default: value, extra, selector }) =>
+        `${selector} { background-color: var(--wt-${key}, ${value}) !important;${extra ? ` ${extra}` : ''} }`
+      ).join('\n');
+
+      document.head.appendChild(style);
+    },
+
+    apply(config) {
+      this.ensureStyleSheet();
+      for (const { key } of ACTION_COLORS) {
+        document.documentElement.style.setProperty(`--wt-${key}`, config.actionColors[key]);
+      }
+    }
+  };
+
+  function getFieldValue(draft, key) {
+    return key.split('.').reduce((value, part) => value?.[part], draft);
+  }
+
+  function setFieldValue(draft, key, value) {
+    const parts = key.split('.');
+    const leaf = parts.pop();
+    const parent = parts.reduce((object, part) => object[part], draft);
+    parent[leaf] = value;
+  }
+
+  // ============================================================================
+  // Page context
+  // ============================================================================
+
+  const PageContext = {
+    identity() {
+      const match = location.pathname.match(WETRAKR_PATH_PATTERN);
+      if (!match) return null;
+
+      const [, section, id] = match;
+      const type = section === 'shows' ? 'show' : 'movie';
+
+      return {
+        id: Number(id),
+        type,
+        key: `${type}:${id}`
+      };
+    },
+
+    externalIds() {
+      const ids = {
+        anilist: null,
+        imdb: null,
+        tmdb: null,
+        tvdb: null,
+        tvdbType: null,
+        wikidata: null,
+        mal: null
+      };
+
+      for (const link of document.querySelectorAll(SELECTORS.externalLinks)) {
+        const href = link.getAttribute('href') || '';
+
+        const anilistMatch = href.match(/anilist\.co\/anime\/(\d+)/i);
+        if (anilistMatch) ids.anilist = Number(anilistMatch[1]);
+
+        const imdbMatch = href.match(/imdb\.com\/title\/(tt\d+)/i);
+        if (imdbMatch) ids.imdb = imdbMatch[1];
+
+        const tmdbMatch = href.match(/themoviedb\.org\/(?:movie|tv)\/(\d+)/i);
+        if (tmdbMatch) ids.tmdb = Number(tmdbMatch[1]);
+
+        const tvdbMatch = href.match(/thetvdb\.com\/(?:dereferrer\/)?(series|movie)\/(\d+)/i);
+        if (tvdbMatch) {
+          ids.tvdbType = tvdbMatch[1].toLowerCase();
+          ids.tvdb = Number(tvdbMatch[2]);
+        }
+
+        const wikidataMatch = href.match(/wikidata\.org\/wiki\/(Q\d+)/i);
+        if (wikidataMatch) ids.wikidata = wikidataMatch[1].toUpperCase();
+
+        const malMatch = href.match(/myanimelist\.net\/anime\/(\d+)/i);
+        if (malMatch) ids.mal = Number(malMatch[1]);
+      }
+
+      return ids;
+    },
+
+    hasExternalIds(ids) {
+      return Boolean(ids.anilist || ids.mal || ids.imdb || ids.tmdb || ids.tvdb || ids.wikidata);
+    },
+
+    compactExternalIds(ids) {
+      return Object.fromEntries(Object.entries(ids).filter(([, value]) => value !== null));
+    },
+
+    dubBaseKey(identity, language) {
+      return `${identity.key}|${language}`;
+    },
+
+    dubSignature(identity, ids, language) {
+      return [
+        identity.key,
+        language,
+        ids.anilist,
+        ids.mal,
+        ids.imdb,
+        ids.tmdb,
+        ids.tvdb,
+        ids.tvdbType,
+        ids.wikidata
+      ].join('|');
+    }
+  };
+
+  // ============================================================================
+  // Request scheduling + cache
+  // ============================================================================
+
   function sleep(milliseconds) {
     return new Promise(resolve => setTimeout(resolve, milliseconds));
   }
 
-  // Serialises tasks for one provider and enforces a minimum gap between starts.
-  // Each limiter owns a promise chain; a rejected task is swallowed so one
-  // failure can't wedge the queue for later requests.
   function createRateLimiter(minInterval) {
     let queue = Promise.resolve();
     let nextAllowedAt = 0;
 
-    return {
-      run(task) {
-        const request = queue.then(async () => {
-          const wait = Math.max(0, nextAllowedAt - Date.now());
-          if (wait > 0) await sleep(wait);
+    return async function run(task) {
+      const request = queue.then(async () => {
+        const delay = Math.max(0, nextAllowedAt - Date.now());
+        if (delay) await sleep(delay);
 
-          nextAllowedAt = Date.now() + minInterval;
-          return task();
-        });
+        nextAllowedAt = Date.now() + minInterval;
+        return task();
+      });
 
-        // A rejected request must not permanently break the queue.
-        queue = request.catch(() => {});
-        return request;
-      }
+      queue = request.catch(() => {});
+      return request;
     };
   }
 
-  const ServiceLimiters = {
-    anilist: createRateLimiter(SERVICE_MIN_INTERVAL.anilist),
-    armhaglund: createRateLimiter(SERVICE_MIN_INTERVAL.armhaglund),
-    maldubs: createRateLimiter(SERVICE_MIN_INTERVAL.maldubs)
-  };
+  const ServiceLimiters = Object.fromEntries(
+    Object.entries(SERVICE_MIN_INTERVAL).map(([service, interval]) => [service, createRateLimiter(interval)])
+  );
 
-  // Single entry point for any provider lookup, keyed by an arbitrary string
-  // the caller defines (e.g. `anilist:123:ENGLISH`). Each key owns one entry
-  // holding whatever of its lifecycle currently applies: a fresh cached
-  // value, an in-flight promise, and/or a failure cooldown. `generation` is
-  // bumped by clear() so a still-in-flight request from before a clear can't
-  // repopulate a key after the fact — its result lands on an entry object
-  // that's no longer reachable from `entries`.
   const RequestManager = {
     entries: new Map(),
     generation: 0,
 
     entryFor(key) {
-      let entry = this.entries.get(key);
-      if (!entry) {
-        entry = { value: undefined, expiresAt: 0, retryAt: 0, pending: null };
-        this.entries.set(key, entry);
+      if (!this.entries.has(key)) {
+        this.entries.set(key, {
+          value: undefined,
+          expiresAt: 0,
+          retryAt: 0,
+          pending: null
+        });
       }
-      return entry;
+      return this.entries.get(key);
     },
 
     async request({ key, service, ttl, fetcher }) {
       const entry = this.entryFor(key);
       const now = Date.now();
 
-      if (entry.expiresAt > now) return entry.value;
-      if (entry.pending) return entry.pending;
+      if (entry.expiresAt > now) {
+        logger.debug(`Cache hit: ${key}`, { service, expiresInMs: entry.expiresAt - now });
+        return entry.value;
+      }
+
+      if (entry.pending) {
+        logger.debug(`Reusing in-flight request: ${key}`, { service });
+        return entry.pending;
+      }
 
       if (entry.retryAt > now) {
         const error = new Error(`Request cooldown active until ${new Date(entry.retryAt).toISOString()}`);
@@ -496,21 +602,33 @@
       if (!limiter) throw new Error(`Unknown request service: ${service}`);
 
       const generation = this.generation;
+      const startedAt = performance.now();
+      logger.debug(`Provider request: ${key}`, { service });
 
-      entry.pending = limiter.run(fetcher)
+      entry.pending = limiter(fetcher)
         .then(value => {
           entry.retryAt = 0;
+
+          let cacheTtlMs = 0;
           if (generation === this.generation) {
-            const duration = typeof ttl === 'function' ? ttl(value) : ttl;
-            if (Number.isFinite(duration) && duration > 0) {
+            cacheTtlMs = typeof ttl === 'function' ? ttl(value) : ttl;
+            if (Number.isFinite(cacheTtlMs) && cacheTtlMs > 0) {
               entry.value = value;
-              entry.expiresAt = Date.now() + duration;
+              entry.expiresAt = Date.now() + cacheTtlMs;
             }
           }
+
+          logger.debug(`Provider response: ${key}`, {
+            service,
+            elapsedMs: Math.round(performance.now() - startedAt),
+            cacheTtlMs
+          });
           return value;
         })
         .catch(error => {
-          if (generation === this.generation) entry.retryAt = Date.now() + FAILURE_COOLDOWN;
+          if (generation === this.generation) {
+            entry.retryAt = Date.now() + FAILURE_COOLDOWN;
+          }
           throw error;
         })
         .finally(() => {
@@ -521,60 +639,61 @@
     },
 
     clear() {
+      const count = this.entries.size;
       this.generation++;
       this.entries.clear();
+      logger.info(`Request cache cleared (${count} entr${count === 1 ? 'y' : 'ies'})`);
     }
   };
 
-  // ==========================================
-  // Time Formatting Utils
-  // ==========================================
-  const TimeUtilities = {
+  // ============================================================================
+  // DOM features
+  // ============================================================================
+
+  const TimeFormatter = {
     to12Hour(hours, minutes) {
       const period = hours >= 12 ? 'PM' : 'AM';
-      const hour12 = hours % 12 || 12;
-      return `${hour12}:${String(minutes).padStart(2, '0')} ${period}`;
+      const hour = hours % 12 || 12;
+      return `${hour}:${String(minutes).padStart(2, '0')} ${period}`;
     },
+
     convertNode(node) {
       const original = node.textContent;
-      const newText = original
-        // "05/12/2026 | 14:30" -> "05/12/2026 | 2:30 PM"
-        .replace(/(\d{2}\/\d{2}\/\d{4}) \| (\d{2}):(\d{2})(?!\s*[AP]M)/gi, (_, date, hour, minute) => `${date} | ${this.to12Hour(+hour, +minute)}`)
-        // "· 14:30" -> "· 2:30 PM"
-        .replace(/· (\d{2}):(\d{2})(?!\s*[AP]M)/gi, (_, hour, minute) => `· ${this.to12Hour(+hour, +minute)}`)
-        // "2.30 PM" -> "2:30 PM"
+      const converted = original
+        .replace(/(\d{2}\/\d{2}\/\d{4}) \| (\d{2}):(\d{2})(?!\s*[AP]M)/gi,
+          (_, date, hour, minute) => `${date} | ${this.to12Hour(+hour, +minute)}`)
+        .replace(/· (\d{2}):(\d{2})(?!\s*[AP]M)/gi,
+          (_, hour, minute) => `· ${this.to12Hour(+hour, +minute)}`)
         .replace(/(\d{1,2})\.(\d{2})\s?(AM|PM)/gi, '$1:$2 $3');
 
-      if (newText !== original) {
-        node.textContent = newText;
-        return true;
-      }
-      return false;
-    },
+      if (converted === original) return false;
+      node.textContent = converted;
+      return true;
+    }
   };
 
-  // ==========================================
-  // DOM Modification Modules
-  // ==========================================
-  const DOMModifiers = {
-    getVisibleTitleStack() {
-      return [...document.querySelectorAll(SELECTORS.titleStack)].find(element => element.offsetParent !== null);
+  const StatusBadgeFeature = {
+    reset() {
+      for (const clone of document.querySelectorAll('.rs-clone')) clone.remove();
+      for (const original of document.querySelectorAll('.rs-hidden-original')) {
+        original.classList.remove('rs-hidden-original');
+        original.style.removeProperty('display');
+      }
     },
 
-    moveStatusBadge() {
-      const titleStack = this.getVisibleTitleStack();
-      const h1 = titleStack?.querySelector('.we-heading-1');
+    apply() {
+      const titleStack = [...document.querySelectorAll(SELECTORS.titleStack)]
+        .find(element => element.offsetParent !== null);
+
+      const heading = titleStack?.querySelector('.we-heading-1');
       const statusLine = titleStack?.querySelector('.detail-status-line:not(.detail-meta-line)');
       const statusBadge = statusLine?.querySelector(
         '.detail-status-badge--airing:not(.rs-hidden-original):not(.rs-clone), ' +
         '.detail-status-badge--status:not(.rs-hidden-original):not(.rs-clone)'
       );
 
-      if (!titleStack || !h1 || !statusBadge || titleStack.querySelector('.rs-clone')) return;
+      if (!titleStack || !heading || !statusBadge || titleStack.querySelector('.rs-clone')) return;
 
-      // Clone rather than move the badge so its original position in the DOM
-      // (and anything else relying on it) is undisturbed; the clone is what
-      // gets repositioned above the heading via the CSS `order` rules.
       statusBadge.classList.add('rs-hidden-original');
       statusBadge.style.display = 'none';
 
@@ -582,210 +701,195 @@
       clone.classList.remove('rs-hidden-original');
       clone.classList.add('rs-clone');
       clone.style.display = '';
-
       titleStack.prepend(clone);
-    },
-
-    updateTimestamps() {
-      const elements = document.querySelectorAll('.entity-release-date, .detail-status-badge--airing, .media-item__progress-bar-text--episode');
-      if (!elements.length) return;
-
-      let converted = 0;
-      for (const element of elements) {
-        for (const child of element.childNodes) {
-          if (child.nodeType === Node.TEXT_NODE && TimeUtilities.convertNode(child)) {
-            converted++;
-          }
-        }
-      }
-      if (converted) logger.debug(`Converted ${converted} timestamps`);
-    },
-
-    expandReviews() {
-      const buttons = document.querySelectorAll('.review-card__readmore[aria-expanded="false"]');
-      if (!buttons.length) return;
-      for (const button of buttons) button.click();
-      logger.debug(`Expanded ${buttons.length} review cards`);
     }
   };
 
-  // ==========================================
-  // Dub Information Processing
-  // ==========================================
-  // Resolves whether a title has a dub in the user's preferred language and
-  // renders that into the detail meta box. Orchestrates the external providers
-  // (AniList, MAL-Dubs, ArmHaglund) and guards against stale or duplicate work.
-  const DubService = {
-    // Signature of the most recent attempt; used to ignore superseded results.
-    lastSignature: null,
-    // Last failure details (signature + retry timestamp) for cooldown checks.
-    lastFailure: null,
-    // Bumped on reset so in-flight applies from a previous page are discarded.
-    generation: 0,
+  const TimestampFeature = {
+    apply() {
+      let converted = 0;
 
-    // True only if this attempt still belongs to the current page generation and
-    // matches the latest signature (no newer or richer attempt superseded it).
-    isCurrent(generation, signature) {
-      return generation === this.generation && signature === this.lastSignature;
-    },
-
-    getLanguageName(language) {
-      return DUB_LANGUAGES.find(lang => lang.value === language)?.name || 'Dub';
-    },
-
-    // Scrape AniList / IMDb / TMDB / MAL ids from the page's external links.
-    // Any of them can be absent; callers decide which are usable.
-    getExternalIds() {
-      const ids = { anilist: null, imdb: null, tmdb: null, mal: null };
-      for (const link of document.querySelectorAll('.detail-tags a.detail-tag')) {
-        const href = link.getAttribute('href') || '';
-
-        const anilistMatch = href.match(/anilist\.co\/anime\/(\d+)/);
-        if (anilistMatch) ids.anilist = Number(anilistMatch[1]);
-
-        const imdbMatch = href.match(/imdb\.com\/title\/(tt\d+)/);
-        if (imdbMatch) ids.imdb = imdbMatch[1];
-
-        const tmdbMatch = href.match(/themoviedb\.org\/(?:movie|tv)\/(\d+)/);
-        if (tmdbMatch) ids.tmdb = Number(tmdbMatch[1]);
-
-        const malMatch = href.match(/myanimelist\.net\/anime\/(\d+)/);
-        if (malMatch) ids.mal = Number(malMatch[1]);
+      for (const element of document.querySelectorAll(SELECTORS.timestampTargets)) {
+        for (const child of element.childNodes) {
+          if (child.nodeType === Node.TEXT_NODE && TimeFormatter.convertNode(child)) converted++;
+        }
       }
-      return ids;
+
+      if (converted) logger.debug(`Converted ${converted} timestamp${converted === 1 ? '' : 's'}`);
+    }
+  };
+
+  const ReviewFeature = {
+    apply() {
+      const buttons = document.querySelectorAll(SELECTORS.collapsedReviews);
+      if (!buttons.length) return;
+
+      for (const button of buttons) button.click();
+      logger.debug(`Expanded ${buttons.length} review card${buttons.length === 1 ? '' : 's'}`);
+    }
+  };
+
+  // ============================================================================
+  // Dub UI
+  // ============================================================================
+
+  const DubView = {
+    row() {
+      return document.querySelector(SELECTORS.metaBox)?.querySelector('.rs-dub-info') || null;
     },
 
-    // Ask AniList whether any main-character voice actor exists for the given
-    // language. Returns true when at least one dub voice actor is present.
+    clear() {
+      this.row()?.remove();
+    },
+
+    render(label) {
+      const metaBox = document.querySelector(SELECTORS.metaBox);
+      if (!metaBox) return;
+
+      if (!label) {
+        this.clear();
+        return;
+      }
+
+      let row = metaBox.querySelector('.rs-dub-info');
+      if (!row) {
+        row = document.createElement('div');
+        row.className = 'detail-meta-box__row rs-dub-info';
+
+        const term = document.createElement('dt');
+        term.className = 'detail-meta-box__label';
+        term.textContent = 'Dub';
+
+        const value = document.createElement('dd');
+        value.className = 'detail-meta-box__value';
+
+        row.append(term, value);
+        metaBox.appendChild(row);
+      }
+
+      row.querySelector('.detail-meta-box__value').textContent = label;
+    }
+  };
+
+  // ============================================================================
+  // Dub provider adapters
+  // ============================================================================
+
+  const DubProviders = {
+    languageName(language) {
+      return DUB_LANGUAGES.find(item => item.value === language)?.name || 'Dub';
+    },
+
+    mappingTtl(mapping) {
+      return mapping?.anilist || mapping?.mal ?
+        REQUEST_TTL.mappingPositive :
+        REQUEST_TTL.mappingNegative;
+    },
+
+    normalizeAnimeApi(data) {
+      return {
+        anilist: data?.anilist ? Number(data.anilist) : null,
+        mal: data?.myanimelist ? Number(data.myanimelist) : null
+      };
+    },
+
+    normalizeWikidataLinks(data) {
+      const anilistUrl = data?.links?.AniList?.value || '';
+      const malUrl = data?.links?.MyAnimeList?.value || '';
+      const anilistMatch = anilistUrl.match(/anilist\.co\/anime\/(\d+)/i);
+      const malMatch = malUrl.match(/myanimelist\.net\/anime\/(\d+)/i);
+
+      return {
+        anilist: anilistMatch ? Number(anilistMatch[1]) : null,
+        mal: malMatch ? Number(malMatch[1]) : null
+      };
+    },
+
+    queryWikidataItem(wikidataId) {
+      if (!/^Q\d+$/.test(wikidataId)) {
+        return Promise.reject(new Error(`Invalid Wikidata ID: ${wikidataId}`));
+      }
+
+      const query = `
+        SELECT ?AniList ?MyAnimeList WHERE {
+          VALUES ?item { wd:${wikidataId} }
+          OPTIONAL { ?item wdt:P8729 ?AniList. }
+          OPTIONAL { ?item wdt:P4086 ?MyAnimeList. }
+        }
+        LIMIT 1
+      `;
+
+      return new Promise((resolve, reject) => {
+        GM_xmlhttpRequest({
+          method: 'GET',
+          url: `https://query.wikidata.org/sparql?query=${encodeURIComponent(query)}`,
+          headers: { Accept: 'application/sparql-results+json' },
+          timeout: 15e3,
+          onload: response => {
+            if (response.status !== 200) {
+              reject(new Error(`Wikidata request failed with status ${response.status}`));
+              return;
+            }
+
+            try {
+              const binding = JSON.parse(response.responseText)?.results?.bindings?.[0] || {};
+              resolve({
+                anilist: binding.AniList?.value ? Number(binding.AniList.value) : null,
+                mal: binding.MyAnimeList?.value ? Number(binding.MyAnimeList.value) : null
+              });
+            } catch {
+              reject(new Error('Failed to parse Wikidata response'));
+            }
+          },
+          onerror: () => reject(new Error('An error occurs while processing the Wikidata request')),
+          ontimeout: () => reject(new Error('Wikidata request times out'))
+        });
+      });
+    },
+
     async queryAnilistDub(anilistId, language) {
       const query = `
-        query($id: Int!, $type: MediaType, $page: Int = 1, $language: StaffLanguage){
-          Media(id: $id, type: $type){
-            characters(page: $page, sort: [ROLE], role: MAIN){
+        query($id: Int!, $type: MediaType, $page: Int = 1, $language: StaffLanguage) {
+          Media(id: $id, type: $type) {
+            characters(page: $page, sort: [ROLE], role: MAIN) {
               edges {
-                node{id}
-                voiceActors(language: $language){language}
+                node { id }
+                voiceActors(language: $language) { language }
               }
             }
           }
         }
       `;
-      const response = await anilist.query(query, {
-        id: parseInt(anilistId),
+
+      const response = await Providers.anilist.query(query, {
+        id: Number(anilistId),
         type: 'ANIME',
         language
       });
 
       const edges = response?.data?.Media?.characters?.edges;
       if (!Array.isArray(edges)) throw new Error('Unexpected AniList response structure');
-      return edges.some(edge => edge.voiceActors?.length > 0);
-    },
 
-    // Insert, update, or remove the "Dub" row in the desktop meta box. A null
-    // `label` clears the row; otherwise `label` becomes the displayed value.
-    renderDubRow(label) {
-      const metaBox = document.querySelector(SELECTORS.metaBox);
-      if (!metaBox) return;
-
-      let row = metaBox.querySelector('.rs-dub-info');
-
-      if (!label) {
-        row?.remove();
-        return;
-      }
-
-      if (!row) {
-        row = document.createElement('div');
-        row.className = 'detail-meta-box__row rs-dub-info';
-
-        const dt = document.createElement('dt');
-        dt.className = 'detail-meta-box__label';
-        dt.textContent = 'Dub';
-
-        const dd = document.createElement('dd');
-        dd.className = 'detail-meta-box__value';
-
-        row.append(dt, dd);
-        metaBox.appendChild(row);
-      }
-
-      row.querySelector('.detail-meta-box__value').textContent = label;
-    },
-
-    // Stable key for a dub attempt: title + every known external id + language.
-    // Changing any part yields a new signature, letting newer attempts supersede
-    // older ones.
-    getSignature(identity, pageIds, language) {
-      return `${identity.key}|${pageIds.anilist}|${pageIds.imdb}|${pageIds.tmdb}|${pageIds.mal}|${language}`;
-    },
-
-    // Decide whether a fresh attempt for `signature` is allowed: always for a new
-    // signature, never while an identical failure is still cooling down, and only
-    // after the cooldown passes for a repeated failure.
-    canAttempt(signature) {
-      if (signature !== this.lastSignature) return true;
-      if (!this.lastFailure || this.lastFailure.signature !== signature) return false;
-      return Date.now() >= this.lastFailure.retryAt;
-    },
-
-    // Record a failed attempt so identical retries wait out the cooldown. Uses the
-    // error's retryAt when provided (request cooldown), else a default window.
-    noteFailure(signature, error) {
-      this.lastFailure = {
-        signature,
-        retryAt: error?.retryAt || (Date.now() + FAILURE_COOLDOWN)
-      };
-    },
-
-    // Pick which provider can answer the dub question for this page, in priority
-    // order (kept aligned with the previously working behaviour):
-    //   1. AniList id on the page        -> query AniList directly
-    //   2. MAL id on the page (English)  -> query MAL-Dubs directly
-    //   3. TMDB/IMDb on the page         -> ArmHaglund resolves an AniList or
-    //                                       MAL id, then use that (MAL only for English)
-    // Returns { type, id } or null when no usable source exists.
-    async resolveDubSource(pageIds, generation, signature, language) {
-      const englishOnly = language === 'ENGLISH';
-
-      if (pageIds.anilist) return { type: 'anilist', id: pageIds.anilist };
-      if (pageIds.mal && englishOnly) return { type: 'mal', id: pageIds.mal };
-
-      const source = pageIds.tmdb ? 'tmdb' : (pageIds.imdb ? 'imdb' : null);
-      if (!source) return null;
-
-      const lookupValue = source === 'tmdb' ? pageIds.tmdb : pageIds.imdb;
-      const requestKey = `arm:${source}:${lookupValue}`;
-
-      const data = await RequestManager.request({
-        key: requestKey,
-        service: 'armhaglund',
-        ttl: result => (result?.anilist || result?.myanimelist) ?
-          REQUEST_TTL.armPositive :
-          REQUEST_TTL.armNegative,
-        fetcher: () => armhaglund.fetchIds(source === 'tmdb' ? 'themoviedb' : 'imdb', lookupValue)
+      const hasDub = edges.some(edge => edge.voiceActors?.length > 0);
+      logger.debug('AniList dub result', {
+        anilistId,
+        language,
+        mainCharacters: edges.length,
+        hasDub
       });
-
-      if (!this.isCurrent(generation, signature)) return null;
-
-      const resolvedAnilist = data?.anilist ? Number(data.anilist) : null;
-      const resolvedMal = data?.myanimelist ? Number(data.myanimelist) : null;
-
-      if (resolvedAnilist) return { type: 'anilist', id: resolvedAnilist };
-      if (resolvedMal && englishOnly) return { type: 'mal', id: resolvedMal };
-      return null;
+      return hasDub;
     },
 
-    // Resolves a source (from resolveDubSource) to a display label, or null
-    // when no dub was found. Isolates the two providers' differing response
-    // shapes (a status string vs. a boolean) behind one return type.
-    async fetchDubLabel(source, language) {
+    async fetchLabel(source, language) {
       if (source.type === 'mal') {
         const status = await RequestManager.request({
           key: `mal-dubs:${source.id}`,
           service: 'maldubs',
           ttl: REQUEST_TTL.malDub,
-          fetcher: () => maldubs.getStatus(source.id)
+          fetcher: () => Providers.maldubs.getStatus(source.id)
         });
+
+        logger.debug('MAL-Dubs result', { malId: source.id, status });
         if (!status) return null;
         return status === 'incomplete' ? 'English Dub Incomplete' : 'English Dub Exists';
       }
@@ -796,106 +900,344 @@
         ttl: REQUEST_TTL.anilistDub,
         fetcher: () => this.queryAnilistDub(source.id, language)
       });
-      return hasDub ? `${this.getLanguageName(language)} Dub Exists` : null;
-    },
 
-    // Main entry point: determine dub availability for the current title and
-    // render the result. No-ops when the meta box is absent, dub info is
-    // disabled, or no external ids are present yet. Every provider call routes
-    // through RequestManager and is guarded by isCurrent() so a slower earlier
-    // attempt can't overwrite a newer one.
-    async apply(configOverride) {
-      if (!document.querySelector(SELECTORS.metaBox)) return;
-
-      const config = configOverride || ModuleConfig.get();
-      if (!config.dubInfo) {
-        this.renderDubRow(null);
-        return;
-      }
-
-      const identity = getWeTrakrIdentity();
-      if (!identity) return;
-
-      const pageIds = this.getExternalIds();
-
-      // External ID links can render after the metadata box. Do not mark the page
-      // as processed until at least one usable external identifier exists.
-      if (!pageIds.anilist && !pageIds.mal && !pageIds.imdb && !pageIds.tmdb) return;
-
-      const { dubLanguage: language } = config;
-      const signature = this.getSignature(identity, pageIds, language);
-      if (!this.canAttempt(signature)) return;
-
-      this.lastSignature = signature;
-      this.lastFailure = null;
-      const generation = this.generation;
-
-      try {
-        const source = await this.resolveDubSource(pageIds, generation, signature, language);
-        if (!this.isCurrent(generation, signature)) return;
-
-        if (!source) {
-          this.renderDubRow(null);
-          return;
-        }
-
-        const label = await this.fetchDubLabel(source, language);
-        if (!this.isCurrent(generation, signature)) return;
-
-        this.renderDubRow(label);
-      } catch (error) {
-        if (!this.isCurrent(generation, signature)) return;
-
-        this.noteFailure(signature, error);
-        this.lastSignature = null;
-
-        if (error?.code !== 'REQUEST_COOLDOWN') {
-          logger.error(`Failed to fetch dub information: ${error?.message || error}`);
-        }
-      }
-    },
-
-    // Forget the current attempt and clear any rendered row. Bumps generation so
-    // in-flight applies from before a route change are discarded on arrival.
-    reset() {
-      this.lastSignature = null;
-      this.lastFailure = null;
-      this.generation++;
-      this.renderDubRow(null);
+      return hasDub ? `${this.languageName(language)} Dub Exists` : null;
     }
   };
 
-  // ==========================================
+  // ============================================================================
+  // ID mapping + dub source resolution
+  // ============================================================================
+
+  const DubSourceResolver = {
+    hasMapping(mapping) {
+      return Boolean(mapping?.anilist || mapping?.mal);
+    },
+
+    directSource(pageIds, language) {
+      if (pageIds.anilist) {
+        return { type: 'anilist', id: pageIds.anilist, via: 'WeTrakr/AniList' };
+      }
+
+      if (language === 'ENGLISH' && pageIds.mal) {
+        return { type: 'mal', id: pageIds.mal, via: 'WeTrakr/MyAnimeList' };
+      }
+
+      return null;
+    },
+
+    sourceFromMapping(mapping, language) {
+      if (mapping?.anilist) {
+        return { type: 'anilist', id: mapping.anilist, via: mapping.via };
+      }
+
+      if (language === 'ENGLISH' && mapping?.mal) {
+        return { type: 'mal', id: mapping.mal, via: mapping.via };
+      }
+
+      return null;
+    },
+
+    animeApiCandidates(identity, pageIds) {
+      const candidates = [];
+
+      if (pageIds.tmdb) {
+        candidates.push({
+          source: 'themoviedb',
+          id: `${identity.type === 'show' ? 'tv' : 'movie'}/${pageIds.tmdb}`,
+          label: 'TMDB'
+        });
+      }
+
+      if (pageIds.imdb) {
+        candidates.push({ source: 'imdb', id: pageIds.imdb, label: 'IMDb' });
+      }
+
+      if (identity.type === 'show' && pageIds.tvdb) {
+        candidates.push({ source: 'thetvdb', id: pageIds.tvdb, label: 'TheTVDB' });
+      }
+
+      if (pageIds.mal) {
+        candidates.push({ source: 'myanimelist', id: pageIds.mal, label: 'MyAnimeList' });
+      }
+
+      return candidates;
+    },
+
+    async viaAnimeApi(identity, pageIds) {
+      let lastError = null;
+
+      for (const candidate of this.animeApiCandidates(identity, pageIds)) {
+        try {
+          const mapping = await RequestManager.request({
+            key: `animeapi:${candidate.source}:${candidate.id}`,
+            service: 'animeapi',
+            ttl: result => DubProviders.mappingTtl(result),
+            fetcher: async () => DubProviders.normalizeAnimeApi(
+              await Providers.animeapi.fetch(candidate.source, candidate.id)
+            )
+          });
+
+          if (this.hasMapping(mapping)) {
+            const result = { ...mapping, via: `AnimeAPI/${candidate.label}` };
+            logger.debug('Anime IDs mapped', { via: result.via, mapping });
+            return result;
+          }
+        } catch (error) {
+          lastError = error;
+          logger.debug('AnimeAPI mapping candidate failed', {
+            via: candidate.label,
+            lookup: candidate.id,
+            error: errorMessage(error)
+          });
+        }
+      }
+
+      return lastError ? { error: lastError } : null;
+    },
+
+    wikidataExternalCandidates(identity, pageIds) {
+      const itemType = identity.type === 'show' ? 'tv' : 'movie';
+      const candidates = [];
+
+      if (pageIds.imdb) {
+        candidates.push({ id: pageIds.imdb, source: 'IMDb', itemType, label: 'IMDb' });
+      }
+
+      if (pageIds.tmdb) {
+        candidates.push({
+          id: String(pageIds.tmdb),
+          source: identity.type === 'show' ? 'TMDb_tv' : 'TMDb_movie',
+          itemType,
+          label: 'TMDB'
+        });
+      }
+
+      if (pageIds.tvdb) {
+        candidates.push({
+          id: String(pageIds.tvdb),
+          source: identity.type === 'show' ? 'TVDb_tv' : 'TVDb_movie',
+          itemType,
+          label: 'TheTVDB'
+        });
+      }
+
+      return candidates;
+    },
+
+    async viaWikidata(identity, pageIds) {
+      let lastError = null;
+
+      if (pageIds.wikidata) {
+        try {
+          const mapping = await RequestManager.request({
+            key: `wikidata:item:${pageIds.wikidata}`,
+            service: 'wikidata',
+            ttl: result => DubProviders.mappingTtl(result),
+            fetcher: () => DubProviders.queryWikidataItem(pageIds.wikidata)
+          });
+
+          if (this.hasMapping(mapping)) {
+            const result = { ...mapping, via: `Wikidata/${pageIds.wikidata}` };
+            logger.debug('Anime IDs mapped', { via: result.via, mapping });
+            return result;
+          }
+        } catch (error) {
+          lastError = error;
+          logger.debug('Wikidata QID mapping failed', {
+            wikidata: pageIds.wikidata,
+            error: errorMessage(error)
+          });
+        }
+      }
+
+      for (const candidate of this.wikidataExternalCandidates(identity, pageIds)) {
+        try {
+          const mapping = await RequestManager.request({
+            key: `wikidata:${candidate.source}:${candidate.id}:${candidate.itemType}`,
+            service: 'wikidata',
+            ttl: result => DubProviders.mappingTtl(result),
+            fetcher: async () => DubProviders.normalizeWikidataLinks(
+              await Providers.wikidata.links(candidate.id, candidate.source, candidate.itemType)
+            )
+          });
+
+          if (this.hasMapping(mapping)) {
+            const result = { ...mapping, via: `Wikidata/${candidate.label}` };
+            logger.debug('Anime IDs mapped', { via: result.via, mapping });
+            return result;
+          }
+        } catch (error) {
+          lastError = error;
+          logger.debug('Wikidata mapping candidate failed', {
+            via: candidate.label,
+            lookup: candidate.id,
+            error: errorMessage(error)
+          });
+        }
+      }
+
+      return lastError ? { error: lastError } : null;
+    },
+
+    async resolve(identity, pageIds, language, isCurrent) {
+      const direct = this.directSource(pageIds, language);
+      if (direct) return direct;
+
+      const animeApiMapping = await this.viaAnimeApi(identity, pageIds);
+      if (!isCurrent()) return null;
+
+      const animeApiSource = this.sourceFromMapping(animeApiMapping, language);
+      if (animeApiSource) return animeApiSource;
+
+      const wikidataMapping = await this.viaWikidata(identity, pageIds);
+      if (!isCurrent()) return null;
+
+      const wikidataSource = this.sourceFromMapping(wikidataMapping, language);
+      if (wikidataSource) return wikidataSource;
+
+      const mappingError = wikidataMapping?.error || animeApiMapping?.error;
+      if (mappingError) throw mappingError;
+
+      return null;
+    }
+  };
+
+  // ============================================================================
+  // Dub orchestration
+  // ============================================================================
+
+  const DubService = {
+    generation: 0,
+    activeAttempt: null,
+    settledBaseKey: null,
+    unresolvedSignature: null,
+    failure: null,
+
+    reset() {
+      this.generation++;
+      this.activeAttempt = null;
+      this.settledBaseKey = null;
+      this.unresolvedSignature = null;
+      this.failure = null;
+      DubView.clear();
+    },
+
+    canStart(baseKey, signature) {
+      if (this.settledBaseKey === baseKey) return false;
+      if (this.activeAttempt?.signature === signature) return false;
+      if (this.unresolvedSignature === signature) return false;
+
+      if (this.failure?.signature === signature && Date.now() < this.failure.retryAt) {
+        return false;
+      }
+
+      return true;
+    },
+
+    isCurrent(attempt) {
+      return attempt.generation === this.generation && this.activeAttempt === attempt;
+    },
+
+    async apply(config) {
+      if (!document.querySelector(SELECTORS.metaBox)) return;
+
+      if (!config.dubInfo) {
+        DubView.clear();
+        return;
+      }
+
+      const identity = PageContext.identity();
+      if (!identity) return;
+
+      const pageIds = PageContext.externalIds();
+      if (!PageContext.hasExternalIds(pageIds)) return;
+
+      const language = config.dubLanguage;
+      const baseKey = PageContext.dubBaseKey(identity, language);
+      const signature = PageContext.dubSignature(identity, pageIds, language);
+      if (!this.canStart(baseKey, signature)) return;
+
+      const attempt = {
+        generation: this.generation,
+        baseKey,
+        signature
+      };
+      this.activeAttempt = attempt;
+      this.failure = null;
+
+      logger.info(`Checking ${DubProviders.languageName(language)} dub availability`, {
+        identity,
+        externalIds: PageContext.compactExternalIds(pageIds)
+      });
+
+      try {
+        const source = await DubSourceResolver.resolve(
+          identity,
+          pageIds,
+          language,
+          () => this.isCurrent(attempt)
+        );
+
+        if (!this.isCurrent(attempt)) return;
+
+        if (!source) {
+          DubView.clear();
+          this.unresolvedSignature = signature;
+          logger.info('Dub lookup skipped: no usable AniList/MyAnimeList mapping', {
+            identity,
+            externalIds: PageContext.compactExternalIds(pageIds)
+          });
+          return;
+        }
+
+        logger.debug('Dub source resolved', {
+          via: source.via,
+          type: source.type,
+          id: source.id
+        });
+
+        const label = await DubProviders.fetchLabel(source, language);
+        if (!this.isCurrent(attempt)) return;
+
+        DubView.render(label);
+        this.settledBaseKey = baseKey;
+        this.unresolvedSignature = null;
+
+        logger.info(label || `No ${DubProviders.languageName(language)} dub found`, {
+          source: source.via,
+          id: source.id
+        });
+      } catch (error) {
+        if (!this.isCurrent(attempt)) return;
+
+        const retryAt = error?.retryAt || (Date.now() + FAILURE_COOLDOWN);
+        this.failure = { signature, retryAt };
+
+        if (error?.code === 'REQUEST_COOLDOWN') {
+          logger.debug('Dub lookup waiting for provider cooldown', {
+            retryAt: new Date(retryAt).toISOString()
+          });
+          return;
+        }
+
+        logger.error(`Dub lookup failed: ${errorMessage(error)}`, {
+          identity,
+          externalIds: PageContext.compactExternalIds(pageIds)
+        });
+      } finally {
+        if (this.activeAttempt === attempt) this.activeAttempt = null;
+      }
+    }
+  };
+
+  // ============================================================================
   // Settings UI
-  // ==========================================
+  // ============================================================================
+
   const SettingsUI = {
     modal: null,
     isOpen: false,
-
-    close() {
-      this.modal?.remove();
-      this.modal = null;
-      this.isOpen = false;
-    },
-
-    // Live preview helpers; none of these touch persistent storage.
-    applyColorPreview(config) {
-      applyActionColors(config);
-    },
-
-    applyDubPreview(config) {
-      // Always invalidate any in-flight lookup and clear stale rows.
-      DubService.reset();
-
-      if (config.dubInfo) {
-        DubService.apply(config);
-      }
-    },
-
-    applyPreview(field, draft) {
-      if (field.preview === 'dub') this.applyDubPreview(draft);
-      else this.applyColorPreview(draft);
-    },
 
     fieldId(field) {
       return `rs-field-${field.key.replace('.', '-')}`;
@@ -924,12 +1266,13 @@
               <small>${field.hint}</small>
             </span>
             <select id="${id}">
-              ${field.options.map(option => `<option value="${option.value}" ${value === option.value ? 'selected' : ''}>${option.name}</option>`).join('')}
+              ${field.options.map(option =>
+                `<option value="${option.value}" ${value === option.value ? 'selected' : ''}>${option.name}</option>`
+              ).join('')}
             </select>
           </label>`;
       }
 
-      // 'color'
       return `
         <label class="rs-color-card">
           <input type="color" class="rs-color-swatch" id="${id}" value="${value}">
@@ -940,15 +1283,27 @@
         </label>`;
     },
 
-    // Wire every field's input to update the draft, trigger its live preview,
-    // and (for colour swatches) use 'input' rather than 'change' so the preview
-    // updates continuously as the user drags the picker.
+    applyPreview(field, draft) {
+      if (field.preview === 'color') {
+        ActionColorTheme.apply(draft);
+        return;
+      }
+
+      if (field.preview === 'logging') {
+        setDebugLogging(draft.debugLogging, true);
+        return;
+      }
+
+      DubService.reset();
+      if (draft.dubInfo) DubService.apply(draft);
+    },
+
     bindFields(overlay, draft) {
       for (const field of SETTINGS_FIELDS) {
-        const input = overlay.querySelector('#' + this.fieldId(field));
+        const input = overlay.querySelector(`#${this.fieldId(field)}`);
         const eventName = field.type === 'color' ? 'input' : 'change';
 
-        input.addEventListener(eventName, (event) => {
+        input.addEventListener(eventName, event => {
           const value = field.type === 'toggle' ? event.target.checked : event.target.value;
           setFieldValue(draft, field.key, value);
           this.applyPreview(field, draft);
@@ -956,24 +1311,40 @@
       }
     },
 
-    // Reflects a reset draft (e.g. from "Restore Defaults") back into the inputs.
-    syncFieldInputs(overlay, draft) {
+    syncFields(overlay, draft) {
       for (const field of SETTINGS_FIELDS) {
-        const input = overlay.querySelector('#' + this.fieldId(field));
+        const input = overlay.querySelector(`#${this.fieldId(field)}`);
         const value = getFieldValue(draft, field.key);
         if (field.type === 'toggle') input.checked = value;
         else input.value = value;
       }
     },
 
+    flashButton(button, temporaryText, normalText) {
+      button.textContent = temporaryText;
+      setTimeout(() => {
+        if (button.isConnected) button.textContent = normalText;
+      }, 1500);
+    },
+
+    close() {
+      this.modal?.remove();
+      this.modal = null;
+      this.isOpen = false;
+    },
+
     open() {
       if (this.modal) return;
-      this.isOpen = true;
-      const saved = ModuleConfig.get();
-      const draft = { ...saved, actionColors: { ...saved.actionColors } };
 
-      const dubFieldsHtml = SETTINGS_FIELDS.filter(field => field.preview === 'dub').map(field => this.renderField(field, draft)).join('');
-      const colorFieldsHtml = SETTINGS_FIELDS.filter(field => field.preview === 'color').map(field => this.renderField(field, draft)).join('');
+      this.isOpen = true;
+      const saved = cloneConfig(App.config);
+      const draft = cloneConfig(saved);
+
+      const groups = {
+        dub: SETTINGS_FIELDS.filter(field => field.preview === 'dub'),
+        logging: SETTINGS_FIELDS.filter(field => field.preview === 'logging'),
+        color: SETTINGS_FIELDS.filter(field => field.preview === 'color')
+      };
 
       const overlay = document.createElement('div');
       overlay.className = 'rs-settings-overlay';
@@ -985,10 +1356,12 @@
           </div>
           <div class="rs-settings-body">
             <h3>Dubbing</h3>
-            ${dubFieldsHtml}
+            ${groups.dub.map(field => this.renderField(field, draft)).join('')}
+            <h3>Logging</h3>
+            ${groups.logging.map(field => this.renderField(field, draft)).join('')}
             <h3>Action Button Colours</h3>
             <div class="rs-color-grid">
-              ${colorFieldsHtml}
+              ${groups.color.map(field => this.renderField(field, draft)).join('')}
             </div>
           </div>
           <div class="rs-settings-footer">
@@ -1003,110 +1376,144 @@
 
       document.body.appendChild(overlay);
       this.modal = overlay;
+      this.bindFields(overlay, draft);
 
-      // Closing without saving reverts the preview back to the saved config.
       const cancel = () => {
-        this.applyColorPreview(saved);
-        this.applyDubPreview(saved);
+        ActionColorTheme.apply(saved);
+        setDebugLogging(saved.debugLogging, true);
+        DubService.reset();
         this.close();
+        App.schedule();
       };
 
       overlay.querySelector('.rs-settings-close').addEventListener('click', cancel);
-      overlay.addEventListener('click', (event) => {
+      overlay.addEventListener('click', event => {
         if (event.target === overlay) cancel();
       });
 
-      overlay.querySelector('#rs-clear-cache').addEventListener('click', (event) => {
+      overlay.querySelector('#rs-clear-cache').addEventListener('click', event => {
         RequestManager.clear();
         DubService.reset();
         if (draft.dubInfo) DubService.apply(draft);
-        event.target.textContent = 'Cleared!';
-        setTimeout(() => { event.target.textContent = 'Clear Request Cache'; }, 1500);
+        this.flashButton(event.currentTarget, 'Cleared!', 'Clear Request Cache');
       });
 
-      this.bindFields(overlay, draft);
-
-      overlay.querySelector('#rs-reset').addEventListener('click', (event) => {
-        Object.assign(draft, { ...DEFAULT_CONFIG, actionColors: { ...DEFAULT_ACTION_COLORS } });
-        this.syncFieldInputs(overlay, draft);
-        this.applyColorPreview(draft);
-        this.applyDubPreview(draft);
-        event.target.textContent = 'Restored!';
-        setTimeout(() => { event.target.textContent = 'Restore Defaults'; }, 1500);
+      overlay.querySelector('#rs-reset').addEventListener('click', event => {
+        Object.assign(draft, ConfigStore.defaults());
+        draft.actionColors = { ...DEFAULT_ACTION_COLORS };
+        this.syncFields(overlay, draft);
+        ActionColorTheme.apply(draft);
+        setDebugLogging(draft.debugLogging, true);
+        DubService.reset();
+        if (draft.dubInfo) DubService.apply(draft);
+        logger.info('Settings restored to defaults');
+        this.flashButton(event.currentTarget, 'Restored!', 'Restore Defaults');
       });
 
       overlay.querySelector('#rs-save').addEventListener('click', () => {
-        ModuleConfig.set(draft);
+        App.config = ConfigStore.save(draft);
+        ActionColorTheme.apply(App.config);
+        setDebugLogging(App.config.debugLogging, true);
+        DubService.reset();
+
+        logger.info('Settings saved', {
+          dubInfo: App.config.dubInfo,
+          dubLanguage: App.config.dubLanguage,
+          debugLogging: App.config.debugLogging
+        });
+
         this.close();
+        App.schedule();
       });
     }
   };
 
-  // ==========================================
-  // Core Execution (event-driven)
-  // ==========================================
-  let lastPath = location.pathname;
-  let framePending = false;
+  // ============================================================================
+  // App lifecycle + SPA integration
+  // ============================================================================
 
-  function handleRouteChange() {
-    if (location.pathname === lastPath) return false;
-    lastPath = location.pathname;
-    DubService.reset();
-    logger.debug(`SPA navigation detected: ${lastPath}`);
-    return true;
-  }
+  const App = {
+    config: null,
+    lastPath: location.pathname,
+    framePending: false,
+    observer: null,
 
-  function runMods() {
-    handleRouteChange();
+    handleRouteChange() {
+      if (location.pathname === this.lastPath) return;
 
-    DOMModifiers.moveStatusBadge();
-    DOMModifiers.updateTimestamps();
-    DOMModifiers.expandReviews();
-    // While the settings modal is open, dub changes are driven by the live
-    // preview; skip this so saved config doesn't clobber the preview.
-    if (!SettingsUI.isOpen) DubService.apply();
-  }
+      const previousPath = this.lastPath;
+      this.lastPath = location.pathname;
+      StatusBadgeFeature.reset();
+      DubService.reset();
 
-  function scheduleRun() {
-    if (framePending) return;
-    framePending = true;
-    requestAnimationFrame(() => {
-      framePending = false;
-      runMods();
-    });
-  }
+      logger.info('SPA navigation detected', {
+        from: previousPath,
+        to: this.lastPath
+      });
+    },
 
-  const observer = new MutationObserver(() => {
-    scheduleRun();
-  });
+    run() {
+      this.handleRouteChange();
+      StatusBadgeFeature.apply();
+      TimestampFeature.apply();
+      ReviewFeature.apply();
 
-  function hookHistoryMethod(methodName) {
-    const original = history[methodName];
-    history[methodName] = function(...callArguments) {
-      const result = original.apply(this, callArguments);
-      scheduleRun();
-      return result;
-    };
-  }
+      if (!SettingsUI.isOpen) {
+        DubService.apply(this.config);
+      }
+    },
 
-  function init() {
-    GM_registerMenuCommand('WeTrakr Mods Settings', () => SettingsUI.open());
-    applyActionColors();
+    schedule() {
+      if (this.framePending) return;
+      this.framePending = true;
 
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-      characterData: true,
-      attributes: true,
-      attributeFilter: ['class']
-    });
+      requestAnimationFrame(() => {
+        this.framePending = false;
+        this.run();
+      });
+    },
 
-    hookHistoryMethod('pushState');
-    hookHistoryMethod('replaceState');
-    window.addEventListener('popstate', scheduleRun);
+    hookHistoryMethod(methodName) {
+      const original = history[methodName];
+      history[methodName] = function(...arguments_) {
+        const result = original.apply(this, arguments_);
+        App.schedule();
+        return result;
+      };
+    },
 
-    runMods();
-  }
+    startObserver() {
+      this.observer = new MutationObserver(() => this.schedule());
+      this.observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+        attributes: true,
+        attributeFilter: ['class']
+      });
+    },
 
-  init();
+    start() {
+      this.config = ConfigStore.load();
+      setDebugLogging(this.config.debugLogging);
+      ActionColorTheme.apply(this.config);
+
+      GM_registerMenuCommand('WeTrakr Mods Settings', () => SettingsUI.open());
+
+      this.startObserver();
+      this.hookHistoryMethod('pushState');
+      this.hookHistoryMethod('replaceState');
+      window.addEventListener('popstate', () => this.schedule());
+
+      logger.info('WeTrakr Mods started', {
+        version: SCRIPT.version,
+        path: location.pathname,
+        debugLogging: this.config.debugLogging
+      });
+
+      this.run();
+    }
+  };
+
+  App.start();
 })();
