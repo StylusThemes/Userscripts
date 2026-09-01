@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       1.13.1
+// @version       1.13.2
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
@@ -282,7 +282,10 @@
     /* Hide "Rate Now" on posters when no rating exists */
     .media-item__poster .media-item__rating-overlay:has(we-rating-badge.is-rate-now),
     .media-item__poster we-rating-badge.is-rate-now,
-    .media-item__poster .we-rb--rate { display: none !important; }
+    .media-item__poster .we-rb--rate,
+    .episode-item__poster .episode-item__rating-overlay:has(we-rating-badge.is-rate-now),
+    .episode-item__poster we-rating-badge.is-rate-now,
+    .episode-item__poster .we-rb--rate { display: none !important; }
 
     /* ===== Release / Watched Date ===== */
     /* Keep the eye icon, date, and time on one line to prevent wrapping and misalignment on narrow cards */
