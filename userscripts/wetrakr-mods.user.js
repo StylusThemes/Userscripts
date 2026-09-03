@@ -1,11 +1,13 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       1.13.5
+// @version       1.14.0
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
 // @match         *://wetrakr.com/*
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@9e8f1b9bdc1acac2e76f3e8d2348f76817ec5bf4/libs/utils/utils.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@e1613fcefb81ed7b05afe90edc479e06088039f2/libs/metadata/animeapi/animeapi.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@df79b8fc4607937cfadcf2544eb8798e079ebbf9/libs/metadata/mydublist/mydublist.min.js
 // @grant         GM_addStyle
 // @grant         GM_xmlhttpRequest
 // @grant         GM_getValue
@@ -30,6 +32,12 @@
   });
 
   const CONFIG_KEY = 'wetrakr-mods-config';
+  const FAILURE_COOLDOWN = 60 * 1000;
+  const WETRAKR_PATH_PATTERN = /^\/(shows|movies)\/(\d+)/;
+  const MAPPING_TTL = Object.freeze({
+    positive: 24 * 60 * 60 * 1000,
+    negative: 30 * 60 * 1000
+  });
 
   const SELECTORS = Object.freeze({
     metaBox: '.detail-meta-box--desktop',
@@ -40,21 +48,40 @@
   });
 
   const DUB_LANGUAGES = Object.freeze([
-    { name: 'English', value: 'ENGLISH' },
-    { name: 'German', value: 'GERMAN' },
-    { name: 'Italian', value: 'ITALIAN' },
-    { name: 'Spanish', value: 'SPANISH' },
-    { name: 'French', value: 'FRENCH' },
-    { name: 'Korean', value: 'KOREAN' },
-    { name: 'Portuguese', value: 'PORTUGUESE' },
-    { name: 'Hebrew', value: 'HEBREW' },
-    { name: 'Hungarian', value: 'HUNGARIAN' },
-    { name: 'Chinese', value: 'CHINESE' },
     { name: 'Arabic', value: 'ARABIC' },
-    { name: 'Filipino', value: 'FILIPINO' },
     { name: 'Catalan', value: 'CATALAN' },
+    { name: 'Chinese', value: 'CHINESE' },
+    { name: 'Danish', value: 'DANISH' },
+    { name: 'Dutch', value: 'DUTCH' },
+    { name: 'English', value: 'ENGLISH' },
+    { name: 'Finnish', value: 'FINNISH' },
+    { name: 'French', value: 'FRENCH' },
+    { name: 'German', value: 'GERMAN' },
+    { name: 'Hebrew', value: 'HEBREW' },
+    { name: 'Hindi', value: 'HINDI' },
+    { name: 'Hungarian', value: 'HUNGARIAN' },
+    { name: 'Indonesian', value: 'INDONESIAN' },
+    { name: 'Italian', value: 'ITALIAN' },
+    { name: 'Japanese', value: 'JAPANESE' },
+    { name: 'Korean', value: 'KOREAN' },
+    { name: 'Lithuanian', value: 'LITHUANIAN' },
+    { name: 'Norwegian', value: 'NORWEGIAN' },
     { name: 'Polish', value: 'POLISH' },
-    { name: 'Norwegian', value: 'NORWEGIAN' }
+    { name: 'Portuguese', value: 'PORTUGUESE' },
+    { name: 'Russian', value: 'RUSSIAN' },
+    { name: 'Spanish', value: 'SPANISH' },
+    { name: 'Swedish', value: 'SWEDISH' },
+    { name: 'Filipino', value: 'FILIPINO' },
+    { name: 'Thai', value: 'THAI' },
+    { name: 'Turkish', value: 'TURKISH' },
+    { name: 'Vietnamese', value: 'VIETNAMESE' }
+  ]);
+
+  const DUB_CONFIDENCE_LEVELS = Object.freeze([
+    { name: 'Low', value: 'low' },
+    { name: 'Normal', value: 'normal' },
+    { name: 'High', value: 'high' },
+    { name: 'Very High', value: 'very-high' }
   ]);
 
   const ACTION_COLORS = Object.freeze([
@@ -103,12 +130,14 @@
   const DEFAULT_CONFIG = Object.freeze({
     dubInfo: true,
     dubLanguage: 'ENGLISH',
+    dubConfidence: 'normal',
     debugLogging: false
   });
 
   const SETTINGS_FIELDS = Object.freeze([
-    { key: 'dubInfo', type: 'toggle', label: 'Dub Information', hint: 'Show dub availability for anime shows', preview: 'dub' },
+    { key: 'dubInfo', type: 'toggle', label: 'Dub Information', hint: 'Show dub availability for anime titles', preview: 'dub' },
     { key: 'dubLanguage', type: 'select', label: 'Preferred Dub Language', hint: 'Language to check for', options: DUB_LANGUAGES, preview: 'dub' },
+    { key: 'dubConfidence', type: 'select', label: 'Dub Confidence', hint: 'Minimum verification confidence', options: DUB_CONFIDENCE_LEVELS, preview: 'dub' },
     { key: 'debugLogging', type: 'toggle', label: 'Debug Logging', hint: 'Show detailed diagnostic logs in the browser console', preview: 'logging' },
     ...ACTION_COLORS.map(({ key, label, hint }) => ({ key: `actionColors.${key}`, type: 'color', label, hint, preview: 'color' }))
   ]);
@@ -120,6 +149,15 @@
   const loggerOptions = { debug: false };
   const logger = Logger(SCRIPT.name, loggerOptions);
   logger.info = logger;
+
+  const Providers = Object.freeze({
+    animeapi: new AnimeAPI(),
+    mydublist: new MyDubList()
+  });
+
+  function errorMessage(error) {
+    return error?.message || String(error);
+  }
 
   function setDebugLogging(enabled, announce = false) {
     const next = Boolean(enabled);
@@ -296,65 +334,98 @@
     /* ========================================================================== */
 
     /* ===== Modal Overlay ===== */
-    .rs-settings-overlay { position: fixed; inset: 0; z-index: 10000; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.6); font-family: 'Proxima Nova', 'Open Sans', Arial, sans-serif; animation: rs-overlay-in 0.2s ease-out; }
+    .rs-settings-overlay { position: fixed; inset: 0; z-index: 10000; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); font-family: 'Proxima Nova', 'Open Sans', Arial, sans-serif; animation: rs-overlay-in 0.2s ease-out; }
     @keyframes rs-overlay-in { from { opacity: 0; } }
 
     /* ===== Modal Panel ===== */
-    .rs-settings-modal { width: 480px; max-width: 90vw; max-height: 85vh; display: flex; flex-direction: column; overflow: hidden; background: #1e1e2e; color: #e0e0e0; border: 1px solid #2d2d48; box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(73, 55, 233, 0.08); animation: rs-modal-in 0.25s ease-out; }
-    .rs-settings-modal::before { content: ""; display: block; height: 2px; flex-shrink: 0; background: #4937e9; }
-    @keyframes rs-modal-in { from { opacity: 0; transform: translateY(10px); } }
+    .rs-settings-modal { width: 500px; max-width: 90vw; max-height: 85vh; display: flex; flex-direction: column; overflow: hidden; background: #1e1e2e; color: #e0e0e0; border: 1px solid #2d2d48; border-radius: 10px; box-shadow: 0 32px 80px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(73, 55, 233, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.03); animation: rs-modal-in 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+    .rs-settings-modal::before { content: ""; display: block; height: 2px; flex-shrink: 0; background: linear-gradient(90deg, #4937e9, #6c5ce7, #4937e9); border-radius: 10px 10px 0 0; }
+    @keyframes rs-modal-in { from { opacity: 0; transform: translateY(16px) scale(0.97); } }
 
     /* ===== Modal Header ===== */
-    .rs-settings-header { display: flex; justify-content: space-between; align-items: center; padding: 18px 22px; border-bottom: 1px solid #2d2d48; background: linear-gradient(180deg, rgba(73, 55, 233, 0.08) 0%, transparent 100%); }
-    .rs-settings-header h2 { margin: 0; font-size: 16px; font-weight: 700; letter-spacing: 0.3px; }
-    .rs-settings-close { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; background: none; border: 1px solid transparent; color: #666680; font-size: 20px; line-height: 1; cursor: pointer; transition: color 0.15s, border-color 0.15s, background 0.15s; }
-    .rs-settings-close:hover { color: #e0e0e0; border-color: #2d2d48; background: rgba(255, 255, 255, 0.03); }
+    .rs-settings-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 22px; border-bottom: 1px solid #2d2d48; background: linear-gradient(180deg, rgba(73, 55, 233, 0.06) 0%, transparent 100%); }
+    .rs-settings-header h2 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: 0.3px; color: #e8e8f0; }
+    .rs-settings-close { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; background: none; border: 1px solid transparent; color: #666680; font-size: 20px; line-height: 1; cursor: pointer; transition: color 0.15s, border-color 0.15s, background 0.15s; border-radius: 6px; }
+    .rs-settings-close:hover { color: #e0e0e0; border-color: #2d2d48; background: rgba(255, 255, 255, 0.04); }
 
-    /* ===== Modal Body ===== */
-    .rs-settings-body { padding: 20px 22px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #333348 transparent; }
+    /* ===== Tab Bar ===== */
+    .rs-settings-tabs { display: flex; border-bottom: 1px solid #2d2d48; background: rgba(0, 0, 0, 0.1); padding: 0 12px; }
+    .rs-settings-tab { flex: 1; padding: 13px 8px; background: none; border: none; color: #5c5c78; font-size: 12.5px; font-weight: 600; cursor: pointer; position: relative; transition: color 0.2s; letter-spacing: 0.3px; font-family: inherit; }
+    .rs-settings-tab:hover { color: #9898b4; }
+    .rs-settings-tab--active { color: #e0e0e0; }
+    .rs-settings-tab--active::after { content: ""; position: absolute; bottom: -1px; left: 0; right: 0; height: 2px; background: #4937e9; border-radius: 2px 2px 0 0; animation: rs-tab-slide 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
+    @keyframes rs-tab-slide { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+    /* ===== Tab Panels ===== */
+    .rs-settings-body { padding: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #333348 transparent; }
     .rs-settings-body::-webkit-scrollbar { width: 6px; }
     .rs-settings-body::-webkit-scrollbar-track { background: transparent; }
-    .rs-settings-body::-webkit-scrollbar-thumb { background: #333348; }
-    .rs-settings-body h3 { margin: 0 0 10px; padding-bottom: 8px; font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #4937e9; border-bottom: 1px solid #2d2d48; }
-    .rs-settings-body h3:not(:first-child) { margin-top: 22px; }
+    .rs-settings-body::-webkit-scrollbar-thumb { background: #333348; border-radius: 3px; }
+    .rs-settings-tab-panel { display: none; padding: 18px 22px; }
+    .rs-settings-tab-panel--active { display: block; animation: rs-panel-fade 0.2s ease-out; }
+    @keyframes rs-panel-fade { from { opacity: 0; transform: translateY(6px); } }
+
+    /* ===== Section Labels ===== */
+    .rs-settings-section-label { margin: 0 0 12px; padding-bottom: 8px; font-size: 10.5px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: #4937e9; border-bottom: 1px solid #2d2d48; }
 
     /* ===== Settings Rows ===== */
-    .rs-settings-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 10px 12px; background: rgba(255, 255, 255, 0.015); border: 1px solid #2d2d48; transition: border-color 0.15s; }
-    .rs-settings-row:hover { border-color: #3d3d58; }
+    .rs-settings-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 11px 14px; background: rgba(255, 255, 255, 0.02); border: 1px solid #2d2d48; transition: border-color 0.15s, background 0.15s; border-radius: 6px; }
+    .rs-settings-row:hover { border-color: #3d3d58; background: rgba(255, 255, 255, 0.04); }
     .rs-settings-row + .rs-settings-row { margin-top: 6px; }
     .rs-settings-row strong { display: block; font-size: 13px; font-weight: 600; color: #e8e8f0; }
-    .rs-settings-row small { display: block; margin-top: 2px; color: #8888a8; font-size: 11.5px; }
+    .rs-settings-row small { display: block; margin-top: 2px; color: #8888a8; font-size: 11.5px; line-height: 1.4; }
 
     /* ===== Toggle Switch ===== */
-    .rs-settings-toggle { width: 40px; height: 22px; flex-shrink: 0; appearance: none; position: relative; background: #333348; cursor: pointer; transition: background 0.2s; }
-    .rs-settings-toggle::before { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; background: #666680; transition: transform 0.2s, background 0.2s; }
+    .rs-settings-toggle { width: 42px; height: 24px; flex-shrink: 0; appearance: none; position: relative; background: #2d2d48; cursor: pointer; transition: background 0.25s; border-radius: 12px; }
+    .rs-settings-toggle::before { content: ""; position: absolute; top: 4px; left: 4px; width: 16px; height: 16px; background: #5c5c78; transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s; border-radius: 50%; }
     .rs-settings-toggle:checked { background: #4937e9; }
     .rs-settings-toggle:checked::before { transform: translateX(18px); background: #fff; }
+    .rs-settings-toggle:focus-visible { outline: 2px solid #4937e9; outline-offset: 2px; }
 
     /* ===== Select Menu ===== */
-    .rs-settings-row select { flex-shrink: 0; padding: 7px 28px 7px 10px; background: #262640; color: #e0e0e0; border: 1px solid #2d2d48; font-size: 12.5px; outline: none; cursor: pointer; transition: border-color 0.15s; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5L6 7.5L9 4.5' stroke='%238888a8' fill='none' stroke-width='1.5'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 8px center; }
+    .rs-settings-row select { flex-shrink: 0; padding: 7px 30px 7px 10px; background: #262640; color: #e0e0e0; border: 1px solid #2d2d48; font-size: 12.5px; font-family: inherit; outline: none; cursor: pointer; transition: border-color 0.15s; appearance: none; border-radius: 6px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5L6 7.5L9 4.5' stroke='%238888a8' fill='none' stroke-width='1.5'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; }
     .rs-settings-row select:focus { border-color: #4937e9; }
 
     /* ===== Colour Grid ===== */
     .rs-color-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .rs-color-card { display: flex; flex-direction: column; background: rgba(255, 255, 255, 0.015); border: 1px solid #2d2d48; cursor: pointer; transition: border-color 0.15s; overflow: hidden; }
-    .rs-color-card:hover { border-color: #3d3d58; }
-    .rs-color-swatch { width: 100%; height: 32px; padding: 0; border: none; display: block; cursor: pointer; background: none; }
+    .rs-color-card { display: flex; flex-direction: column; background: rgba(255, 255, 255, 0.02); border: 1px solid #2d2d48; cursor: pointer; transition: border-color 0.15s, background 0.15s, box-shadow 0.15s; overflow: hidden; border-radius: 6px; }
+    .rs-color-card:hover { border-color: #3d3d58; background: rgba(255, 255, 255, 0.04); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); }
+    .rs-color-card:last-child:nth-child(odd) { grid-column: 1 / -1; }
+    .rs-color-swatch { width: 100%; height: 40px; padding: 0; border: none; display: block; cursor: pointer; background: none; }
     .rs-color-swatch::-webkit-color-swatch-wrapper { padding: 0; }
-    .rs-color-swatch::-webkit-color-swatch { border: none; }
-    .rs-color-swatch::-moz-color-swatch { border: none; }
-    .rs-color-card-info { padding: 8px 10px; }
+    .rs-color-swatch::-webkit-color-swatch { border: none; border-radius: 5px 5px 0 0; }
+    .rs-color-swatch::-moz-color-swatch { border: none; border-radius: 5px 5px 0 0; }
+    .rs-color-card-info { padding: 9px 12px; }
     .rs-color-card-info strong { display: block; font-size: 12.5px; font-weight: 600; color: #e8e8f0; line-height: 1.3; }
-    .rs-color-card-info small { display: block; margin-top: 1px; font-size: 10.5px; color: #8888a8; line-height: 1.3; }
+    .rs-color-card-info small { display: block; margin-top: 2px; font-size: 10.5px; color: #8888a8; line-height: 1.3; }
+
+    /* ===== About Tab ===== */
+    .rs-about-header { display: flex; align-items: center; gap: 14px; padding-bottom: 16px; margin-bottom: 16px; border-bottom: 1px solid #2d2d48; }
+    .rs-about-logo { width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #4937e9, #6c5ce7); color: #fff; font-size: 18px; font-weight: 800; letter-spacing: -0.5px; border-radius: 8px; flex-shrink: 0; }
+    .rs-about-title h3 { margin: 0; font-size: 14px; font-weight: 700; color: #e8e8f0; line-height: 1.2; }
+    .rs-about-title span { font-size: 11.5px; color: #666680; }
+    .rs-about-card { background: rgba(255, 255, 255, 0.02); border: 1px solid #2d2d48; padding: 14px 16px; margin-bottom: 10px; transition: border-color 0.15s; border-radius: 8px; }
+    .rs-about-card:hover { border-color: #3d3d58; }
+    .rs-about-card h4 { margin: 0 0 6px; font-size: 13px; font-weight: 600; color: #e8e8f0; display: flex; align-items: center; gap: 8px; }
+    .rs-about-card h4 .rs-about-badge { display: inline-block; padding: 2px 7px; font-size: 10px; font-weight: 600; color: #9898b4; background: rgba(255, 255, 255, 0.06); border: 1px solid #2d2d48; border-radius: 4px; }
+    .rs-about-card p { margin: 0; font-size: 12px; color: #9999b0; line-height: 1.65; }
+    .rs-about-card a { color: #8b8bff; text-decoration: none; transition: color 0.15s; }
+    .rs-about-card a:hover { color: #a7a7ff; text-decoration: underline; }
+    .rs-about-divider { height: 1px; background: #2d2d48; margin: 6px 0 16px; }
+    .rs-about-footer { display: flex; justify-content: space-between; align-items: center; padding-top: 14px; border-top: 1px solid #2d2d48; margin-top: 10px; }
+    .rs-about-footer span { font-size: 11px; color: #555570; }
+    .rs-about-footer a { color: #8888a8; text-decoration: none; font-size: 11px; transition: color 0.15s; }
+    .rs-about-footer a:hover { color: #a7a7c2; text-decoration: underline; }
 
     /* ===== Modal Footer ===== */
-    .rs-settings-footer { display: flex; justify-content: space-between; align-items: center; padding: 14px 22px; border-top: 1px solid #2d2d48; background: rgba(0, 0, 0, 0.15); }
+    .rs-settings-footer { display: flex; justify-content: space-between; align-items: center; padding: 14px 22px; border-top: 1px solid #2d2d48; background: rgba(0, 0, 0, 0.18); }
     .rs-settings-footer-group { display: flex; gap: 8px; }
 
     /* ===== Footer Buttons ===== */
-    .rs-settings-btn { padding: 8px 18px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s; }
+    .rs-settings-btn { padding: 8px 18px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.1s; border-radius: 6px; }
+    .rs-settings-btn:active { transform: scale(0.97); }
     .rs-settings-btn--ghost { background: transparent; color: #8888a8; border: 1px solid #2d2d48; }
-    .rs-settings-btn--ghost:hover { background: rgba(255, 255, 255, 0.03); color: #e0e0e0; border-color: #3d3d58; }
+    .rs-settings-btn--ghost:hover { background: rgba(255, 255, 255, 0.04); color: #e0e0e0; border-color: #3d3d58; }
     .rs-settings-btn--primary { background: #4937e9; color: #fff; }
     .rs-settings-btn--primary:hover { background: #5a4bf1; }
   `);
@@ -367,6 +438,7 @@
     return {
       dubInfo: Boolean(config.dubInfo),
       dubLanguage: config.dubLanguage,
+      dubConfidence: config.dubConfidence,
       debugLogging: Boolean(config.debugLogging),
       actionColors: { ...config.actionColors }
     };
@@ -382,11 +454,13 @@
 
     normalize(config = {}) {
       const validLanguage = DUB_LANGUAGES.some(language => language.value === config.dubLanguage);
+      const validConfidence = DUB_CONFIDENCE_LEVELS.some(level => level.value === config.dubConfidence);
       const colors = config.actionColors && typeof config.actionColors === 'object' ? config.actionColors : {};
 
       return {
         dubInfo: config.dubInfo ?? DEFAULT_CONFIG.dubInfo,
         dubLanguage: validLanguage ? config.dubLanguage : DEFAULT_CONFIG.dubLanguage,
+        dubConfidence: validConfidence ? config.dubConfidence : DEFAULT_CONFIG.dubConfidence,
         debugLogging: config.debugLogging ?? DEFAULT_CONFIG.debugLogging,
         actionColors: { ...DEFAULT_ACTION_COLORS, ...colors }
       };
@@ -436,6 +510,183 @@
     const parent = parts.reduce((object, part) => object[part], draft);
     parent[leaf] = value;
   }
+
+  // ============================================================================
+  // Page context + anime ID resolution
+  // ============================================================================
+
+  const PageContext = {
+    identity() {
+      const match = location.pathname.match(WETRAKR_PATH_PATTERN);
+      if (!match) return null;
+
+      const [, section, id] = match;
+      const type = section === 'shows' ? 'show' : 'movie';
+      return { id: Number(id), type, key: `${type}:${id}` };
+    },
+
+    externalIds() {
+      const ids = {
+        mal: null,
+        anilist: null,
+        imdb: null,
+        tmdb: null,
+        tvdb: null,
+        tvdbType: null
+      };
+
+      for (const link of document.querySelectorAll(SELECTORS.externalLinks)) {
+        const href = link.getAttribute('href') || '';
+
+        const malMatch = href.match(/myanimelist\.net\/anime\/(\d+)/i);
+        if (malMatch) ids.mal = Number(malMatch[1]);
+
+        const anilistMatch = href.match(/anilist\.co\/anime\/(\d+)/i);
+        if (anilistMatch) ids.anilist = Number(anilistMatch[1]);
+
+        const imdbMatch = href.match(/imdb\.com\/title\/(tt\d+)/i);
+        if (imdbMatch) ids.imdb = imdbMatch[1];
+
+        const tmdbMatch = href.match(/themoviedb\.org\/(?:movie|tv)\/(\d+)/i);
+        if (tmdbMatch) ids.tmdb = Number(tmdbMatch[1]);
+
+        const tvdbMatch = href.match(/thetvdb\.com\/(?:dereferrer\/)?(series|movie)\/(\d+)/i);
+        if (tvdbMatch) {
+          ids.tvdbType = tvdbMatch[1].toLowerCase();
+          ids.tvdb = Number(tvdbMatch[2]);
+        }
+      }
+
+      return ids;
+    },
+
+    hasRelevantIds(ids) {
+      return Boolean(ids.mal || ids.anilist || ids.imdb || ids.tmdb || ids.tvdb);
+    },
+
+    signature(identity, ids, language, confidence) {
+      return [
+        identity.key,
+        language,
+        confidence,
+        ids.mal,
+        ids.anilist,
+        ids.imdb,
+        ids.tmdb,
+        ids.tvdb,
+        ids.tvdbType
+      ].join('|');
+    }
+  };
+
+  const AnimeMappingCache = {
+    entries: new Map(),
+    generation: 0,
+
+    async request(source, id) {
+      const key = `${source}:${id}`;
+      const now = Date.now();
+      const entry = this.entries.get(key);
+
+      if (entry?.expiresAt > now) return entry.value;
+      if (entry?.pending) return entry.pending;
+
+      const generation = this.generation;
+      const pending = Providers.animeapi.fetch(source, id)
+        .then(data => {
+          const value = data ? {
+            mal: data.myanimelist ? Number(data.myanimelist) : null,
+            anilist: data.anilist ? Number(data.anilist) : null
+          } : null;
+
+          if (generation === this.generation) {
+            this.entries.set(key, {
+              value,
+              expiresAt: Date.now() + (value?.mal || value?.anilist ? MAPPING_TTL.positive : MAPPING_TTL.negative),
+              pending: null
+            });
+          }
+          return value;
+        })
+        .catch(error => {
+          if (generation === this.generation) this.entries.delete(key);
+          throw error;
+        });
+
+      this.entries.set(key, { value: null, expiresAt: 0, pending });
+      return pending;
+    },
+
+    clear() {
+      const count = this.entries.size;
+      this.generation++;
+      this.entries.clear();
+      return count;
+    }
+  };
+
+  const AnimeIdResolver = {
+    candidates(identity, ids) {
+      const candidates = [];
+
+      if (ids.anilist) {
+        candidates.push({ source: 'anilist', id: ids.anilist, label: 'AniList' });
+      }
+
+      if (ids.tmdb) {
+        candidates.push({
+          source: 'themoviedb',
+          id: `${identity.type === 'show' ? 'tv' : 'movie'}/${ids.tmdb}`,
+          label: 'TMDB'
+        });
+      }
+
+      if (ids.imdb) {
+        candidates.push({ source: 'imdb', id: ids.imdb, label: 'IMDb' });
+      }
+
+      if (ids.tvdb && identity.type === 'show' && ids.tvdbType !== 'movie') {
+        candidates.push({ source: 'thetvdb', id: ids.tvdb, label: 'TheTVDB' });
+      }
+
+      return candidates;
+    },
+
+    async resolve(identity, ids) {
+      if (ids.mal) {
+        return {
+          mal: ids.mal,
+          anilist: ids.anilist,
+          via: 'WeTrakr/MyAnimeList'
+        };
+      }
+
+      let lastError = null;
+
+      for (const candidate of this.candidates(identity, ids)) {
+        try {
+          const mapping = await AnimeMappingCache.request(candidate.source, candidate.id);
+          if (!mapping?.mal) continue;
+
+          return {
+            mal: mapping.mal,
+            anilist: ids.anilist || mapping.anilist,
+            via: `AnimeAPI/${candidate.label}`
+          };
+        } catch (error) {
+          lastError = error;
+          logger.debug('Anime ID mapping failed', {
+            source: candidate.label,
+            id: candidate.id,
+            error: errorMessage(error)
+          });
+        }
+      }
+
+      if (lastError) throw lastError;
+      return null;
+    }
+  };
 
   // ============================================================================
   // DOM features
@@ -563,12 +814,134 @@
   };
 
   // ============================================================================
+  // Dub orchestration
+  // ============================================================================
+
+  const DubService = {
+    generation: 0,
+    active: null,
+    settled: null,
+    unresolvedSignature: null,
+    failure: null,
+
+    reset() {
+      this.generation++;
+      this.active = null;
+      this.settled = null;
+      this.unresolvedSignature = null;
+      this.failure = null;
+      DubView.clear();
+    },
+
+    languageName(language) {
+      return DUB_LANGUAGES.find(item => item.value === language)?.name || 'Dub';
+    },
+
+    async apply() {
+      if (SettingsUI.isOpen) return;
+
+      if (!App.config.dubInfo) {
+        DubView.clear();
+        return;
+      }
+
+      const identity = PageContext.identity();
+      if (!identity || !document.querySelector(SELECTORS.metaBox)) {
+        DubView.clear();
+        return;
+      }
+
+      const ids = PageContext.externalIds();
+      if (!PageContext.hasRelevantIds(ids)) return;
+
+      const signature = PageContext.signature(
+        identity,
+        ids,
+        App.config.dubLanguage,
+        App.config.dubConfidence
+      );
+
+      if (this.settled?.signature === signature) {
+        DubView.render(this.settled.label);
+        return;
+      }
+
+      if (this.active?.signature === signature || this.unresolvedSignature === signature) return;
+      if (this.failure?.signature === signature && Date.now() < this.failure.retryAt) return;
+
+      const generation = this.generation;
+      const isCurrent = () => generation === this.generation &&
+        this.active?.signature === signature &&
+        PageContext.identity()?.key === identity.key &&
+        App.config.dubLanguage === this.active?.language &&
+        App.config.dubConfidence === this.active?.confidence;
+
+      this.active = {
+        signature,
+        language: App.config.dubLanguage,
+        confidence: App.config.dubConfidence
+      };
+
+      try {
+        const resolved = await AnimeIdResolver.resolve(identity, ids);
+        if (!isCurrent()) return;
+
+        if (!resolved?.mal) {
+          this.unresolvedSignature = signature;
+          DubView.clear();
+          logger.debug('No MyAnimeList ID could be resolved', { identity, ids });
+          return;
+        }
+
+        const dubbed = await Providers.mydublist.isDubbed(
+          resolved.mal,
+          App.config.dubLanguage,
+          App.config.dubConfidence
+        );
+        if (!isCurrent()) return;
+
+        const label = dubbed ? `${this.languageName(App.config.dubLanguage)} Dub Exists` : null;
+        this.settled = { signature, label };
+        this.unresolvedSignature = null;
+        this.failure = null;
+        DubView.render(label);
+
+        logger.debug('MyDubList dub result', {
+          identity,
+          mal: resolved.mal,
+          anilist: resolved.anilist,
+          via: resolved.via,
+          language: App.config.dubLanguage,
+          confidence: App.config.dubConfidence,
+          dubbed
+        });
+      } catch (error) {
+        if (!isCurrent()) return;
+
+        this.failure = {
+          signature,
+          retryAt: Date.now() + FAILURE_COOLDOWN
+        };
+        DubView.clear();
+        logger.debug('Dub lookup failed', {
+          identity,
+          ids,
+          error: errorMessage(error)
+        });
+      } finally {
+        if (this.active?.signature === signature) this.active = null;
+      }
+    }
+  };
+
+  // ============================================================================
   // Settings UI
   // ============================================================================
 
   const SettingsUI = {
     modal: null,
     isOpen: false,
+    activeTab: 'dubbing',
 
     fieldId(field) {
       return `rs-field-${field.key.replace('.', '-')}`;
@@ -625,12 +998,13 @@
         return;
       }
 
-      DubView.clear();
+      DubService.reset();
     },
 
     bindFields(overlay, draft) {
       for (const field of SETTINGS_FIELDS) {
         const input = overlay.querySelector(`#${this.fieldId(field)}`);
+        if (!input) continue;
         const eventName = field.type === 'color' ? 'input' : 'change';
 
         input.addEventListener(eventName, event => {
@@ -644,6 +1018,7 @@
     syncFields(overlay, draft) {
       for (const field of SETTINGS_FIELDS) {
         const input = overlay.querySelector(`#${this.fieldId(field)}`);
+        if (!input) continue;
         const value = getFieldValue(draft, field.key);
         if (field.type === 'toggle') input.checked = value;
         else input.value = value;
@@ -657,10 +1032,27 @@
       }, 1500);
     },
 
+    switchTab(tabName) {
+      this.activeTab = tabName;
+      const modal = this.modal;
+      if (!modal) return;
+
+      for (const tab of modal.querySelectorAll('.rs-settings-tab')) {
+        const isActive = tab.dataset.tab === tabName;
+        tab.classList.toggle('rs-settings-tab--active', isActive);
+        tab.setAttribute('aria-selected', String(isActive));
+      }
+      for (const panel of modal.querySelectorAll('.rs-settings-tab-panel')) {
+        panel.classList.toggle('rs-settings-tab-panel--active', panel.dataset.panel === tabName);
+      }
+      modal.querySelector('.rs-settings-body').scrollTop = 0;
+    },
+
     close() {
       this.modal?.remove();
       this.modal = null;
       this.isOpen = false;
+      this.activeTab = 'dubbing';
     },
 
     open() {
@@ -670,11 +1062,9 @@
       const saved = cloneConfig(App.config);
       const draft = cloneConfig(saved);
 
-      const groups = {
-        dub: SETTINGS_FIELDS.filter(field => field.preview === 'dub'),
-        logging: SETTINGS_FIELDS.filter(field => field.preview === 'logging'),
-        color: SETTINGS_FIELDS.filter(field => field.preview === 'color')
-      };
+      const dubFields = SETTINGS_FIELDS.filter(field => field.preview === 'dub');
+      const loggingField = SETTINGS_FIELDS.find(field => field.preview === 'logging');
+      const colorFields = SETTINGS_FIELDS.filter(field => field.preview === 'color');
 
       const overlay = document.createElement('div');
       overlay.className = 'rs-settings-overlay';
@@ -684,19 +1074,49 @@
             <h2>WeTrakr Mods Settings</h2>
             <button type="button" class="rs-settings-close" aria-label="Close">&times;</button>
           </div>
+          <nav class="rs-settings-tabs" role="tablist" aria-label="Settings sections">
+            <button type="button" class="rs-settings-tab rs-settings-tab--active" role="tab" aria-selected="true" aria-controls="rs-panel-dubbing" data-tab="dubbing">Dubbing</button>
+            <button type="button" class="rs-settings-tab" role="tab" aria-selected="false" aria-controls="rs-panel-appearance" data-tab="appearance">Appearance</button>
+            <button type="button" class="rs-settings-tab" role="tab" aria-selected="false" aria-controls="rs-panel-about" data-tab="about">About</button>
+          </nav>
           <div class="rs-settings-body">
-            <h3>Dubbing</h3>
-            ${groups.dub.map(field => this.renderField(field, draft)).join('')}
-            <h3>Logging</h3>
-            ${groups.logging.map(field => this.renderField(field, draft)).join('')}
-            <h3>Action Button Colours</h3>
-            <div class="rs-color-grid">
-              ${groups.color.map(field => this.renderField(field, draft)).join('')}
+            <div class="rs-settings-tab-panel rs-settings-tab-panel--active" role="tabpanel" id="rs-panel-dubbing" data-panel="dubbing">
+              ${dubFields.map(field => this.renderField(field, draft)).join('')}
+              ${loggingField ? '<div class="rs-about-divider"></div>' + this.renderField(loggingField, draft) : ''}
+            </div>
+            <div class="rs-settings-tab-panel" role="tabpanel" id="rs-panel-appearance" data-panel="appearance">
+              <div class="rs-settings-section-label">Action Button Colours</div>
+              <div class="rs-color-grid">
+                ${colorFields.map(field => this.renderField(field, draft)).join('')}
+              </div>
+            </div>
+            <div class="rs-settings-tab-panel" role="tabpanel" id="rs-panel-about" data-panel="about">
+              <div class="rs-about-header">
+                <div class="rs-about-logo">W</div>
+                <div class="rs-about-title">
+                  <h3>WeTrakr Mods</h3>
+                  <span>v${SCRIPT.version} &middot; MIT License</span>
+                </div>
+              </div>
+              <div class="rs-about-card">
+                <h4>MyDubList <span class="rs-about-badge">CC BY 4.0</span></h4>
+                <p>Dub availability data provided by <a href="https://mydublist.com" target="_blank" rel="noopener noreferrer">MyDubList</a><br>
+                Source: <a href="https://github.com/Joelis57/MyDubList" target="_blank" rel="noopener noreferrer">github.com/Joelis57/MyDubList</a><br>
+                Licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">Creative Commons Attribution 4.0 International</a></p>
+              </div>
+              <div class="rs-about-card">
+                <h4>AnimeAPI <span class="rs-about-badge">ODbL v1.0</span></h4>
+                <p>Contains information from <a href="https://github.com/nattadasu/animeApi" target="_blank" rel="noopener noreferrer">AnimeAPI</a> and <a href="https://github.com/manami-project/anime-offline-database" target="_blank" rel="noopener noreferrer">Anime Offline Database</a>, which are made available under the <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener noreferrer">Open Database License (ODbL) v1.0</a>.<br>Data via <a href="https://animeapi.my.id" target="_blank" rel="noopener noreferrer">animeapi.my.id</a> (MIT / ODbL / DbCL)</p>
+              </div>
+              <div class="rs-about-footer">
+                <span>&copy; Journey Over</span>
+                <a href="https://github.com/StylusThemes/Userscripts" target="_blank" rel="noopener noreferrer">Homepage</a>
+              </div>
             </div>
           </div>
           <div class="rs-settings-footer">
             <div class="rs-settings-footer-group">
-              <button type="button" class="rs-settings-btn rs-settings-btn--ghost" id="rs-clear-cache">Clear Request Cache</button>
+              <button type="button" class="rs-settings-btn rs-settings-btn--ghost" id="rs-clear-cache">Clear Cache</button>
               <button type="button" class="rs-settings-btn rs-settings-btn--ghost" id="rs-reset">Restore Defaults</button>
             </div>
             <button type="button" class="rs-settings-btn rs-settings-btn--primary" id="rs-save">Save &amp; Close</button>
@@ -708,10 +1128,30 @@
       this.modal = overlay;
       this.bindFields(overlay, draft);
 
+      for (const tab of overlay.querySelectorAll('.rs-settings-tab')) {
+        tab.addEventListener('click', () => this.switchTab(tab.dataset.tab));
+      }
+
+      overlay.addEventListener('keydown', event => {
+        if (event.key === 'Escape') {
+          cancel();
+          return;
+        }
+        if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
+          const tabs = ['dubbing', 'appearance', 'about'];
+          const index = tabs.indexOf(this.activeTab);
+          const next = event.key === 'ArrowRight' ?
+            tabs[(index + 1) % tabs.length] :
+            tabs[(index - 1 + tabs.length) % tabs.length];
+          this.switchTab(next);
+          overlay.querySelector(`.rs-settings-tab[data-tab="${next}"]`).focus();
+        }
+      });
+
       const cancel = () => {
         ActionColorTheme.apply(saved);
         setDebugLogging(saved.debugLogging, true);
-        DubView.clear();
+        DubService.reset();
         this.close();
         App.schedule();
       };
@@ -722,9 +1162,11 @@
       });
 
       overlay.querySelector('#rs-clear-cache').addEventListener('click', event => {
-        DubView.clear();
-        logger.info('Request cache cleared (no-op stub)');
-        this.flashButton(event.currentTarget, 'Cleared!', 'Clear Request Cache');
+        const mappingEntries = AnimeMappingCache.clear();
+        Providers.mydublist.clearCache();
+        DubService.reset();
+        logger.info(`Request cache cleared (${mappingEntries} mapping entr${mappingEntries === 1 ? 'y' : 'ies'} plus MyDubList datasets)`);
+        this.flashButton(event.currentTarget, 'Cleared!', 'Clear Cache');
       });
 
       overlay.querySelector('#rs-reset').addEventListener('click', event => {
@@ -733,7 +1175,7 @@
         this.syncFields(overlay, draft);
         ActionColorTheme.apply(draft);
         setDebugLogging(draft.debugLogging, true);
-        DubView.clear();
+        DubService.reset();
         logger.info('Settings restored to defaults');
         this.flashButton(event.currentTarget, 'Restored!', 'Restore Defaults');
       });
@@ -742,11 +1184,12 @@
         App.config = ConfigStore.save(draft);
         ActionColorTheme.apply(App.config);
         setDebugLogging(App.config.debugLogging, true);
-        DubView.clear();
+        DubService.reset();
 
         logger.info('Settings saved', {
           dubInfo: App.config.dubInfo,
           dubLanguage: App.config.dubLanguage,
+          dubConfidence: App.config.dubConfidence,
           debugLogging: App.config.debugLogging
         });
 
@@ -772,7 +1215,7 @@
       const previousPath = this.lastPath;
       this.lastPath = location.pathname;
       StatusBadgeFeature.reset();
-      DubView.clear();
+      DubService.reset();
 
       logger.info('SPA navigation detected', {
         from: previousPath,
@@ -785,6 +1228,7 @@
       StatusBadgeFeature.apply();
       TimestampFeature.apply();
       ReviewFeature.apply();
+      DubService.apply();
     },
 
     schedule() {
