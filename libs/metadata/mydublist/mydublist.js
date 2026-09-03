@@ -5,7 +5,7 @@
 // @name         @journeyover/mydublist
 // @description  MyDubList client for checking multilingual anime dub availability
 // @license      MIT
-// @version      1.0.0
+// @version      1.0.1
 // @homepageURL  https://github.com/StylusThemes/Userscripts
 // ==/UserLibrary==
 // @connect      raw.githubusercontent.com
@@ -90,9 +90,7 @@ this.MyDubList = class {
 
     const url = this._buildUrl(normalizedLanguage, normalizedConfidence);
     const generation = this._generation;
-    let request;
-
-    request = new Promise((resolve, reject) => {
+    const request = new Promise((resolve, reject) => {
       GM_xmlhttpRequest({
         method: 'GET',
         url,
