@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       1.13.2
+// @version       1.13.3
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
@@ -205,8 +205,8 @@
     .detail-grid__info .detail-overview-block .we-text-body.detail-directed-by a.we-link-body:hover { color: #8283ff; }
     .detail-grid__info .detail-overview-block .we-text-body.detail-directed-by a.we-link-body:first-of-type { margin-left: 4px; }
     /* Remove backgrounds on info items */
-    .detail-grid--person [class="detail-status-line"] .detail-status-badge, [class="detail-grid"] .detail-status-line.detail-meta-line .detail-status-badge, .detail-status-line.detail-meta-row .detail-status-badge { background: none !important; padding: 0px !important; }
-    .detail-grid--person [class="detail-status-line"] .detail-status-badge + .detail-status-badge::before, [class="detail-grid"] .detail-status-line.detail-meta-line .detail-status-badge + .detail-status-badge::before, .detail-status-line.detail-meta-row .detail-status-badge + .detail-status-badge::before { content: "∙"; margin: 0 10px 0 4px; font-weight: bold; }
+    .detail-grid--person [class="detail-status-line"] .detail-status-badge, [class="detail-grid"] .detail-status-line.detail-meta-line .detail-status-badge, .detail-status-line.detail-meta-row .detail-status-badge, .detail-grid--min .detail-status-line.detail-meta-line .detail-status-badge { background: none !important; padding: 0px !important; }
+    .detail-grid--person [class="detail-status-line"] .detail-status-badge + .detail-status-badge::before, [class="detail-grid"] .detail-status-line.detail-meta-line .detail-status-badge + .detail-status-badge::before, .detail-status-line.detail-meta-row .detail-status-badge + .detail-status-badge::before, .detail-grid--min .detail-status-line.detail-meta-line .detail-status-badge + .detail-status-badge::before { content: "∙"; margin: 0 10px 0 4px; font-weight: bold; }
     /* Add background on tag buttons */
     .detail-status-badge--genre { text-decoration: none !important; background: #ffffff30 !important; padding: 3px 10px !important; margin: 0 6px 0px 0 !important; }
     /* Spacing for ratings element */
@@ -215,6 +215,8 @@
     .overview-toggle .see-toggle { display: block; margin: 12px 0 0px 0; }
     .overview-toggle .see-toggle::first-letter { text-transform: uppercase; }
     .overview-toggle .see-toggle::after { content: "➜"; }
+    /* Remove the double gap on the sidebar */
+    .head-actions .action-link-buttons { margin-top: -10%; }
 
     /* ===== Title Stack: Actor ===== */
     /* Remove margin on the department badge (e.g., "Acting") next to name */
@@ -232,6 +234,17 @@
     [class="detail-grid"] .title-stack .detail-status-line.detail-meta-line { order: 2; margin-bottom: var(--space-2); }
     /* Genre line with hidden airing badge: fourth, below meta line */
     [class="detail-grid"] .title-stack .detail-status-line:not(.detail-meta-line) { order: 3; }
+
+    /* ===== Title Stack: Tracking ===== */
+    .detail-grid--min .title-stack { display: flex; flex-direction: column; }
+    /* Airing badge clone: first, own line, above h1 */
+    .detail-grid--min .title-stack .detail-status-badge.rs-clone { order: 0; width: fit-content; margin-bottom: 8px; }
+    /* Title: second */
+    .detail-grid--min .title-stack .we-heading-1 { order: 1; display: unset !important; font-size: 26px; }
+    /* Date, seasons, episodes, and runtime line: third */
+    .detail-grid--min .title-stack .detail-status-line.detail-meta-line { order: 2; margin-bottom: var(--space-2); }
+    /* Genre line with hidden airing badge: fourth, below meta line */
+    .detail-grid--min .title-stack .detail-status-line:not(.detail-meta-line) { order: 3; }
 
     /* ===== Dub Information ===== */
     .detail-meta-box .rs-dub-info { display: flex; flex-direction: row; align-items: baseline; justify-content: space-between; gap: var(--space-3); padding: var(--space-4) var(--space-4); }
@@ -889,6 +902,11 @@
       return hasDub;
     },
 
+    isFallbackableError(error) {
+      const message = errorMessage(error);
+      return /AniList/i.test(message) || /403/.test(message) || /429/.test(message) || /AniList API error/i.test(message);
+    },
+
     async fetchLabel(source, language) {
       if (source.type === 'mal') {
         const status = await RequestManager.request({
@@ -911,6 +929,32 @@
       });
 
       return hasDub ? `${this.languageName(language)} Dub Exists` : null;
+    },
+
+    async fetchLabelWithFallback(sources, language) {
+      let lastError = null;
+      for (let index = 0; index < sources.length; index++) {
+        const source = sources[index];
+        try {
+          const label = await this.fetchLabel(source, language);
+          return label;
+        } catch (error) {
+          lastError = error;
+          const isLast = index === sources.length - 1;
+          const shouldFallback = !isLast && source.type === 'anilist' && this.isFallbackableError(error);
+          if (shouldFallback) {
+            logger.debug('AniList dub lookup failed, falling back to MAL', {
+              anilistId: source.id,
+              fallback: sources[index + 1],
+              error: errorMessage(error)
+            });
+            continue;
+          }
+          throw error;
+        }
+      }
+      if (lastError) throw lastError;
+      return null;
     }
   };
 
@@ -945,6 +989,13 @@
       }
 
       return null;
+    },
+
+    collectSources(mapping, language) {
+      const sources = [];
+      if (mapping?.anilist) sources.push({ type: 'anilist', id: mapping.anilist, via: mapping.via });
+      if (language === 'ENGLISH' && mapping?.mal) sources.push({ type: 'mal', id: mapping.mal, via: mapping.via });
+      return sources;
     },
 
     animeApiCandidates(identity, pageIds) {
@@ -1091,24 +1142,50 @@
 
     async resolve(identity, pageIds, language, isCurrent) {
       const direct = this.directSource(pageIds, language);
-      if (direct) return direct;
+      if (direct) {
+        if (direct.type !== 'anilist' || language !== 'ENGLISH') return [direct];
+        const sources = [direct];
+        const animeApiMapping = await this.viaAnimeApi(identity, pageIds);
+        if (!isCurrent()) return [];
+        if (animeApiMapping?.mal) {
+          sources.push({ type: 'mal', id: animeApiMapping.mal, via: animeApiMapping.via });
+          return sources;
+        }
+        const wikidataMapping = await this.viaWikidata(identity, pageIds);
+        if (!isCurrent()) return [];
+        if (wikidataMapping?.mal) {
+          sources.push({ type: 'mal', id: wikidataMapping.mal, via: wikidataMapping.via });
+        }
+        return sources;
+      }
 
       const animeApiMapping = await this.viaAnimeApi(identity, pageIds);
-      if (!isCurrent()) return null;
-
-      const animeApiSource = this.sourceFromMapping(animeApiMapping, language);
-      if (animeApiSource) return animeApiSource;
+      if (!isCurrent()) return [];
+      if (this.hasMapping(animeApiMapping)) {
+        const sources = this.collectSources(animeApiMapping, language);
+        if (sources.length) {
+          if (language === 'ENGLISH' && sources.length === 1 && sources[0].type === 'anilist' && !animeApiMapping.mal) {
+            const wikidataMapping = await this.viaWikidata(identity, pageIds);
+            if (!isCurrent()) return [];
+            if (wikidataMapping?.mal) {
+              sources.push({ type: 'mal', id: wikidataMapping.mal, via: wikidataMapping.via });
+            }
+          }
+          return sources;
+        }
+      }
 
       const wikidataMapping = await this.viaWikidata(identity, pageIds);
-      if (!isCurrent()) return null;
-
-      const wikidataSource = this.sourceFromMapping(wikidataMapping, language);
-      if (wikidataSource) return wikidataSource;
+      if (!isCurrent()) return [];
+      if (this.hasMapping(wikidataMapping)) {
+        const sources = this.collectSources(wikidataMapping, language);
+        if (sources.length) return sources;
+      }
 
       const mappingError = wikidataMapping?.error || animeApiMapping?.error;
       if (mappingError) throw mappingError;
 
-      return null;
+      return [];
     }
   };
 
@@ -1181,7 +1258,7 @@
       });
 
       try {
-        const source = await DubSourceResolver.resolve(
+        const sources = await DubSourceResolver.resolve(
           identity,
           pageIds,
           language,
@@ -1190,7 +1267,7 @@
 
         if (!this.isCurrent(attempt)) return;
 
-        if (!source) {
+        if (!sources.length) {
           DubView.clear();
           this.unresolvedSignature = signature;
           logger.info('Dub lookup skipped: no usable AniList/MyAnimeList mapping', {
@@ -1200,13 +1277,15 @@
           return;
         }
 
+        const primary = sources[0];
         logger.debug('Dub source resolved', {
-          via: source.via,
-          type: source.type,
-          id: source.id
+          via: primary.via,
+          type: primary.type,
+          id: primary.id,
+          fallback: sources[1] || null
         });
 
-        const label = await DubProviders.fetchLabel(source, language);
+        const label = await DubProviders.fetchLabelWithFallback(sources, language);
         if (!this.isCurrent(attempt)) return;
 
         DubView.render(label);
@@ -1214,8 +1293,9 @@
         this.unresolvedSignature = null;
 
         logger.info(label || `No ${DubProviders.languageName(language)} dub found`, {
-          source: source.via,
-          id: source.id
+          source: primary.via,
+          id: primary.id,
+          fallback: sources[1]?.via || null
         });
       } catch (error) {
         if (!this.isCurrent(attempt)) return;
