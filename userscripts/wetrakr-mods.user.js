@@ -1,15 +1,11 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       1.13.4
+// @version       1.13.5
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
 // @match         *://wetrakr.com/*
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@9e8f1b9bdc1acac2e76f3e8d2348f76817ec5bf4/libs/utils/utils.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@644b86d55bf5816a4fa2a165bdb011ef7c22dfe1/libs/metadata/anilist/anilist.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@e1613fcefb81ed7b05afe90edc479e06088039f2/libs/metadata/animeapi/animeapi.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@da634c26053b0dedb96eacc0870081e48abba069/libs/metadata/wikidata/wikidata.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@eae99ac26ef29201a290d86013a5976fa95333d6/libs/metadata/maldubs/maldubs.min.js
 // @grant         GM_addStyle
 // @grant         GM_xmlhttpRequest
 // @grant         GM_getValue
@@ -34,8 +30,6 @@
   });
 
   const CONFIG_KEY = 'wetrakr-mods-config';
-  const FAILURE_COOLDOWN = 60 * 1000;
-  const WETRAKR_PATH_PATTERN = /^\/(shows|movies)\/(\d+)/;
 
   const SELECTORS = Object.freeze({
     metaBox: '.detail-meta-box--desktop',
@@ -43,20 +37,6 @@
     externalLinks: '.detail-tags a.detail-tag',
     timestampTargets: '.entity-release-date, .detail-status-badge--airing, .media-item__progress-bar-text--episode',
     collapsedReviews: '.review-card__readmore[aria-expanded="false"]'
-  });
-
-  const REQUEST_TTL = Object.freeze({
-    anilistDub: 30 * 60 * 1000,
-    malDub: 30 * 60 * 1000,
-    mappingPositive: 24 * 60 * 60 * 1000,
-    mappingNegative: 30 * 60 * 1000
-  });
-
-  const SERVICE_MIN_INTERVAL = Object.freeze({
-    anilist: 2000,
-    animeapi: 750,
-    wikidata: 1000,
-    maldubs: 1000
   });
 
   const DUB_LANGUAGES = Object.freeze([
@@ -134,19 +114,12 @@
   ]);
 
   // ============================================================================
-  // Logging + providers
+  // Logging
   // ============================================================================
 
   const loggerOptions = { debug: false };
   const logger = Logger(SCRIPT.name, loggerOptions);
   logger.info = logger;
-
-  const Providers = Object.freeze({
-    anilist: new AniList(),
-    animeapi: new AnimeAPI(),
-    wikidata: new Wikidata(),
-    maldubs: new MalDubs()
-  });
 
   function setDebugLogging(enabled, announce = false) {
     const next = Boolean(enabled);
@@ -158,10 +131,6 @@
     if (announce && previous !== next) {
       logger.info(`Debug logging ${next ? 'enabled' : 'disabled'}`);
     }
-  }
-
-  function errorMessage(error) {
-    return error?.message || String(error);
   }
 
   // ============================================================================
@@ -469,206 +438,6 @@
   }
 
   // ============================================================================
-  // Page context
-  // ============================================================================
-
-  const PageContext = {
-    identity() {
-      const match = location.pathname.match(WETRAKR_PATH_PATTERN);
-      if (!match) return null;
-
-      const [, section, id] = match;
-      const type = section === 'shows' ? 'show' : 'movie';
-
-      return {
-        id: Number(id),
-        type,
-        key: `${type}:${id}`
-      };
-    },
-
-    externalIds() {
-      const ids = {
-        anilist: null,
-        imdb: null,
-        tmdb: null,
-        tvdb: null,
-        tvdbType: null,
-        wikidata: null,
-        mal: null
-      };
-
-      for (const link of document.querySelectorAll(SELECTORS.externalLinks)) {
-        const href = link.getAttribute('href') || '';
-
-        const anilistMatch = href.match(/anilist\.co\/anime\/(\d+)/i);
-        if (anilistMatch) ids.anilist = Number(anilistMatch[1]);
-
-        const imdbMatch = href.match(/imdb\.com\/title\/(tt\d+)/i);
-        if (imdbMatch) ids.imdb = imdbMatch[1];
-
-        const tmdbMatch = href.match(/themoviedb\.org\/(?:movie|tv)\/(\d+)/i);
-        if (tmdbMatch) ids.tmdb = Number(tmdbMatch[1]);
-
-        const tvdbMatch = href.match(/thetvdb\.com\/(?:dereferrer\/)?(series|movie)\/(\d+)/i);
-        if (tvdbMatch) {
-          ids.tvdbType = tvdbMatch[1].toLowerCase();
-          ids.tvdb = Number(tvdbMatch[2]);
-        }
-
-        const wikidataMatch = href.match(/wikidata\.org\/wiki\/(Q\d+)/i);
-        if (wikidataMatch) ids.wikidata = wikidataMatch[1].toUpperCase();
-
-        const malMatch = href.match(/myanimelist\.net\/anime\/(\d+)/i);
-        if (malMatch) ids.mal = Number(malMatch[1]);
-      }
-
-      return ids;
-    },
-
-    hasExternalIds(ids) {
-      return Boolean(ids.anilist || ids.mal || ids.imdb || ids.tmdb || ids.tvdb || ids.wikidata);
-    },
-
-    compactExternalIds(ids) {
-      return Object.fromEntries(Object.entries(ids).filter(([, value]) => value !== null));
-    },
-
-    dubBaseKey(identity, language) {
-      return `${identity.key}|${language}`;
-    },
-
-    dubSignature(identity, ids, language) {
-      return [
-        identity.key,
-        language,
-        ids.anilist,
-        ids.mal,
-        ids.imdb,
-        ids.tmdb,
-        ids.tvdb,
-        ids.tvdbType,
-        ids.wikidata
-      ].join('|');
-    }
-  };
-
-  // ============================================================================
-  // Request scheduling + cache
-  // ============================================================================
-
-  function sleep(milliseconds) {
-    return new Promise(resolve => setTimeout(resolve, milliseconds));
-  }
-
-  function createRateLimiter(minInterval) {
-    let queue = Promise.resolve();
-    let nextAllowedAt = 0;
-
-    return async function run(task) {
-      const request = queue.then(async () => {
-        const delay = Math.max(0, nextAllowedAt - Date.now());
-        if (delay) await sleep(delay);
-
-        nextAllowedAt = Date.now() + minInterval;
-        return task();
-      });
-
-      queue = request.catch(() => {});
-      return request;
-    };
-  }
-
-  const ServiceLimiters = Object.fromEntries(
-    Object.entries(SERVICE_MIN_INTERVAL).map(([service, interval]) => [service, createRateLimiter(interval)])
-  );
-
-  const RequestManager = {
-    entries: new Map(),
-    generation: 0,
-
-    entryFor(key) {
-      if (!this.entries.has(key)) {
-        this.entries.set(key, {
-          value: undefined,
-          expiresAt: 0,
-          retryAt: 0,
-          pending: null
-        });
-      }
-      return this.entries.get(key);
-    },
-
-    async request({ key, service, ttl, fetcher }) {
-      const entry = this.entryFor(key);
-      const now = Date.now();
-
-      if (entry.expiresAt > now) {
-        logger.debug(`Cache hit: ${key}`, { service, expiresInMs: entry.expiresAt - now });
-        return entry.value;
-      }
-
-      if (entry.pending) {
-        logger.debug(`Reusing in-flight request: ${key}`, { service });
-        return entry.pending;
-      }
-
-      if (entry.retryAt > now) {
-        const error = new Error(`Request cooldown active until ${new Date(entry.retryAt).toISOString()}`);
-        error.code = 'REQUEST_COOLDOWN';
-        error.retryAt = entry.retryAt;
-        throw error;
-      }
-
-      const limiter = ServiceLimiters[service];
-      if (!limiter) throw new Error(`Unknown request service: ${service}`);
-
-      const generation = this.generation;
-      const startedAt = performance.now();
-      logger.debug(`Provider request: ${key}`, { service });
-
-      entry.pending = limiter(fetcher)
-        .then(value => {
-          entry.retryAt = 0;
-
-          let cacheTtlMs = 0;
-          if (generation === this.generation) {
-            cacheTtlMs = typeof ttl === 'function' ? ttl(value) : ttl;
-            if (Number.isFinite(cacheTtlMs) && cacheTtlMs > 0) {
-              entry.value = value;
-              entry.expiresAt = Date.now() + cacheTtlMs;
-            }
-          }
-
-          logger.debug(`Provider response: ${key}`, {
-            service,
-            elapsedMs: Math.round(performance.now() - startedAt),
-            cacheTtlMs
-          });
-          return value;
-        })
-        .catch(error => {
-          if (generation === this.generation) {
-            entry.retryAt = Date.now() + FAILURE_COOLDOWN;
-          }
-          throw error;
-        })
-        .finally(() => {
-          entry.pending = null;
-        });
-
-      return entry.pending;
-    },
-
-    clear() {
-      const count = this.entries.size;
-      this.generation++;
-      this.entries.clear();
-      logger.info(`Request cache cleared (${count} entr${count === 1 ? 'y' : 'ies'})`);
-    }
-  };
-
-  // ============================================================================
   // DOM features
   // ============================================================================
 
@@ -794,533 +563,6 @@
   };
 
   // ============================================================================
-  // Dub provider adapters
-  // ============================================================================
-
-  const DubProviders = {
-    languageName(language) {
-      return DUB_LANGUAGES.find(item => item.value === language)?.name || 'Dub';
-    },
-
-    mappingTtl(mapping) {
-      return mapping?.anilist || mapping?.mal ?
-        REQUEST_TTL.mappingPositive :
-        REQUEST_TTL.mappingNegative;
-    },
-
-    normalizeAnimeApi(data) {
-      return {
-        anilist: data?.anilist ? Number(data.anilist) : null,
-        mal: data?.myanimelist ? Number(data.myanimelist) : null
-      };
-    },
-
-    normalizeWikidataLinks(data) {
-      const anilistUrl = data?.links?.AniList?.value || '';
-      const malUrl = data?.links?.MyAnimeList?.value || '';
-      const anilistMatch = anilistUrl.match(/anilist\.co\/anime\/(\d+)/i);
-      const malMatch = malUrl.match(/myanimelist\.net\/anime\/(\d+)/i);
-
-      return {
-        anilist: anilistMatch ? Number(anilistMatch[1]) : null,
-        mal: malMatch ? Number(malMatch[1]) : null
-      };
-    },
-
-    queryWikidataItem(wikidataId) {
-      if (!/^Q\d+$/.test(wikidataId)) {
-        return Promise.reject(new Error(`Invalid Wikidata ID: ${wikidataId}`));
-      }
-
-      const query = `
-        SELECT ?AniList ?MyAnimeList WHERE {
-          VALUES ?item { wd:${wikidataId} }
-          OPTIONAL { ?item wdt:P8729 ?AniList. }
-          OPTIONAL { ?item wdt:P4086 ?MyAnimeList. }
-        }
-        LIMIT 1
-      `;
-
-      return new Promise((resolve, reject) => {
-        GM_xmlhttpRequest({
-          method: 'GET',
-          url: `https://query.wikidata.org/sparql?query=${encodeURIComponent(query)}`,
-          headers: { Accept: 'application/sparql-results+json' },
-          timeout: 15e3,
-          onload: response => {
-            if (response.status !== 200) {
-              reject(new Error(`Wikidata request failed with status ${response.status}`));
-              return;
-            }
-
-            try {
-              const binding = JSON.parse(response.responseText)?.results?.bindings?.[0] || {};
-              resolve({
-                anilist: binding.AniList?.value ? Number(binding.AniList.value) : null,
-                mal: binding.MyAnimeList?.value ? Number(binding.MyAnimeList.value) : null
-              });
-            } catch {
-              reject(new Error('Failed to parse Wikidata response'));
-            }
-          },
-          onerror: () => reject(new Error('An error occurs while processing the Wikidata request')),
-          ontimeout: () => reject(new Error('Wikidata request times out'))
-        });
-      });
-    },
-
-    async queryAnilistDub(anilistId, language) {
-      const query = `
-        query($id: Int!, $type: MediaType, $page: Int = 1, $language: StaffLanguage) {
-          Media(id: $id, type: $type) {
-            characters(page: $page, sort: [ROLE], role: MAIN) {
-              edges {
-                node { id }
-                voiceActors(language: $language) { language }
-              }
-            }
-          }
-        }
-      `;
-
-      const response = await Providers.anilist.query(query, {
-        id: Number(anilistId),
-        type: 'ANIME',
-        language
-      });
-
-      const edges = response?.data?.Media?.characters?.edges;
-      if (!Array.isArray(edges)) throw new Error('Unexpected AniList response structure');
-
-      const hasDub = edges.some(edge => edge.voiceActors?.length > 0);
-      logger.debug('AniList dub result', {
-        anilistId,
-        language,
-        mainCharacters: edges.length,
-        hasDub
-      });
-      return hasDub;
-    },
-
-    isFallbackableError(error) {
-      const message = errorMessage(error);
-      return /AniList/i.test(message) || /403/.test(message) || /429/.test(message) || /AniList API error/i.test(message);
-    },
-
-    async fetchLabel(source, language) {
-      if (source.type === 'mal') {
-        const status = await RequestManager.request({
-          key: `mal-dubs:${source.id}`,
-          service: 'maldubs',
-          ttl: REQUEST_TTL.malDub,
-          fetcher: () => Providers.maldubs.getStatus(source.id)
-        });
-
-        logger.debug('MAL-Dubs result', { malId: source.id, status });
-        if (!status) return null;
-        return status === 'incomplete' ? 'English Dub Incomplete' : 'English Dub Exists';
-      }
-
-      const hasDub = await RequestManager.request({
-        key: `anilist:${source.id}:${language}`,
-        service: 'anilist',
-        ttl: REQUEST_TTL.anilistDub,
-        fetcher: () => this.queryAnilistDub(source.id, language)
-      });
-
-      return hasDub ? `${this.languageName(language)} Dub Exists` : null;
-    },
-
-    async fetchLabelWithFallback(sources, language) {
-      let lastError = null;
-      for (let index = 0; index < sources.length; index++) {
-        const source = sources[index];
-        try {
-          const label = await this.fetchLabel(source, language);
-          return label;
-        } catch (error) {
-          lastError = error;
-          const isLast = index === sources.length - 1;
-          const shouldFallback = !isLast && source.type === 'anilist' && this.isFallbackableError(error);
-          if (shouldFallback) {
-            logger.debug('AniList dub lookup failed, falling back to MAL', {
-              anilistId: source.id,
-              fallback: sources[index + 1],
-              error: errorMessage(error)
-            });
-            continue;
-          }
-          throw error;
-        }
-      }
-      if (lastError) throw lastError;
-      return null;
-    }
-  };
-
-  // ============================================================================
-  // ID mapping + dub source resolution
-  // ============================================================================
-
-  const DubSourceResolver = {
-    hasMapping(mapping) {
-      return Boolean(mapping?.anilist || mapping?.mal);
-    },
-
-    directSource(pageIds, language) {
-      if (pageIds.anilist) {
-        return { type: 'anilist', id: pageIds.anilist, via: 'WeTrakr/AniList' };
-      }
-
-      if (language === 'ENGLISH' && pageIds.mal) {
-        return { type: 'mal', id: pageIds.mal, via: 'WeTrakr/MyAnimeList' };
-      }
-
-      return null;
-    },
-
-    sourceFromMapping(mapping, language) {
-      if (mapping?.anilist) {
-        return { type: 'anilist', id: mapping.anilist, via: mapping.via };
-      }
-
-      if (language === 'ENGLISH' && mapping?.mal) {
-        return { type: 'mal', id: mapping.mal, via: mapping.via };
-      }
-
-      return null;
-    },
-
-    collectSources(mapping, language) {
-      const sources = [];
-      if (mapping?.anilist) sources.push({ type: 'anilist', id: mapping.anilist, via: mapping.via });
-      if (language === 'ENGLISH' && mapping?.mal) sources.push({ type: 'mal', id: mapping.mal, via: mapping.via });
-      return sources;
-    },
-
-    animeApiCandidates(identity, pageIds) {
-      const candidates = [];
-
-      if (pageIds.tmdb) {
-        candidates.push({
-          source: 'themoviedb',
-          id: `${identity.type === 'show' ? 'tv' : 'movie'}/${pageIds.tmdb}`,
-          label: 'TMDB'
-        });
-      }
-
-      if (pageIds.imdb) {
-        candidates.push({ source: 'imdb', id: pageIds.imdb, label: 'IMDb' });
-      }
-
-      if (identity.type === 'show' && pageIds.tvdb) {
-        candidates.push({ source: 'thetvdb', id: pageIds.tvdb, label: 'TheTVDB' });
-      }
-
-      if (pageIds.mal) {
-        candidates.push({ source: 'myanimelist', id: pageIds.mal, label: 'MyAnimeList' });
-      }
-
-      return candidates;
-    },
-
-    async viaAnimeApi(identity, pageIds) {
-      let lastError = null;
-
-      for (const candidate of this.animeApiCandidates(identity, pageIds)) {
-        try {
-          const mapping = await RequestManager.request({
-            key: `animeapi:${candidate.source}:${candidate.id}`,
-            service: 'animeapi',
-            ttl: result => DubProviders.mappingTtl(result),
-            fetcher: async () => DubProviders.normalizeAnimeApi(
-              await Providers.animeapi.fetch(candidate.source, candidate.id)
-            )
-          });
-
-          if (this.hasMapping(mapping)) {
-            const result = { ...mapping, via: `AnimeAPI/${candidate.label}` };
-            logger.debug('Anime IDs mapped', { via: result.via, mapping });
-            return result;
-          }
-        } catch (error) {
-          lastError = error;
-          logger.debug('AnimeAPI mapping candidate failed', {
-            via: candidate.label,
-            lookup: candidate.id,
-            error: errorMessage(error)
-          });
-        }
-      }
-
-      return lastError ? { error: lastError } : null;
-    },
-
-    wikidataExternalCandidates(identity, pageIds) {
-      const itemType = identity.type === 'show' ? 'tv' : 'movie';
-      const candidates = [];
-
-      if (pageIds.imdb) {
-        candidates.push({ id: pageIds.imdb, source: 'IMDb', itemType, label: 'IMDb' });
-      }
-
-      if (pageIds.tmdb) {
-        candidates.push({
-          id: String(pageIds.tmdb),
-          source: identity.type === 'show' ? 'TMDb_tv' : 'TMDb_movie',
-          itemType,
-          label: 'TMDB'
-        });
-      }
-
-      if (pageIds.tvdb) {
-        candidates.push({
-          id: String(pageIds.tvdb),
-          source: identity.type === 'show' ? 'TVDb_tv' : 'TVDb_movie',
-          itemType,
-          label: 'TheTVDB'
-        });
-      }
-
-      return candidates;
-    },
-
-    async viaWikidata(identity, pageIds) {
-      let lastError = null;
-
-      if (pageIds.wikidata) {
-        try {
-          const mapping = await RequestManager.request({
-            key: `wikidata:item:${pageIds.wikidata}`,
-            service: 'wikidata',
-            ttl: result => DubProviders.mappingTtl(result),
-            fetcher: () => DubProviders.queryWikidataItem(pageIds.wikidata)
-          });
-
-          if (this.hasMapping(mapping)) {
-            const result = { ...mapping, via: `Wikidata/${pageIds.wikidata}` };
-            logger.debug('Anime IDs mapped', { via: result.via, mapping });
-            return result;
-          }
-        } catch (error) {
-          lastError = error;
-          logger.debug('Wikidata QID mapping failed', {
-            wikidata: pageIds.wikidata,
-            error: errorMessage(error)
-          });
-        }
-      }
-
-      for (const candidate of this.wikidataExternalCandidates(identity, pageIds)) {
-        try {
-          const mapping = await RequestManager.request({
-            key: `wikidata:${candidate.source}:${candidate.id}:${candidate.itemType}`,
-            service: 'wikidata',
-            ttl: result => DubProviders.mappingTtl(result),
-            fetcher: async () => DubProviders.normalizeWikidataLinks(
-              await Providers.wikidata.links(candidate.id, candidate.source, candidate.itemType)
-            )
-          });
-
-          if (this.hasMapping(mapping)) {
-            const result = { ...mapping, via: `Wikidata/${candidate.label}` };
-            logger.debug('Anime IDs mapped', { via: result.via, mapping });
-            return result;
-          }
-        } catch (error) {
-          lastError = error;
-          logger.debug('Wikidata mapping candidate failed', {
-            via: candidate.label,
-            lookup: candidate.id,
-            error: errorMessage(error)
-          });
-        }
-      }
-
-      return lastError ? { error: lastError } : null;
-    },
-
-    async resolve(identity, pageIds, language, isCurrent) {
-      const direct = this.directSource(pageIds, language);
-      if (direct) {
-        if (direct.type !== 'anilist' || language !== 'ENGLISH') return [direct];
-        const sources = [direct];
-        const animeApiMapping = await this.viaAnimeApi(identity, pageIds);
-        if (!isCurrent()) return [];
-        if (animeApiMapping?.mal) {
-          sources.push({ type: 'mal', id: animeApiMapping.mal, via: animeApiMapping.via });
-          return sources;
-        }
-        const wikidataMapping = await this.viaWikidata(identity, pageIds);
-        if (!isCurrent()) return [];
-        if (wikidataMapping?.mal) {
-          sources.push({ type: 'mal', id: wikidataMapping.mal, via: wikidataMapping.via });
-        }
-        return sources;
-      }
-
-      const animeApiMapping = await this.viaAnimeApi(identity, pageIds);
-      if (!isCurrent()) return [];
-      if (this.hasMapping(animeApiMapping)) {
-        const sources = this.collectSources(animeApiMapping, language);
-        if (sources.length) {
-          if (language === 'ENGLISH' && sources.length === 1 && sources[0].type === 'anilist' && !animeApiMapping.mal) {
-            const wikidataMapping = await this.viaWikidata(identity, pageIds);
-            if (!isCurrent()) return [];
-            if (wikidataMapping?.mal) {
-              sources.push({ type: 'mal', id: wikidataMapping.mal, via: wikidataMapping.via });
-            }
-          }
-          return sources;
-        }
-      }
-
-      const wikidataMapping = await this.viaWikidata(identity, pageIds);
-      if (!isCurrent()) return [];
-      if (this.hasMapping(wikidataMapping)) {
-        const sources = this.collectSources(wikidataMapping, language);
-        if (sources.length) return sources;
-      }
-
-      const mappingError = wikidataMapping?.error || animeApiMapping?.error;
-      if (mappingError) throw mappingError;
-
-      return [];
-    }
-  };
-
-  // ============================================================================
-  // Dub orchestration
-  // ============================================================================
-
-  const DubService = {
-    generation: 0,
-    activeAttempt: null,
-    settledBaseKey: null,
-    unresolvedSignature: null,
-    failure: null,
-
-    reset() {
-      this.generation++;
-      this.activeAttempt = null;
-      this.settledBaseKey = null;
-      this.unresolvedSignature = null;
-      this.failure = null;
-      DubView.clear();
-    },
-
-    canStart(baseKey, signature) {
-      if (this.settledBaseKey === baseKey) return false;
-      if (this.activeAttempt?.signature === signature) return false;
-      if (this.unresolvedSignature === signature) return false;
-
-      if (this.failure?.signature === signature && Date.now() < this.failure.retryAt) {
-        return false;
-      }
-
-      return true;
-    },
-
-    isCurrent(attempt) {
-      return attempt.generation === this.generation && this.activeAttempt === attempt;
-    },
-
-    async apply(config) {
-      if (!document.querySelector(SELECTORS.metaBox)) return;
-
-      if (!config.dubInfo) {
-        DubView.clear();
-        return;
-      }
-
-      const identity = PageContext.identity();
-      if (!identity) return;
-
-      const pageIds = PageContext.externalIds();
-      if (!PageContext.hasExternalIds(pageIds)) return;
-
-      const language = config.dubLanguage;
-      const baseKey = PageContext.dubBaseKey(identity, language);
-      const signature = PageContext.dubSignature(identity, pageIds, language);
-      if (!this.canStart(baseKey, signature)) return;
-
-      const attempt = {
-        generation: this.generation,
-        baseKey,
-        signature
-      };
-      this.activeAttempt = attempt;
-      this.failure = null;
-
-      logger.info(`Checking ${DubProviders.languageName(language)} dub availability`, {
-        identity,
-        externalIds: PageContext.compactExternalIds(pageIds)
-      });
-
-      try {
-        const sources = await DubSourceResolver.resolve(
-          identity,
-          pageIds,
-          language,
-          () => this.isCurrent(attempt)
-        );
-
-        if (!this.isCurrent(attempt)) return;
-
-        if (!sources.length) {
-          DubView.clear();
-          this.unresolvedSignature = signature;
-          logger.info('Dub lookup skipped: no usable AniList/MyAnimeList mapping', {
-            identity,
-            externalIds: PageContext.compactExternalIds(pageIds)
-          });
-          return;
-        }
-
-        const primary = sources[0];
-        logger.debug('Dub source resolved', {
-          via: primary.via,
-          type: primary.type,
-          id: primary.id,
-          fallback: sources[1] || null
-        });
-
-        const label = await DubProviders.fetchLabelWithFallback(sources, language);
-        if (!this.isCurrent(attempt)) return;
-
-        DubView.render(label);
-        this.settledBaseKey = baseKey;
-        this.unresolvedSignature = null;
-
-        logger.info(label || `No ${DubProviders.languageName(language)} dub found`, {
-          source: primary.via,
-          id: primary.id,
-          fallback: sources[1]?.via || null
-        });
-      } catch (error) {
-        if (!this.isCurrent(attempt)) return;
-
-        const retryAt = error?.retryAt || (Date.now() + FAILURE_COOLDOWN);
-        this.failure = { signature, retryAt };
-
-        if (error?.code === 'REQUEST_COOLDOWN') {
-          logger.debug('Dub lookup waiting for provider cooldown', {
-            retryAt: new Date(retryAt).toISOString()
-          });
-          return;
-        }
-
-        logger.error(`Dub lookup failed: ${errorMessage(error)}`, {
-          identity,
-          externalIds: PageContext.compactExternalIds(pageIds)
-        });
-      } finally {
-        if (this.activeAttempt === attempt) this.activeAttempt = null;
-      }
-    }
-  };
-
-  // ============================================================================
   // Settings UI
   // ============================================================================
 
@@ -1383,8 +625,7 @@
         return;
       }
 
-      DubService.reset();
-      if (draft.dubInfo) DubService.apply(draft);
+      DubView.clear();
     },
 
     bindFields(overlay, draft) {
@@ -1470,7 +711,7 @@
       const cancel = () => {
         ActionColorTheme.apply(saved);
         setDebugLogging(saved.debugLogging, true);
-        DubService.reset();
+        DubView.clear();
         this.close();
         App.schedule();
       };
@@ -1481,9 +722,8 @@
       });
 
       overlay.querySelector('#rs-clear-cache').addEventListener('click', event => {
-        RequestManager.clear();
-        DubService.reset();
-        if (draft.dubInfo) DubService.apply(draft);
+        DubView.clear();
+        logger.info('Request cache cleared (no-op stub)');
         this.flashButton(event.currentTarget, 'Cleared!', 'Clear Request Cache');
       });
 
@@ -1493,8 +733,7 @@
         this.syncFields(overlay, draft);
         ActionColorTheme.apply(draft);
         setDebugLogging(draft.debugLogging, true);
-        DubService.reset();
-        if (draft.dubInfo) DubService.apply(draft);
+        DubView.clear();
         logger.info('Settings restored to defaults');
         this.flashButton(event.currentTarget, 'Restored!', 'Restore Defaults');
       });
@@ -1503,7 +742,7 @@
         App.config = ConfigStore.save(draft);
         ActionColorTheme.apply(App.config);
         setDebugLogging(App.config.debugLogging, true);
-        DubService.reset();
+        DubView.clear();
 
         logger.info('Settings saved', {
           dubInfo: App.config.dubInfo,
@@ -1533,7 +772,7 @@
       const previousPath = this.lastPath;
       this.lastPath = location.pathname;
       StatusBadgeFeature.reset();
-      DubService.reset();
+      DubView.clear();
 
       logger.info('SPA navigation detected', {
         from: previousPath,
@@ -1546,10 +785,6 @@
       StatusBadgeFeature.apply();
       TimestampFeature.apply();
       ReviewFeature.apply();
-
-      if (!SettingsUI.isOpen) {
-        DubService.apply(this.config);
-      }
     },
 
     schedule() {
