@@ -27,6 +27,7 @@ export default [
         ArmHaglund: 'readonly',
         AniList: 'readonly',
         MalDubs: 'readonly',
+        MyDubList: 'readonly',
         Logger: 'readonly',
         GMC: 'readonly',
         GM: 'readonly',
