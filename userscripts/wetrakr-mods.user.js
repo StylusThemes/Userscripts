@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       1.13.3
+// @version       1.13.4
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
@@ -216,7 +216,7 @@
     .overview-toggle .see-toggle::first-letter { text-transform: uppercase; }
     .overview-toggle .see-toggle::after { content: "➜"; }
     /* Remove the double gap on the sidebar */
-    .head-actions .action-link-buttons { margin-top: -10%; }
+    .head-actions .action-link-buttons { margin-top: -10% !important; }
 
     /* ===== Title Stack: Actor ===== */
     /* Remove margin on the department badge (e.g., "Acting") next to name */
