@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       1.14.1
+// @version       1.15.0
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
@@ -44,7 +44,9 @@
     titleStack: '.title-stack',
     externalLinks: '.detail-tags a.detail-tag',
     timestampTargets: '.entity-release-date, .detail-status-badge--airing, .media-item__progress-bar-text--episode',
-    collapsedReviews: '.review-card__readmore[aria-expanded="false"]'
+    collapsedReviews: '.review-card__readmore[aria-expanded="false"]',
+    overviewBlocks: '.overview-toggle.clickable',
+    overviewToggles: '.overview-toggle .see-toggle'
   });
 
   const DUB_LANGUAGES = Object.freeze([
@@ -771,6 +773,43 @@
     }
   };
 
+  const OverviewFeature = {
+    intercepted: false,
+
+    isExcluded() {
+      return location.pathname.startsWith('/people');
+    },
+
+    apply() {
+      if (this.isExcluded()) return;
+
+      if (!this.intercepted) {
+        this.intercepted = true;
+        document.addEventListener('click', event => {
+          const closest = selector => event.target.closest?.(selector);
+          if (this.isExcluded() || closest(SELECTORS.overviewToggles) || closest('a[href]') || !closest(SELECTORS.overviewBlocks)) return;
+          event.preventDefault();
+          event.stopPropagation();
+        }, true);
+      }
+
+      for (const block of document.querySelectorAll(SELECTORS.overviewBlocks)) block.style.cursor = 'text';
+
+      let expanded = 0;
+      for (const toggle of document.querySelectorAll(SELECTORS.overviewToggles)) {
+        const label = toggle.textContent.trim().toLowerCase();
+        if (label.startsWith('see more')) {
+          toggle.click();
+          expanded++;
+        } else if (!label.startsWith('see less')) {
+          continue;
+        }
+        toggle.style.display = 'none';
+      }
+      if (expanded) logger.debug(`Expanded ${expanded} overview${expanded === 1 ? '' : 's'}`);
+    }
+  };
+
   // ============================================================================
   // Dub UI
   // ============================================================================
@@ -1228,6 +1267,7 @@
       StatusBadgeFeature.apply();
       TimestampFeature.apply();
       ReviewFeature.apply();
+      OverviewFeature.apply();
       DubService.apply();
     },
 
