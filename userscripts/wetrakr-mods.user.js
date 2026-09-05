@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       1.15.0
+// @version       1.15.1
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
@@ -150,7 +150,6 @@
 
   const loggerOptions = { debug: false };
   const logger = Logger(SCRIPT.name, loggerOptions);
-  logger.info = logger;
 
   const Providers = Object.freeze({
     animeapi: new AnimeAPI(),
@@ -169,7 +168,7 @@
     logger.debugEnabled = next;
 
     if (announce && previous !== next) {
-      logger.info(`Debug logging ${next ? 'enabled' : 'disabled'}`);
+      logger(`Debug logging ${next ? 'enabled' : 'disabled'}`);
     }
   }
 
@@ -1204,7 +1203,7 @@
         const mappingEntries = AnimeMappingCache.clear();
         Providers.mydublist.clearCache();
         DubService.reset();
-        logger.info(`Request cache cleared (${mappingEntries} mapping entr${mappingEntries === 1 ? 'y' : 'ies'} plus MyDubList datasets)`);
+        logger(`Request cache cleared (${mappingEntries} mapping entr${mappingEntries === 1 ? 'y' : 'ies'} plus MyDubList datasets)`);
         this.flashButton(event.currentTarget, 'Cleared!', 'Clear Cache');
       });
 
@@ -1215,7 +1214,7 @@
         ActionColorTheme.apply(draft);
         setDebugLogging(draft.debugLogging, true);
         DubService.reset();
-        logger.info('Settings restored to defaults');
+        logger('Settings restored to defaults');
         this.flashButton(event.currentTarget, 'Restored!', 'Restore Defaults');
       });
 
@@ -1225,7 +1224,7 @@
         setDebugLogging(App.config.debugLogging, true);
         DubService.reset();
 
-        logger.info('Settings saved', {
+        logger('Settings saved', {
           dubInfo: App.config.dubInfo,
           dubLanguage: App.config.dubLanguage,
           dubConfidence: App.config.dubConfidence,
@@ -1256,7 +1255,7 @@
       StatusBadgeFeature.reset();
       DubService.reset();
 
-      logger.info('SPA navigation detected', {
+      logger('SPA navigation detected', {
         from: previousPath,
         to: this.lastPath
       });
@@ -1313,7 +1312,7 @@
       this.hookHistoryMethod('replaceState');
       window.addEventListener('popstate', () => this.schedule());
 
-      logger.info('WeTrakr Mods started', {
+      logger('WeTrakr Mods started', {
         version: SCRIPT.version,
         path: location.pathname,
         debugLogging: this.config.debugLogging
