@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       1.15.1
+// @version       1.16.0
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
@@ -46,7 +46,8 @@
     timestampTargets: '.entity-release-date, .detail-status-badge--airing, .media-item__progress-bar-text--episode',
     collapsedReviews: '.review-card__readmore[aria-expanded="false"]',
     overviewBlocks: '.overview-toggle.clickable',
-    overviewToggles: '.overview-toggle .see-toggle'
+    overviewToggles: '.overview-toggle .see-toggle',
+    episodeToggles: '.episode-item__overview .item-more'
   });
 
   const DUB_LANGUAGES = Object.freeze([
@@ -206,6 +207,8 @@
     .detail-title-pager { margin-bottom: 20px !important; }
     /* Hide the "still ongoing" hint and its remove-all-watched toggle shown for ongoing shows */
     .watching-details--all-watched { display: none !important; }
+    /* Hide fully-watched progress bar (100% fill) since it adds no information */
+    .watching-progress:has(.watching-progress__fill[style*="100%"]) { display: none !important; }
     /* Director + Creator */
     .detail-grid__info .detail-overview-block .detail-directed-by { margin-bottom: 20px !important; }
     .detail-grid__info .detail-overview-block .we-text-body.detail-directed-by { font-weight: 700; }
@@ -435,22 +438,9 @@
   // Configuration + action colours
   // ============================================================================
 
-  function cloneConfig(config) {
-    return {
-      dubInfo: Boolean(config.dubInfo),
-      dubLanguage: config.dubLanguage,
-      dubConfidence: config.dubConfidence,
-      debugLogging: Boolean(config.debugLogging),
-      actionColors: { ...config.actionColors }
-    };
-  }
-
   const ConfigStore = {
     defaults() {
-      return {
-        ...DEFAULT_CONFIG,
-        actionColors: { ...DEFAULT_ACTION_COLORS }
-      };
+      return this.normalize({});
     },
 
     normalize(config = {}) {
@@ -805,6 +795,16 @@
         }
         toggle.style.display = 'none';
       }
+      for (const toggle of document.querySelectorAll(SELECTORS.episodeToggles)) {
+        const label = toggle.textContent.trim().toLowerCase();
+        if (label.startsWith('read more')) {
+          toggle.click();
+          expanded++;
+        } else if (!label.startsWith('show less')) {
+          continue;
+        }
+        toggle.style.display = 'none';
+      }
       if (expanded) logger.debug(`Expanded ${expanded} overview${expanded === 1 ? '' : 's'}`);
     }
   };
@@ -831,7 +831,7 @@
         return;
       }
 
-      let row = metaBox.querySelector('.rs-dub-info');
+      let row = this.row();
       if (!row) {
         row = document.createElement('div');
         row.className = 'detail-meta-box__row rs-dub-info';
@@ -1097,8 +1097,8 @@
       if (this.modal) return;
 
       this.isOpen = true;
-      const saved = cloneConfig(App.config);
-      const draft = cloneConfig(saved);
+      const saved = ConfigStore.normalize(App.config);
+      const draft = ConfigStore.normalize(saved);
 
       const dubFields = SETTINGS_FIELDS.filter(field => field.preview === 'dub');
       const loggingField = SETTINGS_FIELDS.find(field => field.preview === 'logging');
@@ -1209,7 +1209,6 @@
 
       overlay.querySelector('#rs-reset').addEventListener('click', event => {
         Object.assign(draft, ConfigStore.defaults());
-        draft.actionColors = { ...DEFAULT_ACTION_COLORS };
         this.syncFields(overlay, draft);
         ActionColorTheme.apply(draft);
         setDebugLogging(draft.debugLogging, true);
