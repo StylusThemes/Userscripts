@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       1.16.0
+// @version       1.17.0
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
@@ -42,6 +42,7 @@
   const SELECTORS = Object.freeze({
     metaBox: '.detail-meta-box--desktop',
     titleStack: '.title-stack',
+    trackingTitle: '.detail-grid--min .title-stack .we-heading-1 span.we-link-none',
     externalLinks: '.detail-tags a.detail-tag',
     timestampTargets: '.entity-release-date, .detail-status-badge--airing, .media-item__progress-bar-text--episode',
     collapsedReviews: '.review-card__readmore[aria-expanded="false"]',
@@ -256,6 +257,9 @@
     .detail-grid--min .title-stack .detail-status-line.detail-meta-line { order: 2; margin-bottom: var(--space-2); }
     /* Genre line with hidden airing badge: fourth, below meta line */
     .detail-grid--min .title-stack .detail-status-line:not(.detail-meta-line) { order: 3; }
+    /* Tracking title links back to the detail page */
+    .rs-tracking-title-link { text-decoration: none !important; color: inherit !important; cursor: pointer; }
+    .rs-tracking-title-link:hover { color: var(--bs-link-hover-color-rgb) !important; text-decoration: underline !important; }
 
     /* ===== Dub Information ===== */
     .detail-meta-box .rs-dub-info { display: flex; flex-direction: row; align-items: baseline; justify-content: space-between; gap: var(--space-3); padding: var(--space-4) var(--space-4); }
@@ -735,6 +739,36 @@
       clone.classList.add('rs-clone');
       clone.style.display = '';
       titleStack.prepend(clone);
+    }
+  };
+
+  const TrackingTitleFeature = {
+    isTrackingPage() {
+      return /^\/(shows|movies)\/.+\/tracking\/?$/.test(location.pathname);
+    },
+
+    parentPath() {
+      return location.pathname.replace(/\/tracking\/?$/, '');
+    },
+
+    reset() {
+      for (const link of document.querySelectorAll('a.rs-tracking-title-link')) {
+        link.replaceWith(...link.childNodes);
+      }
+    },
+
+    apply() {
+      if (!this.isTrackingPage()) return;
+
+      const target = this.parentPath();
+      for (const title of document.querySelectorAll(SELECTORS.trackingTitle)) {
+        if (title.closest('a.rs-tracking-title-link')) continue;
+        const link = document.createElement('a');
+        link.className = 'rs-tracking-title-link';
+        link.href = target;
+        title.before(link);
+        link.appendChild(title);
+      }
     }
   };
 
@@ -1252,6 +1286,7 @@
       const previousPath = this.lastPath;
       this.lastPath = location.pathname;
       StatusBadgeFeature.reset();
+      TrackingTitleFeature.reset();
       DubService.reset();
 
       logger('SPA navigation detected', {
@@ -1263,6 +1298,7 @@
     run() {
       this.handleRouteChange();
       StatusBadgeFeature.apply();
+      TrackingTitleFeature.apply();
       TimestampFeature.apply();
       ReviewFeature.apply();
       OverviewFeature.apply();
