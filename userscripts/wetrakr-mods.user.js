@@ -1,13 +1,13 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       1.17.1
+// @version       1.17.2
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
 // @match         *://wetrakr.com/*
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@9e8f1b9bdc1acac2e76f3e8d2348f76817ec5bf4/libs/utils/utils.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@e1613fcefb81ed7b05afe90edc479e06088039f2/libs/metadata/animeapi/animeapi.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@df79b8fc4607937cfadcf2544eb8798e079ebbf9/libs/metadata/mydublist/mydublist.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@f17e24da0d574c5d73772603600ab198475b547f/libs/metadata/animeapi/animeapi.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@f17e24da0d574c5d73772603600ab198475b547f/libs/metadata/mydublist/mydublist.min.js
 // @grant         GM_addStyle
 // @grant         GM_xmlhttpRequest
 // @grant         GM_getValue
@@ -34,10 +34,6 @@
   const CONFIG_KEY = 'wetrakr-mods-config';
   const FAILURE_COOLDOWN = 60 * 1000;
   const WETRAKR_PATH_PATTERN = /^\/(shows|movies)\/(\d+)/;
-  const MAPPING_TTL = Object.freeze({
-    positive: 24 * 60 * 60 * 1000,
-    negative: 30 * 60 * 1000
-  });
 
   const SELECTORS = Object.freeze({
     metaBox: '.detail-meta-box--desktop',
@@ -51,42 +47,9 @@
     episodeToggles: '.episode-item__overview .item-more'
   });
 
-  const DUB_LANGUAGES = Object.freeze([
-    { name: 'Arabic', value: 'ARABIC' },
-    { name: 'Catalan', value: 'CATALAN' },
-    { name: 'Chinese', value: 'CHINESE' },
-    { name: 'Danish', value: 'DANISH' },
-    { name: 'Dutch', value: 'DUTCH' },
-    { name: 'English', value: 'ENGLISH' },
-    { name: 'Finnish', value: 'FINNISH' },
-    { name: 'French', value: 'FRENCH' },
-    { name: 'German', value: 'GERMAN' },
-    { name: 'Hebrew', value: 'HEBREW' },
-    { name: 'Hindi', value: 'HINDI' },
-    { name: 'Hungarian', value: 'HUNGARIAN' },
-    { name: 'Indonesian', value: 'INDONESIAN' },
-    { name: 'Italian', value: 'ITALIAN' },
-    { name: 'Japanese', value: 'JAPANESE' },
-    { name: 'Korean', value: 'KOREAN' },
-    { name: 'Lithuanian', value: 'LITHUANIAN' },
-    { name: 'Norwegian', value: 'NORWEGIAN' },
-    { name: 'Polish', value: 'POLISH' },
-    { name: 'Portuguese', value: 'PORTUGUESE' },
-    { name: 'Russian', value: 'RUSSIAN' },
-    { name: 'Spanish', value: 'SPANISH' },
-    { name: 'Swedish', value: 'SWEDISH' },
-    { name: 'Filipino', value: 'FILIPINO' },
-    { name: 'Thai', value: 'THAI' },
-    { name: 'Turkish', value: 'TURKISH' },
-    { name: 'Vietnamese', value: 'VIETNAMESE' }
-  ]);
+  const DUB_LANGUAGES = MyDubList.LANGUAGES;
 
-  const DUB_CONFIDENCE_LEVELS = Object.freeze([
-    { name: 'Low', value: 'low' },
-    { name: 'Normal', value: 'normal' },
-    { name: 'High', value: 'high' },
-    { name: 'Very High', value: 'very-high' }
-  ]);
+  const DUB_CONFIDENCE_LEVELS = MyDubList.CONFIDENCES;
 
   const ACTION_COLORS = Object.freeze([
     {
@@ -570,52 +533,6 @@
     }
   };
 
-  const AnimeMappingCache = {
-    entries: new Map(),
-    generation: 0,
-
-    async request(source, id) {
-      const key = `${source}:${id}`;
-      const now = Date.now();
-      const entry = this.entries.get(key);
-
-      if (entry?.expiresAt > now) return entry.value;
-      if (entry?.pending) return entry.pending;
-
-      const generation = this.generation;
-      const pending = Providers.animeapi.fetch(source, id)
-        .then(data => {
-          const value = data ? {
-            mal: data.myanimelist ? Number(data.myanimelist) : null,
-            anilist: data.anilist ? Number(data.anilist) : null
-          } : null;
-
-          if (generation === this.generation) {
-            this.entries.set(key, {
-              value,
-              expiresAt: Date.now() + (value?.mal || value?.anilist ? MAPPING_TTL.positive : MAPPING_TTL.negative),
-              pending: null
-            });
-          }
-          return value;
-        })
-        .catch(error => {
-          if (generation === this.generation) this.entries.delete(key);
-          throw error;
-        });
-
-      this.entries.set(key, { value: null, expiresAt: 0, pending });
-      return pending;
-    },
-
-    clear() {
-      const count = this.entries.size;
-      this.generation++;
-      this.entries.clear();
-      return count;
-    }
-  };
-
   const AnimeIdResolver = {
     candidates(identity, ids) {
       const candidates = [];
@@ -652,30 +569,14 @@
         };
       }
 
-      let lastError = null;
+      const hit = await Providers.animeapi.resolveFirst(this.candidates(identity, ids));
+      if (!hit) return null;
 
-      for (const candidate of this.candidates(identity, ids)) {
-        try {
-          const mapping = await AnimeMappingCache.request(candidate.source, candidate.id);
-          if (!mapping?.mal) continue;
-
-          return {
-            mal: mapping.mal,
-            anilist: ids.anilist || mapping.anilist,
-            via: `AnimeAPI/${candidate.label}`
-          };
-        } catch (error) {
-          lastError = error;
-          logger.debug('Anime ID mapping failed', {
-            source: candidate.label,
-            id: candidate.id,
-            error: errorMessage(error)
-          });
-        }
-      }
-
-      if (lastError) throw lastError;
-      return null;
+      return {
+        mal: hit.mal,
+        anilist: ids.anilist || hit.anilist,
+        via: `AnimeAPI/${hit.label}`
+      };
     }
   };
 
@@ -902,7 +803,7 @@
     },
 
     languageName(language) {
-      return DUB_LANGUAGES.find(item => item.value === language)?.name || 'Dub';
+      return Providers.mydublist.languageName(language);
     },
 
     async apply() {
@@ -968,7 +869,7 @@
         );
         if (!isCurrent()) return;
 
-        const label = dubbed ? `${this.languageName(App.config.dubLanguage)} Dub Exists` : null;
+        const label = dubbed ? Providers.mydublist.formatDubLabel(App.config.dubLanguage) : null;
         this.settled = { signature, label };
         this.unresolvedSignature = null;
         this.failure = null;
@@ -1230,7 +1131,7 @@
       });
 
       overlay.querySelector('#rs-clear-cache').addEventListener('click', event => {
-        const mappingEntries = AnimeMappingCache.clear();
+        const mappingEntries = Providers.animeapi.clearMappingCache();
         Providers.mydublist.clearCache();
         DubService.reset();
         logger(`Request cache cleared (${mappingEntries} mapping entr${mappingEntries === 1 ? 'y' : 'ies'} plus MyDubList datasets)`);
