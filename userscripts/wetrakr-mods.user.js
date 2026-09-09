@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       1.17.0
+// @version       1.17.1
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
@@ -200,10 +200,6 @@
     /* ===== Shared ===== */
     /* Hide "share" button */
     .title-share { display: none !important; }
-    /* Keep previous and next pager links limited to their visible content  */
-    .detail-pager--simple .detail-pager__simple-side { width: fit-content !important; flex: 0 0 auto !important; justify-self: auto !important; }
-    .detail-pager--simple .detail-pager__simple-side--prev { justify-self: end !important; }
-    .detail-pager--simple .detail-pager__simple-side--next { justify-self: start !important; }
     /* Reduce the gap below the pager */
     .detail-title-pager { margin-bottom: 20px !important; }
     /* Hide the "still ongoing" hint and its remove-all-watched toggle shown for ongoing shows */
