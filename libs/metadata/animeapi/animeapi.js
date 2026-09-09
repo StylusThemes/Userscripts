@@ -5,7 +5,7 @@
 // @name         @journeyover/animeapi
 // @description  AnimeAPI v3 client for fetching anime relations across 22 providers
 // @license      MIT
-// @version      1.1.0
+// @version      1.2.0
 // @homepageURL  https://github.com/StylusThemes/Userscripts
 // ==/UserLibrary==
 // @connect      animeapi.my.id
@@ -17,6 +17,12 @@
  * Supports canonical names and aliases (case-insensitive) with provider-exclusive path rules.
  */
 this.AnimeAPI = class {
+  constructor() {
+    this._mappingCache = new Map();
+    this._mappingPending = new Map();
+    this._mappingGeneration = 0;
+  }
+
   /**
    * Normalize source alias to canonical platform name (case-insensitive).
    * @param {string} source - Source name or alias.
@@ -207,5 +213,80 @@ this.AnimeAPI = class {
         },
       });
     });
+  }
+
+  /**
+   * Cached wrapper around fetch with positive/negative TTL and pending dedup.
+   * @param {string} source - Source platform or alias.
+   * @param {string|number} id - ID value.
+   * @param {Object} [options] - TTL overrides.
+   * @param {number} [options.positiveTtl=86400000] - TTL when result has myanimelist/anilist.
+   * @param {number} [options.negativeTtl=1800000] - TTL when result is null/empty.
+   * @returns {Promise<Object|null>} Same shape as fetch.
+   */
+  async fetchCached(source, id, { positiveTtl = 86400000, negativeTtl = 1800000 } = {}) {
+    if (!this._mappingCache) this._mappingCache = new Map();
+    if (!this._mappingPending) this._mappingPending = new Map();
+    if (typeof this._mappingGeneration !== 'number') this._mappingGeneration = 0;
+    const key = `${source}:${id}`;
+    const entry = this._mappingCache.get(key);
+    if (entry && entry.expiresAt > Date.now()) return entry.value;
+    if (this._mappingPending.has(key)) return this._mappingPending.get(key);
+    const generation = this._mappingGeneration;
+    const pending = this.fetch(source, id).then((data) => {
+      if (generation === this._mappingGeneration) {
+        this._mappingCache.set(key, {
+          value: data,
+          expiresAt: Date.now() + (data?.myanimelist || data?.anilist ? positiveTtl : negativeTtl)
+        });
+      }
+      if (this._mappingPending.get(key) === pending) this._mappingPending.delete(key);
+      return data;
+    }, (error) => {
+      if (this._mappingPending.get(key) === pending) this._mappingPending.delete(key);
+      throw error;
+    });
+    this._mappingPending.set(key, pending);
+    return pending;
+  }
+
+  /**
+   * Try candidates in order, return first mapping with a MAL id.
+   * @param {Array<{source: string, id: string|number, label?: string}>} candidates - Candidates to try.
+   * @returns {Promise<{source: string, id: string|number, label: string|undefined, data: Object, mal: number, anilist: number|null}|null>} First match or null.
+   */
+  async resolveFirst(candidates) {
+    let lastError = null;
+    for (const candidate of candidates || []) {
+      try {
+        const data = await this.fetchCached(candidate.source, candidate.id);
+        const mal = data?.myanimelist ? Number(data.myanimelist) : null;
+        if (!mal) continue;
+        return {
+          source: candidate.source,
+          id: candidate.id,
+          label: candidate.label,
+          data,
+          mal,
+          anilist: data?.anilist ? Number(data.anilist) : null
+        };
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    if (lastError) throw lastError;
+    return null;
+  }
+
+  /**
+   * Clear cached mappings and pending requests.
+   * @returns {number} Number of cached entries cleared.
+   */
+  clearMappingCache() {
+    const count = this._mappingCache ? this._mappingCache.size : 0;
+    this._mappingGeneration = (typeof this._mappingGeneration === 'number' ? this._mappingGeneration : 0) + 1;
+    if (this._mappingCache) this._mappingCache.clear();
+    if (this._mappingPending) this._mappingPending.clear();
+    return count;
   }
 };

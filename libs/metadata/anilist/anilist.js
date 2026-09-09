@@ -5,7 +5,7 @@
 // @name         @journeyover/anilist
 // @description  AniList GraphQL API client
 // @license      MIT
-// @version      1.0.0
+// @version      1.1.0
 // @homepageURL  https://github.com/StylusThemes/Userscripts
 // ==/UserLibrary==
 // @connect      graphql.anilist.co
@@ -61,5 +61,35 @@ this.AniList = class {
         },
       });
     });
+  }
+
+  /**
+   * Checks whether an anime has a dub in the given language.
+   * Looks at main characters only; true if any has a voice actor in that language.
+   * @param {number} anilistId - AniList anime ID.
+   * @param {string} language - Staff language (e.g. 'ENGLISH', 'JAPANESE').
+   * @returns {Promise<boolean>} True when a dub exists.
+   */
+  async hasDub(anilistId, language) {
+    if (!anilistId) throw new Error('An AniList ID is required');
+    if (!language) throw new Error('A language is required');
+
+    const query = `
+      query($id: Int, $language: StaffLanguage) {
+        Media(id: $id, type: ANIME) {
+          characters(role: MAIN, sort: ROLE) {
+            edges {
+              voiceActors(language: $language) { language }
+            }
+          }
+        }
+      }
+    `;
+
+    const response = await this.query(query, { id: Number(anilistId), language });
+    const edges = response?.data?.Media?.characters?.edges;
+    if (!Array.isArray(edges)) throw new Error('Unexpected AniList response structure');
+
+    return edges.some((edge) => edge.voiceActors?.length > 0);
   }
 };

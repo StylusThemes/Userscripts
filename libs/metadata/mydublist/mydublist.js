@@ -5,7 +5,7 @@
 // @name         @journeyover/mydublist
 // @description  MyDubList client for checking multilingual anime dub availability
 // @license      MIT
-// @version      1.0.1
+// @version      1.1.0
 // @homepageURL  https://github.com/StylusThemes/Userscripts
 // ==/UserLibrary==
 // @connect      raw.githubusercontent.com
@@ -19,6 +19,51 @@
  * Source: https://github.com/Joelis57/MyDubList
  */
 this.MyDubList = class {
+  /**
+   * Supported dub languages as display name / StaffLanguage value pairs.
+   * @type {Array<{name: string, value: string}>}
+   */
+  static LANGUAGES = Object.freeze([
+    { name: 'Arabic', value: 'ARABIC' },
+    { name: 'Catalan', value: 'CATALAN' },
+    { name: 'Chinese', value: 'CHINESE' },
+    { name: 'Danish', value: 'DANISH' },
+    { name: 'Dutch', value: 'DUTCH' },
+    { name: 'English', value: 'ENGLISH' },
+    { name: 'Finnish', value: 'FINNISH' },
+    { name: 'French', value: 'FRENCH' },
+    { name: 'German', value: 'GERMAN' },
+    { name: 'Hebrew', value: 'HEBREW' },
+    { name: 'Hindi', value: 'HINDI' },
+    { name: 'Hungarian', value: 'HUNGARIAN' },
+    { name: 'Indonesian', value: 'INDONESIAN' },
+    { name: 'Italian', value: 'ITALIAN' },
+    { name: 'Japanese', value: 'JAPANESE' },
+    { name: 'Korean', value: 'KOREAN' },
+    { name: 'Lithuanian', value: 'LITHUANIAN' },
+    { name: 'Norwegian', value: 'NORWEGIAN' },
+    { name: 'Polish', value: 'POLISH' },
+    { name: 'Portuguese', value: 'PORTUGUESE' },
+    { name: 'Russian', value: 'RUSSIAN' },
+    { name: 'Spanish', value: 'SPANISH' },
+    { name: 'Swedish', value: 'SWEDISH' },
+    { name: 'Filipino', value: 'FILIPINO' },
+    { name: 'Thai', value: 'THAI' },
+    { name: 'Turkish', value: 'TURKISH' },
+    { name: 'Vietnamese', value: 'VIETNAMESE' }
+  ]);
+
+  /**
+   * Supported confidence levels as display name / value pairs.
+   * @type {Array<{name: string, value: string}>}
+   */
+  static CONFIDENCES = Object.freeze([
+    { name: 'Low', value: 'low' },
+    { name: 'Normal', value: 'normal' },
+    { name: 'High', value: 'high' },
+    { name: 'Very High', value: 'very-high' }
+  ]);
+
   constructor() {
     this._baseUrl = 'https://raw.githubusercontent.com/Joelis57/MyDubList/main/dubs/confidence';
     this._cache = new Map();
@@ -145,6 +190,31 @@ this.MyDubList = class {
 
   async getStatus(id, language = 'english', confidence = 'normal') {
     return await this.isDubbed(id, language, confidence) ? 'dubbed' : null;
+  }
+
+  /**
+   * Resolve a language to its display name, falling back to 'Dub'.
+   * @param {string} language Language name, value, or alias (case-insensitive).
+   * @returns {string} Display name from LANGUAGES, or 'Dub' when unknown.
+   */
+  languageName(language) {
+    let key = String(language ?? '').trim().toLowerCase();
+    try {
+      key = this._normalizeLanguage(key);
+    } catch {
+      return 'Dub';
+    }
+    if (key === 'tagalog') key = 'filipino';
+    return this.constructor.LANGUAGES.find(item => item.value.toLowerCase() === key)?.name || 'Dub';
+  }
+
+  /**
+   * Build the dub-exists label for a language.
+   * @param {string} language Language name, value, or alias (case-insensitive).
+   * @returns {string} Label such as 'English Dub Exists'.
+   */
+  formatDubLabel(language) {
+    return `${this.languageName(language)} Dub Exists`;
   }
 
   clearCache() {
