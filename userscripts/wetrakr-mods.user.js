@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       1.17.2
+// @version       1.17.3
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
@@ -169,6 +169,8 @@
     .watching-details--all-watched { display: none !important; }
     /* Hide fully-watched progress bar (100% fill) since it adds no information */
     .watching-progress:has(.watching-progress__fill[style*="100%"]) { display: none !important; }
+    /* Hide trailer section when no trailer is available */
+    .trailer-section:has(.trailer--placeholder) { display: none !important; }
     /* Director + Creator */
     .detail-grid__info .detail-overview-block .detail-directed-by { margin-bottom: 20px !important; }
     .detail-grid__info .detail-overview-block .we-text-body.detail-directed-by { font-weight: 700; }
