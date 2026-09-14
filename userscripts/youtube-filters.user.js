@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          YouTube - Filters
-// @version       2.5.8
+// @version       2.5.9
 // @description   Filter out unwanted content on YouTube to enhance your browsing experience. (Currently is able to filter videos based on age and members-only status)
 // @author        Journey Over
 // @license       MIT
@@ -249,12 +249,13 @@
   // ---------- Age Filtering ----------
   function filterVideoByAge(videoElement) {
     const { text: ageText, years: ageYears } = getVideoAgeTextAndYears(videoElement);
-    if (ageText === UNKNOWN_AGE_TEXT) return;
+    if (ageText === UNKNOWN_AGE_TEXT) return false;
 
     const thresholdInYears = convertToYears(AGE_THRESHOLD.value, AGE_THRESHOLD.unit);
     if (ageYears >= thresholdInYears) {
       hideVideo(videoElement, ageText);
     }
+    return true;
   }
 
   /**
@@ -298,12 +299,20 @@
    * Applies all video filters to an unprocessed video element.
    *
    * @param {Element} videoElement
-   * @param {boolean} shouldFilterAges
+   * @param {boolean} filterAges
    */
-  function applyVideoFilters(videoElement, shouldFilterAges) {
+  function applyVideoFilters(videoElement, filterAges) {
+    if (filterVideoByBroadcastStatus(videoElement)) {
+      videoElement.dataset.processed = 'true';
+      delete videoElement.dataset.agePending;
+      return;
+    }
+    if (filterAges && !filterVideoByAge(videoElement)) {
+      videoElement.dataset.agePending = 'true';
+      return;
+    }
+    delete videoElement.dataset.agePending;
     videoElement.dataset.processed = 'true';
-    if (filterVideoByBroadcastStatus(videoElement)) return;
-    if (shouldFilterAges) filterVideoByAge(videoElement);
   }
 
   // ---------- Members-Only Filtering ----------
@@ -353,12 +362,25 @@
   }
 
   // ---------- Observers ----------
+  function shouldFilterAges() {
+    return AGE_FILTERING_ENABLED && !window.location.href.includes(CHANNEL_HANDLE_SEGMENT) && location.pathname !== '/playlist';
+  }
+
+  function recheckPendingAge(videoElement) {
+    if (!videoElement || videoElement.dataset.processed || !videoElement.dataset.agePending) return;
+    try {
+      applyVideoFilters(videoElement, shouldFilterAges());
+    } catch (error) {
+      logger.error(error);
+    }
+  }
+
   function processUnfilteredVideos() {
     try {
       const unprocessedVideos = document.querySelectorAll(UNPROCESSED_VIDEO_SELECTOR_QUERY);
-      const shouldFilterAges = AGE_FILTERING_ENABLED && !window.location.href.includes(CHANNEL_HANDLE_SEGMENT) && location.pathname !== '/playlist';
+      const filterAges = shouldFilterAges();
       for (const videoElement of unprocessedVideos) {
-        applyVideoFilters(videoElement, shouldFilterAges);
+        applyVideoFilters(videoElement, filterAges);
       }
       if (MEMBERS_ONLY_ENABLED) pruneMembersShelf();
     } catch (error) {
@@ -381,12 +403,24 @@
   function observeNewVideos() {
     const observer = new MutationObserver(mutations => {
       for (const mutation of mutations) {
+        if (mutation.type === 'characterData') {
+          const videoElement = mutation.target.parentElement?.closest(VIDEO_SELECTOR_QUERY);
+          if (videoElement?.dataset.agePending) {
+            recheckPendingAge(findOutermostVideoContainer(videoElement) || videoElement);
+          }
+          continue;
+        }
         if (mutation.type !== 'childList') continue;
         for (const node of mutation.addedNodes) {
           if (!(node instanceof Element)) continue;
           if (node.matches(UNPROCESSED_VIDEO_SELECTOR_QUERY) || node.querySelector(UNPROCESSED_VIDEO_SELECTOR_QUERY)) {
             processUnfilteredVideos();
             return;
+          }
+          const pendingVideo = node.closest(VIDEO_SELECTOR_QUERY);
+          if (pendingVideo?.dataset.agePending) {
+            recheckPendingAge(findOutermostVideoContainer(pendingVideo) || pendingVideo);
+            continue;
           }
           if (!LIVE_VIDEOS_ENABLED && !PREMIERE_VIDEOS_ENABLED) continue;
 
@@ -401,7 +435,7 @@
         }
       }
     });
-    observer.observe(document.documentElement, { childList: true, subtree: true });
+    observer.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
 
     registerYouTubeRescan(processUnfilteredVideos);
 

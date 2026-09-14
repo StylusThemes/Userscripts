@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       1.17.3
+// @version       2.0.0
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
@@ -51,49 +51,6 @@
 
   const DUB_CONFIDENCE_LEVELS = MyDubList.CONFIDENCES;
 
-  const ACTION_COLORS = Object.freeze([
-    {
-      key: 'watched',
-      label: 'Watched',
-      hint: 'Mark as watched / Unmark all',
-      default: '#2E6B48',
-      selector: '.media-item__action-btn--active[aria-label="Mark as watched"]:not(#tm-date-override), .media-item__action-btn--active[aria-label="Unmark all episodes"]:not(#tm-date-override), .episode-item__action-btn--active[aria-label="Mark as watched"]:not(#tm-date-override)'
-    },
-    {
-      key: 'waiting',
-      label: 'Waiting',
-      hint: 'Waiting for new episodes',
-      default: '#7D5B2C',
-      selector: '.media-item__action-btn--active[aria-label="Waiting for new episodes"]:not(#tm-date-override)'
-    },
-    {
-      key: 'planning',
-      label: 'Planning',
-      hint: 'Mark as planning',
-      default: '#366B7D',
-      selector: '.media-item__action-btn--active[aria-label="Mark as planning"]:not(#tm-date-override)'
-    },
-    {
-      key: 'favorite',
-      label: 'Favourite',
-      hint: 'Mark as favorite',
-      default: '#895e77',
-      selector: '.media-item__action-btn--active[aria-label="Mark as favorite"]:not(#tm-date-override)'
-    },
-    {
-      key: 'addToList',
-      label: 'Add to list',
-      hint: 'Item is in a list',
-      default: '#3B6FB5',
-      extra: 'color: #e9ecf2 !important;',
-      selector: '.media-item__action-btn[aria-label="Add to list"]:has(.action-btn__count):not(#tm-date-override), .episode-item__action-btn[aria-label="Add to list"]:has(.action-btn__count):not(#tm-date-override)'
-    }
-  ]);
-
-  const DEFAULT_ACTION_COLORS = Object.freeze(
-    Object.fromEntries(ACTION_COLORS.map(({ key, default: value }) => [key, value]))
-  );
-
   const DEFAULT_CONFIG = Object.freeze({
     dubInfo: true,
     dubLanguage: 'ENGLISH',
@@ -105,8 +62,7 @@
     { key: 'dubInfo', type: 'toggle', label: 'Dub Information', hint: 'Show dub availability for anime titles', preview: 'dub' },
     { key: 'dubLanguage', type: 'select', label: 'Preferred Dub Language', hint: 'Language to check for', options: DUB_LANGUAGES, preview: 'dub' },
     { key: 'dubConfidence', type: 'select', label: 'Dub Confidence', hint: 'Minimum verification confidence', options: DUB_CONFIDENCE_LEVELS, preview: 'dub' },
-    { key: 'debugLogging', type: 'toggle', label: 'Debug Logging', hint: 'Show detailed diagnostic logs in the browser console', preview: 'logging' },
-    ...ACTION_COLORS.map(({ key, label, hint }) => ({ key: `actionColors.${key}`, type: 'color', label, hint, preview: 'color' }))
+    { key: 'debugLogging', type: 'toggle', label: 'Debug Logging', hint: 'Show detailed diagnostic logs in the browser console', preview: 'logging' }
   ]);
 
   // ============================================================================
@@ -334,9 +290,6 @@
     .rs-settings-tab-panel--active { display: block; animation: rs-panel-fade 0.2s ease-out; }
     @keyframes rs-panel-fade { from { opacity: 0; transform: translateY(6px); } }
 
-    /* ===== Section Labels ===== */
-    .rs-settings-section-label { margin: 0 0 12px; padding-bottom: 8px; font-size: 10.5px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: #4937e9; border-bottom: 1px solid #2d2d48; }
-
     /* ===== Settings Rows ===== */
     .rs-settings-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 11px 14px; background: rgba(255, 255, 255, 0.02); border: 1px solid #2d2d48; transition: border-color 0.15s, background 0.15s; border-radius: 6px; }
     .rs-settings-row:hover { border-color: #3d3d58; background: rgba(255, 255, 255, 0.04); }
@@ -354,19 +307,6 @@
     /* ===== Select Menu ===== */
     .rs-settings-row select { flex-shrink: 0; padding: 7px 30px 7px 10px; background: #262640; color: #e0e0e0; border: 1px solid #2d2d48; font-size: 12.5px; font-family: inherit; outline: none; cursor: pointer; transition: border-color 0.15s; appearance: none; border-radius: 6px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5L6 7.5L9 4.5' stroke='%238888a8' fill='none' stroke-width='1.5'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; }
     .rs-settings-row select:focus { border-color: #4937e9; }
-
-    /* ===== Colour Grid ===== */
-    .rs-color-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .rs-color-card { display: flex; flex-direction: column; background: rgba(255, 255, 255, 0.02); border: 1px solid #2d2d48; cursor: pointer; transition: border-color 0.15s, background 0.15s, box-shadow 0.15s; overflow: hidden; border-radius: 6px; }
-    .rs-color-card:hover { border-color: #3d3d58; background: rgba(255, 255, 255, 0.04); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); }
-    .rs-color-card:last-child:nth-child(odd) { grid-column: 1 / -1; }
-    .rs-color-swatch { width: 100%; height: 40px; padding: 0; border: none; display: block; cursor: pointer; background: none; }
-    .rs-color-swatch::-webkit-color-swatch-wrapper { padding: 0; }
-    .rs-color-swatch::-webkit-color-swatch { border: none; border-radius: 5px 5px 0 0; }
-    .rs-color-swatch::-moz-color-swatch { border: none; border-radius: 5px 5px 0 0; }
-    .rs-color-card-info { padding: 9px 12px; }
-    .rs-color-card-info strong { display: block; font-size: 12.5px; font-weight: 600; color: #e8e8f0; line-height: 1.3; }
-    .rs-color-card-info small { display: block; margin-top: 2px; font-size: 10.5px; color: #8888a8; line-height: 1.3; }
 
     /* ===== About Tab ===== */
     .rs-about-header { display: flex; align-items: center; gap: 14px; padding-bottom: 16px; margin-bottom: 16px; border-bottom: 1px solid #2d2d48; }
@@ -400,7 +340,7 @@
   `);
 
   // ============================================================================
-  // Configuration + action colours
+  // Configuration
   // ============================================================================
 
   const ConfigStore = {
@@ -411,14 +351,12 @@
     normalize(config = {}) {
       const validLanguage = DUB_LANGUAGES.some(language => language.value === config.dubLanguage);
       const validConfidence = DUB_CONFIDENCE_LEVELS.some(level => level.value === config.dubConfidence);
-      const colors = config.actionColors && typeof config.actionColors === 'object' ? config.actionColors : {};
 
       return {
         dubInfo: config.dubInfo ?? DEFAULT_CONFIG.dubInfo,
         dubLanguage: validLanguage ? config.dubLanguage : DEFAULT_CONFIG.dubLanguage,
         dubConfidence: validConfidence ? config.dubConfidence : DEFAULT_CONFIG.dubConfidence,
-        debugLogging: config.debugLogging ?? DEFAULT_CONFIG.debugLogging,
-        actionColors: { ...DEFAULT_ACTION_COLORS, ...colors }
+        debugLogging: config.debugLogging ?? DEFAULT_CONFIG.debugLogging
       };
     },
 
@@ -432,40 +370,6 @@
       return normalized;
     }
   };
-
-  const ActionColorTheme = {
-    styleId: 'wetrakr-action-colors',
-
-    ensureStyleSheet() {
-      if (document.getElementById(this.styleId)) return;
-
-      const style = document.createElement('style');
-      style.id = this.styleId;
-      style.textContent = ACTION_COLORS.map(({ key, default: value, extra, selector }) =>
-        `${selector} { background-color: var(--wt-${key}, ${value}) !important;${extra ? ` ${extra}` : ''} }`
-      ).join('\n');
-
-      document.head.appendChild(style);
-    },
-
-    apply(config) {
-      this.ensureStyleSheet();
-      for (const { key } of ACTION_COLORS) {
-        document.documentElement.style.setProperty(`--wt-${key}`, config.actionColors[key]);
-      }
-    }
-  };
-
-  function getFieldValue(draft, key) {
-    return key.split('.').reduce((value, part) => value?.[part], draft);
-  }
-
-  function setFieldValue(draft, key, value) {
-    const parts = key.split('.');
-    const leaf = parts.pop();
-    const parent = parts.reduce((object, part) => object[part], draft);
-    parent[leaf] = value;
-  }
 
   // ============================================================================
   // Page context + anime ID resolution
@@ -915,11 +819,11 @@
     activeTab: 'dubbing',
 
     fieldId(field) {
-      return `rs-field-${field.key.replace('.', '-')}`;
+      return `rs-field-${field.key}`;
     },
 
     renderField(field, draft) {
-      const value = getFieldValue(draft, field.key);
+      const value = draft[field.key];
       const id = this.fieldId(field);
 
       if (field.type === 'toggle') {
@@ -948,22 +852,10 @@
           </label>`;
       }
 
-      return `
-        <label class="rs-color-card">
-          <input type="color" class="rs-color-swatch" id="${id}" value="${value}">
-          <div class="rs-color-card-info">
-            <strong>${field.label}</strong>
-            <small>${field.hint}</small>
-          </div>
-        </label>`;
+      return '';
     },
 
     applyPreview(field, draft) {
-      if (field.preview === 'color') {
-        ActionColorTheme.apply(draft);
-        return;
-      }
-
       if (field.preview === 'logging') {
         setDebugLogging(draft.debugLogging, true);
         return;
@@ -976,11 +868,10 @@
       for (const field of SETTINGS_FIELDS) {
         const input = overlay.querySelector(`#${this.fieldId(field)}`);
         if (!input) continue;
-        const eventName = field.type === 'color' ? 'input' : 'change';
 
-        input.addEventListener(eventName, event => {
+        input.addEventListener('change', event => {
           const value = field.type === 'toggle' ? event.target.checked : event.target.value;
-          setFieldValue(draft, field.key, value);
+          draft[field.key] = value;
           this.applyPreview(field, draft);
         });
       }
@@ -990,7 +881,7 @@
       for (const field of SETTINGS_FIELDS) {
         const input = overlay.querySelector(`#${this.fieldId(field)}`);
         if (!input) continue;
-        const value = getFieldValue(draft, field.key);
+        const value = draft[field.key];
         if (field.type === 'toggle') input.checked = value;
         else input.value = value;
       }
@@ -1035,7 +926,6 @@
 
       const dubFields = SETTINGS_FIELDS.filter(field => field.preview === 'dub');
       const loggingField = SETTINGS_FIELDS.find(field => field.preview === 'logging');
-      const colorFields = SETTINGS_FIELDS.filter(field => field.preview === 'color');
 
       const overlay = document.createElement('div');
       overlay.className = 'rs-settings-overlay';
@@ -1047,19 +937,12 @@
           </div>
           <nav class="rs-settings-tabs" role="tablist" aria-label="Settings sections">
             <button type="button" class="rs-settings-tab rs-settings-tab--active" role="tab" aria-selected="true" aria-controls="rs-panel-dubbing" data-tab="dubbing">Dubbing</button>
-            <button type="button" class="rs-settings-tab" role="tab" aria-selected="false" aria-controls="rs-panel-appearance" data-tab="appearance">Appearance</button>
             <button type="button" class="rs-settings-tab" role="tab" aria-selected="false" aria-controls="rs-panel-about" data-tab="about">About</button>
           </nav>
           <div class="rs-settings-body">
             <div class="rs-settings-tab-panel rs-settings-tab-panel--active" role="tabpanel" id="rs-panel-dubbing" data-panel="dubbing">
               ${dubFields.map(field => this.renderField(field, draft)).join('')}
               ${loggingField ? '<div class="rs-about-divider"></div>' + this.renderField(loggingField, draft) : ''}
-            </div>
-            <div class="rs-settings-tab-panel" role="tabpanel" id="rs-panel-appearance" data-panel="appearance">
-              <div class="rs-settings-section-label">Action Button Colours</div>
-              <div class="rs-color-grid">
-                ${colorFields.map(field => this.renderField(field, draft)).join('')}
-              </div>
             </div>
             <div class="rs-settings-tab-panel" role="tabpanel" id="rs-panel-about" data-panel="about">
               <div class="rs-about-header">
@@ -1109,7 +992,7 @@
           return;
         }
         if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
-          const tabs = ['dubbing', 'appearance', 'about'];
+          const tabs = ['dubbing', 'about'];
           const index = tabs.indexOf(this.activeTab);
           const next = event.key === 'ArrowRight' ?
             tabs[(index + 1) % tabs.length] :
@@ -1120,7 +1003,6 @@
       });
 
       const cancel = () => {
-        ActionColorTheme.apply(saved);
         setDebugLogging(saved.debugLogging, true);
         DubService.reset();
         this.close();
@@ -1143,7 +1025,6 @@
       overlay.querySelector('#rs-reset').addEventListener('click', event => {
         Object.assign(draft, ConfigStore.defaults());
         this.syncFields(overlay, draft);
-        ActionColorTheme.apply(draft);
         setDebugLogging(draft.debugLogging, true);
         DubService.reset();
         logger('Settings restored to defaults');
@@ -1152,7 +1033,6 @@
 
       overlay.querySelector('#rs-save').addEventListener('click', () => {
         App.config = ConfigStore.save(draft);
-        ActionColorTheme.apply(App.config);
         setDebugLogging(App.config.debugLogging, true);
         DubService.reset();
 
@@ -1237,7 +1117,6 @@
     start() {
       this.config = ConfigStore.load();
       setDebugLogging(this.config.debugLogging);
-      ActionColorTheme.apply(this.config);
 
       GM_registerMenuCommand('WeTrakr Mods Settings', () => SettingsUI.open());
 
