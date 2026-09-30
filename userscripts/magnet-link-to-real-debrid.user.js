@@ -68,7 +68,8 @@
     _safeParse(value) {
       if (!value) return null;
       try {
-        return typeof value === 'string' ? JSON.parse(value) : value;
+        const json = typeof value === 'string' ? atob(value) : value;
+        return typeof json === 'string' ? JSON.parse(json) : json;
       } catch (error) {
         logger?.error('[Config] Failed to parse stored configuration, resetting to defaults.', error);
         return null;
@@ -87,7 +88,7 @@
     saveConfig(config) {
       const errors = this.validateConfig(config);
       if (errors.length) throw new ConfigurationError(errors.join('; '));
-      GM_setValue(STORAGE_KEY, JSON.stringify(config));
+      GM_setValue(STORAGE_KEY, btoa(JSON.stringify(config)));
     },
 
     validateConfig(config) {
