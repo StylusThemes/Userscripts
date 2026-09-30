@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          YouTube - Filters
-// @version       2.5.9
+// @version       2.5.11
 // @description   Filter out unwanted content on YouTube to enhance your browsing experience. (Currently is able to filter videos based on age and members-only status)
 // @author        Journey Over
 // @license       MIT
@@ -64,12 +64,10 @@
   ];
 
   const AGE_SELECTORS = [
-    'span.inline-metadata-item.style-scope.ytd-video-meta-block',
+    'span.ytContentMetadataViewModelMetadataText',
     'span.yt-content-metadata-view-model__metadata-text',
-    'span.ytp-modern-videowall-still-view-count-and-date-info',
-
-    // Updated YouTube layout selectors
-    'span.ytContentMetadataViewModelMetadataText'
+    'span.inline-metadata-item.style-scope.ytd-video-meta-block',
+    'span.ytp-modern-videowall-still-view-count-and-date-info'
   ];
 
   const MEMBERS_SELECTORS = [
@@ -94,7 +92,6 @@
   const MEMBERS_REGEX = /\bmembers\s*[- ]?\s*(only|first)\b/i;
   const MEMBERS_SHELF_SUBTITLE_REGEX = /videos available to members/i;
   const UNKNOWN_AGE_TEXT = 'Unknown';
-  const CHANNEL_HANDLE_SEGMENT = '@';
   const RESCAN_DELAY_MS = 50;
   const YOUTUBE_NAVIGATION_EVENTS = ['yt-navigate-finish', 'yt-page-data-updated'];
   const UNIT_CONFIG = {
@@ -106,13 +103,33 @@
     years: { factor: 1, aliases: ['y', 'year'] }
   };
 
-  const AGE_UNIT_ALIASES = Object.entries(UNIT_CONFIG).reduce((aliasMap, [unit, config]) => {
-    aliasMap[unit] = unit;
-    for (const alias of config.aliases) {
-      aliasMap[alias] = unit;
-    }
-    return aliasMap;
-  }, {});
+  const AGE_UNIT_MAP = {
+    m: 'minutes',
+    min: 'minutes',
+    mins: 'minutes',
+    minute: 'minutes',
+    minutes: 'minutes',
+    h: 'hours',
+    hr: 'hours',
+    hrs: 'hours',
+    hour: 'hours',
+    hours: 'hours',
+    d: 'days',
+    day: 'days',
+    days: 'days',
+    w: 'weeks',
+    week: 'weeks',
+    weeks: 'weeks',
+    mo: 'months',
+    mos: 'months',
+    month: 'months',
+    months: 'months',
+    y: 'years',
+    yr: 'years',
+    yrs: 'years',
+    year: 'years',
+    years: 'years'
+  };
 
   const AGE_CONVERSIONS = Object.fromEntries(
     Object.entries(UNIT_CONFIG).map(([unit, config]) => [unit, config.factor])
@@ -120,12 +137,14 @@
 
   const AGE_UNITS = Object.keys(UNIT_CONFIG);
 
-  const AGE_TEXT_REGEX = new RegExp(
-    `(\\d+)\\s*(${Object.values(UNIT_CONFIG).flatMap(config => config.aliases).join('|')})s?\\s+ago`,
-    'i'
-  );
+  const AGE_TEXT_REGEX = /(\d+(?:\.\d+)?)\s*(minutes?|mins?|m|hours?|hrs?|h|days?|d|weeks?|w|months?|mos?|mo|years?|yrs?|y)\s+ago/i;
   const VIDEO_SELECTOR_QUERY = VIDEO_SELECTORS.join(',');
   const UNPROCESSED_VIDEO_SELECTOR_QUERY = VIDEO_SELECTORS.map(selector => `${selector}:not([data-processed])`).join(',');
+  const HIDE_CLASS = 'ytf-hide';
+  const HIDE_PENDING = 'pending';
+  const HIDE_DATASET_KEY = 'ytfHidden';
+  const HIDE_SELECTOR_QUERY = `[data-${HIDE_DATASET_KEY.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`)}]`;
+  const HIDE_CSS = `${VIDEO_SELECTORS.map(selector => `${selector}.${HIDE_CLASS}`).join(',')}{display:none!important}`;
   const AGE_SELECTOR_QUERY = AGE_SELECTORS.join(',');
   const MEMBERS_SELECTOR_QUERY = MEMBERS_SELECTORS.join(',');
   const LIVE_PREMIERE_SELECTOR_QUERY = LIVE_PREMIERE_SELECTORS.join(',');
@@ -187,16 +206,19 @@
    * @returns {{ text: string, years: number } | null}
    */
   function parseAgeText(ageText) {
-    if (!/\bago\b/i.test(ageText)) return null;
+    if (typeof ageText !== 'string') return null;
 
-    const ageMatch = ageText.match(AGE_TEXT_REGEX);
+    const normalizedText = ageText.replace(/\s+/g, ' ').trim();
+    if (!normalizedText || !/\bago\b/i.test(normalizedText)) return null;
+
+    const ageMatch = normalizedText.match(AGE_TEXT_REGEX);
     if (!ageMatch) {
-      return { text: ageText, years: 0 };
+      return { text: normalizedText, years: 0 };
     }
 
-    const ageValue = parseInt(ageMatch[1], 10);
-    const ageUnit = AGE_UNIT_ALIASES[ageMatch[2].toLowerCase()] || 'years';
-    return { text: ageText, years: convertToYears(ageValue, ageUnit) };
+    const ageValue = parseFloat(ageMatch[1]);
+    const ageUnit = AGE_UNIT_MAP[ageMatch[2].toLowerCase()] || 'years';
+    return { text: normalizedText, years: convertToYears(ageValue, ageUnit) };
   }
 
   // ---------- Video Processing ----------
@@ -207,8 +229,14 @@
    * @returns {{ text: string, years: number }}
    */
   function getVideoAgeTextAndYears(videoElement) {
+    if (!videoElement || typeof videoElement.querySelectorAll !== 'function') {
+      return { text: UNKNOWN_AGE_TEXT, years: 0 };
+    }
+
     for (const ageElement of videoElement.querySelectorAll(AGE_SELECTOR_QUERY)) {
       const ageText = (ageElement.textContent || '').trim();
+      if (!ageText) continue;
+
       const parsedAge = parseAgeText(ageText);
       if (parsedAge) {
         return parsedAge;
@@ -238,24 +266,74 @@
     return container;
   }
 
-  function hideVideo(videoElement, reason) {
-    const container = findOutermostVideoContainer(videoElement);
-    if (!container) return;
+  /**
+   * Applies every hiding mechanism to a container so a later repair pass can
+   * detect and restore a hidden state after YouTube re-renders the node.
+   *
+   * @param {Element} container
+   * @param {string} reason
+   */
+  function applyHiddenState(container, reason) {
     container.hidden = true;
     container.style.setProperty('display', 'none', 'important');
-    logger.debug(`Hidden "${getVideoTitle(videoElement)}" (${reason})`);
+    container.classList.add(HIDE_CLASS);
+    container.dataset[HIDE_DATASET_KEY] = reason;
+  }
+
+  /**
+   * Hides the outermost container for a video and records the hide reason.
+   *
+   * @param {Element} videoElement
+   * @param {string} reason
+   * @returns {Element|null} the hidden container, or null when none was found
+   */
+  function hideVideo(videoElement, reason) {
+    const container = findOutermostVideoContainer(videoElement);
+    if (!container) return null;
+
+    const title = getVideoTitle(videoElement);
+    applyHiddenState(container, reason);
+    logger.debug(`Hidden "${title}" (${reason})`);
+
+    const display = getComputedStyle(container).display;
+    if (display !== 'none') {
+      logger.warn(`Hidden "${title}" (${reason}) but computed display is "${display}"`);
+    }
+    return container;
+  }
+
+  /**
+   * Re-applies hidden state to previously hidden videos that YouTube recycled
+   * by wiping the inline style or the marker class.
+   */
+  function repairHidden() {
+    for (const container of document.querySelectorAll(HIDE_SELECTOR_QUERY)) {
+      if (!container.isConnected) continue;
+      if (container.classList.contains(HIDE_CLASS) && getComputedStyle(container).display === 'none') continue;
+
+      const reason = container.dataset[HIDE_DATASET_KEY] || 'unknown';
+      applyHiddenState(container, reason);
+      logger.debug(`Repaired hidden "${getVideoTitle(container)}" (${reason})`);
+    }
   }
 
   // ---------- Age Filtering ----------
+  /**
+   * Hides a video when it is older than the configured threshold.
+   *
+   * @param {Element} videoElement
+   * @returns {Element|string|null} the hidden container, HIDE_PENDING when the
+   *   age is not known yet, or null when the video stays visible
+   */
   function filterVideoByAge(videoElement) {
     const { text: ageText, years: ageYears } = getVideoAgeTextAndYears(videoElement);
-    if (ageText === UNKNOWN_AGE_TEXT) return false;
+    if (ageText === UNKNOWN_AGE_TEXT) return HIDE_PENDING;
 
     const thresholdInYears = convertToYears(AGE_THRESHOLD.value, AGE_THRESHOLD.unit);
     if (ageYears >= thresholdInYears) {
-      hideVideo(videoElement, ageText);
+      return hideVideo(videoElement, ageText);
     }
-    return true;
+    return null;
   }
 
   /**
@@ -277,42 +355,44 @@
    * Filters a video by its broadcast status (LIVE/PREMIERE).
    *
    * @param {Element} videoElement
-   * @returns {boolean} true if video was hidden
+   * @returns {Element|null} the hidden container, or null when nothing was hidden
    */
   function filterVideoByBroadcastStatus(videoElement) {
     const badgeType = getVideoBroadcastBadge(videoElement);
 
     if (badgeType === 'LIVE' && LIVE_VIDEOS_ENABLED) {
-      hideVideo(videoElement, 'LIVE');
-      return true;
+      return hideVideo(videoElement, 'LIVE');
     }
 
     if (badgeType === 'PREMIERE' && PREMIERE_VIDEOS_ENABLED) {
-      hideVideo(videoElement, 'PREMIERE');
-      return true;
+      return hideVideo(videoElement, 'PREMIERE');
     }
 
-    return false;
+    return null;
   }
 
   /**
    * Applies all video filters to an unprocessed video element.
    *
+   * The processed marker is written to the same node that was hidden, otherwise
+   * nested lockups would be re-processed on every scan and never settle.
+   *
    * @param {Element} videoElement
    * @param {boolean} filterAges
    */
   function applyVideoFilters(videoElement, filterAges) {
-    if (filterVideoByBroadcastStatus(videoElement)) {
-      videoElement.dataset.processed = 'true';
-      delete videoElement.dataset.agePending;
-      return;
+    let outcome = filterVideoByBroadcastStatus(videoElement);
+    if (!outcome && filterAges) {
+      outcome = filterVideoByAge(videoElement);
     }
-    if (filterAges && !filterVideoByAge(videoElement)) {
+
+    if (outcome === HIDE_PENDING) {
       videoElement.dataset.agePending = 'true';
       return;
     }
+
     delete videoElement.dataset.agePending;
-    videoElement.dataset.processed = 'true';
+    (outcome || videoElement).dataset.processed = 'true';
   }
 
   // ---------- Members-Only Filtering ----------
@@ -336,8 +416,8 @@
 
   function removeMembersOnlyVideo(badge) {
     const container = findOutermostVideoContainer(badge);
-    if (!container || container.classList.contains('ytf-hide')) return;
-    container.classList.add('ytf-hide');
+    if (!container || container.classList.contains(HIDE_CLASS)) return;
+    applyHiddenState(container, 'members');
     window.dispatchEvent(new Event('resize'));
     logger.debug(`Hidden Members-only "${getVideoTitle(container)}"`);
   }
@@ -363,7 +443,11 @@
 
   // ---------- Observers ----------
   function shouldFilterAges() {
-    return AGE_FILTERING_ENABLED && !window.location.href.includes(CHANNEL_HANDLE_SEGMENT) && location.pathname !== '/playlist';
+    if (!AGE_FILTERING_ENABLED) return false;
+    if (location.pathname === '/playlist') return false;
+    const pathSegments = location.pathname.split('/').filter(Boolean);
+    const isChannelPage = pathSegments[0] === 'channel' || pathSegments[0] === 'c' || pathSegments[0] === 'user' || pathSegments[0]?.startsWith('@');
+    return !isChannelPage;
   }
 
   function recheckPendingAge(videoElement) {
@@ -377,6 +461,7 @@
 
   function processUnfilteredVideos() {
     try {
+      repairHidden();
       const unprocessedVideos = document.querySelectorAll(UNPROCESSED_VIDEO_SELECTOR_QUERY);
       const filterAges = shouldFilterAges();
       for (const videoElement of unprocessedVideos) {
@@ -635,7 +720,7 @@
 
   // ---------- Initialization ----------
   injectStyle(css);
-  injectStyle('ytd-rich-item-renderer.ytf-hide,ytd-grid-video-renderer.ytf-hide,ytd-video-renderer.ytf-hide,ytd-rich-grid-media.ytf-hide{display:none!important}');
+  injectStyle(HIDE_CSS);
   observeNewVideos();
 
   if (MEMBERS_ONLY_ENABLED) {
