@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          GitHub - Latest
-// @version       2.0.1
+// @version       2.0.2
 // @description   Always keep an eye on the latest activity of your favorite projects
 // @author        Journey Over
 // @license       MIT
@@ -74,8 +74,13 @@
     // Skip non-repo pages (e.g. /settings, /notifications, /dashboard)
     if (!/^\/[^\/]+\/[^\/]/.test(location.pathname)) return;
 
-    // Wait for the global nav bar to finish loading before making DOM changes
-    if (!document.querySelector('[partial-name="global-nav-bar"].loaded')) return;
+    // GitHub now server-renders the global nav (which holds both the repository
+    // tabs and the site search) into <header class="GlobalNav">. The old
+    // `[partial-name="global-nav-bar"].loaded` marker no longer exists on
+    // logged-in pages, so wait for the document to finish loading instead:
+    // mutating that React tree before it hydrates makes the site search bar
+    // vanish (refined-github #9723, #9796).
+    if (document.readyState !== 'complete') return;
 
     const existingButton = document.getElementById(BUTTON_ID);
     if (existingButton && existingButton.isConnected) return;
