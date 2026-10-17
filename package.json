@@ -10,8 +10,7 @@
     "build": "bun ./scripts/build.js",
     "update-hashes": "bun ./scripts/update-jsdelivr-hashes.js",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
-    "trash-regex": "bun ./scripts/trash-json-to-regex.js"
+    "lint:fix": "eslint . --fix"
   },
   "devDependencies": {
     "js-beautify": "^1.15.4",
