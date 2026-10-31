@@ -1,13 +1,13 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       2.0.2
+// @version       2.0.4
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
 // @match         *://wetrakr.com/*
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@9e8f1b9bdc1acac2e76f3e8d2348f76817ec5bf4/libs/utils/utils.min.js
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@c35138874699baa81ebca91b8b428e04f71d2160/libs/metadata/animeapi/animeapi.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@f17e24da0d574c5d73772603600ab198475b547f/libs/metadata/mydublist/mydublist.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@f8b54eac2bf27233c791f9eef6e3ee12810d6227/libs/metadata/mydublist/mydublist.min.js
 // @grant         GM_addStyle
 // @grant         GM_xmlhttpRequest
 // @grant         GM_getValue
@@ -41,7 +41,8 @@
     trackingTitle: '.detail-grid--min .title-stack .we-heading-1 span.we-link-none',
     externalLinks: '.detail-tags a.detail-tag',
     timestampTargets: '.entity-release-date, .detail-status-badge--airing, .media-item__progress-bar-text--episode',
-    collapsedReviews: '.review-card__readmore[aria-expanded="false"]',
+    reviewReadmore: '.comment-card__readmore',
+    reviewText: '.comment-card__text',
     overviewBlocks: '.overview-toggle.clickable',
     overviewToggles: '.overview-toggle .see-toggle',
     episodeToggles: '.episode-item__overview .item-more'
@@ -157,6 +158,10 @@
     /* Hide 'rate now' button */
     .detail-grid--person .detail-info-stats { display: none; }
 
+    /* ===== Status Badge ===== */
+    /* Hide the original badge once its clone takes the slot above the title */
+    .rs-hidden-original { display: none !important; }
+
     /* ===== Title Stack: Movies + Shows ===== */
     [class="detail-grid"] .title-stack { display: flex; flex-direction: column; }
     /* Airing badge clone: first, own line, above h1 */
@@ -193,31 +198,32 @@
 
     /* ===== Review Controls ===== */
     /* Change the "Add New" text color to match "Top" */
-    .reviews-section__add-btn { color: #96a4af !important; }
+    .comments-section__add-btn { color: #96a4af !important; }
 
     /* ===== Review Card ===== */
     /* Give every review a visible containing shape so the author, text, pills, and Reply action clearly belong to one card */
-    we-review-card { display: block !important; background: rgba(255, 255, 255, 0.03) !important; border: 1px solid #2d2d48 !important; margin-bottom: 16px !important; padding: 16px !important; transition: border-color 0.15s !important; }
-    .review-card:not(.review-card--reply) { background: unset !important; }
+    we-comment-card { display: block !important; background: rgba(255, 255, 255, 0.03) !important; border: 1px solid #2d2d48 !important; padding: 16px !important; transition: border-color 0.15s !important; }
+    /* The card inside the host keeps the site's own box off so the host supplies the shape and the padding once */
+    .comment-card:not(.comment-card--reply) { background: unset !important; padding: 0 !important; }
     /* Tighten the gap between the profile picture and rating and slightly reduce the rating font size */
-    .review-card__rating { margin-top: 0 !important; font-size: 13px !important; }
+    .comment-card__rating { margin-top: 0 !important; font-size: 13px !important; }
     /* Slightly reduce the font size of the author name, date, and handle */
-    .review-card__author-name, .review-card__date, .review-card__handle { font-size: 13px !important; }
+    .comment-card__author-name, .comment-card__date, .comment-card__handle { font-size: 13px !important; }
     /* Match the reaction and reply pill text color to the other pills */
-    .review-card__reaction-pill, .review-card__view-replies { color: #96a4af !important; }
+    .comment-card__reaction-pill, .comment-card__view-replies { color: #96a4af !important; }
 
     /* ===== Review Text ===== */
     /* Slightly darken the text instead of using pure white */
-    .review-card__text { color: #cacdd1 !important; }
-    /* Make long reviews scrollable instead of clamping them. Short reviews are unaffected since they never exceed the cap */
-    .review-card__text--clamp, .review-card__text--highlight { display: block !important; -webkit-line-clamp: unset !important; max-height: 360px !important; overflow-y: auto !important; scrollbar-width: thin; scrollbar-color: #333348 transparent; padding-right: 6px; }
-    .review-card__text--clamp::-webkit-scrollbar, .review-card__text--highlight::-webkit-scrollbar { width: 6px; }
-    .review-card__text--clamp::-webkit-scrollbar-track, .review-card__text--highlight::-webkit-scrollbar-track { background: transparent; }
-    .review-card__text--clamp::-webkit-scrollbar-thumb, .review-card__text--highlight::-webkit-scrollbar-thumb { background: #333348; }
-    /* Hide the site's "Read More" button now that long reviews scroll instead */
-    .review-card__readmore { display: none !important; }
+    .comment-card__text { color: #cacdd1 !important; }
+    /* The site now truncates long reviews in JS, so the script expands them and this caps the result. Short reviews are unaffected since they never exceed the cap */
+    .comment-card__text, .comment-card__text--highlight { display: block !important; max-height: 360px !important; overflow-y: auto !important; scrollbar-width: thin; scrollbar-color: #333348 transparent; padding-right: 6px; }
+    .comment-card__text::-webkit-scrollbar { width: 6px; }
+    .comment-card__text::-webkit-scrollbar-track { background: transparent; }
+    .comment-card__text::-webkit-scrollbar-thumb { background: #333348; }
+    /* Hide the site's "Show more" toggle now that long reviews are expanded and scroll */
+    .comment-card__readmore { display: none !important; }
     /* Keep spoiler and non-spoiler review text at the same size */
-    .review-card__text, .review-card__text we-spoiler-text { font-size: 14px !important; }
+    .comment-card__text, .comment-card__text we-spoiler-text { font-size: 14px !important; }
 
     /* ========================================================================== */
     /* Media Items                                                                */
@@ -529,7 +535,6 @@
       for (const clone of document.querySelectorAll('.rs-clone')) clone.remove();
       for (const original of document.querySelectorAll('.rs-hidden-original')) {
         original.classList.remove('rs-hidden-original');
-        original.style.removeProperty('display');
       }
     },
 
@@ -547,12 +552,10 @@
       if (!titleStack || !heading || !statusBadge || titleStack.querySelector('.rs-clone')) return;
 
       statusBadge.classList.add('rs-hidden-original');
-      statusBadge.style.display = 'none';
 
       const clone = statusBadge.cloneNode(true);
       clone.classList.remove('rs-hidden-original');
       clone.classList.add('rs-clone');
-      clone.style.display = '';
       titleStack.prepend(clone);
     }
   };
@@ -603,11 +606,26 @@
 
   const ReviewFeature = {
     apply() {
-      const buttons = document.querySelectorAll(SELECTORS.collapsedReviews);
+      const buttons = document.querySelectorAll(SELECTORS.reviewReadmore);
       if (!buttons.length) return;
 
-      for (const button of buttons) button.click();
-      logger.debug(`Expanded ${buttons.length} review card${buttons.length === 1 ? '' : 's'}`);
+      let expanded = 0;
+      for (const button of buttons) {
+        const card = button.closest('we-comment-card');
+        if (!card || card.dataset.rsReviewExpanded) continue;
+
+        card.dataset.rsReviewExpanded = 'true';
+
+        const text = card.querySelector(SELECTORS.reviewText)?.textContent.trimEnd() ?? '';
+        const truncated = /(…|\.\.\.)$/.test(text);
+
+        if (!truncated || /less/i.test(button.textContent)) continue;
+
+        button.click();
+        expanded++;
+      }
+
+      if (expanded) logger.debug(`Expanded ${expanded} review card${expanded === 1 ? '' : 's'}`);
     }
   };
 
@@ -633,26 +651,23 @@
 
       for (const block of document.querySelectorAll(SELECTORS.overviewBlocks)) block.style.cursor = 'text';
 
+      const toggleGroups = [
+        { selector: SELECTORS.overviewToggles, expand: 'see more', collapse: 'see less' },
+        { selector: SELECTORS.episodeToggles, expand: 'read more', collapse: 'show less' }
+      ];
+
       let expanded = 0;
-      for (const toggle of document.querySelectorAll(SELECTORS.overviewToggles)) {
-        const label = toggle.textContent.trim().toLowerCase();
-        if (label.startsWith('see more')) {
-          toggle.click();
-          expanded++;
-        } else if (!label.startsWith('see less')) {
-          continue;
+      for (const { selector, expand, collapse } of toggleGroups) {
+        for (const toggle of document.querySelectorAll(selector)) {
+          const label = toggle.textContent.trim().toLowerCase();
+          if (label.startsWith(expand)) {
+            toggle.click();
+            expanded++;
+          } else if (!label.startsWith(collapse)) {
+            continue;
+          }
+          toggle.style.display = 'none';
         }
-        toggle.style.display = 'none';
-      }
-      for (const toggle of document.querySelectorAll(SELECTORS.episodeToggles)) {
-        const label = toggle.textContent.trim().toLowerCase();
-        if (label.startsWith('read more')) {
-          toggle.click();
-          expanded++;
-        } else if (!label.startsWith('show less')) {
-          continue;
-        }
-        toggle.style.display = 'none';
       }
       if (expanded) logger.debug(`Expanded ${expanded} overview${expanded === 1 ? '' : 's'}`);
     }
@@ -720,10 +735,6 @@
       DubView.clear();
     },
 
-    languageName(language) {
-      return Providers.mydublist.languageName(language);
-    },
-
     async apply() {
       if (SettingsUI.isOpen) return;
 
@@ -731,6 +742,8 @@
         DubView.clear();
         return;
       }
+
+      const { dubLanguage: language, dubConfidence: confidence } = App.config;
 
       const identity = PageContext.identity();
       if (!identity || !document.querySelector(SELECTORS.metaBox)) {
@@ -741,12 +754,7 @@
       const ids = PageContext.externalIds();
       if (!PageContext.hasRelevantIds(ids)) return;
 
-      const signature = PageContext.signature(
-        identity,
-        ids,
-        App.config.dubLanguage,
-        App.config.dubConfidence
-      );
+      const signature = PageContext.signature(identity, ids, language, confidence);
 
       if (this.settled?.signature === signature) {
         DubView.render(this.settled.label);
@@ -759,15 +767,9 @@
       const generation = this.generation;
       const isCurrent = () => generation === this.generation &&
         this.active?.signature === signature &&
-        PageContext.identity()?.key === identity.key &&
-        App.config.dubLanguage === this.active?.language &&
-        App.config.dubConfidence === this.active?.confidence;
+        PageContext.identity()?.key === identity.key;
 
-      this.active = {
-        signature,
-        language: App.config.dubLanguage,
-        confidence: App.config.dubConfidence
-      };
+      this.active = { signature };
 
       try {
         const resolved = await AnimeIdResolver.resolve(identity, ids);
@@ -780,14 +782,10 @@
           return;
         }
 
-        const dubbed = await Providers.mydublist.isDubbed(
-          resolved.mal,
-          App.config.dubLanguage,
-          App.config.dubConfidence
-        );
+        const dubbed = await Providers.mydublist.isDubbed(resolved.mal, { language, confidence });
         if (!isCurrent()) return;
 
-        const label = dubbed ? Providers.mydublist.formatDubLabel(App.config.dubLanguage) : null;
+        const label = dubbed ? Providers.mydublist.formatDubLabel(language) : null;
         this.settled = { signature, label };
         this.unresolvedSignature = null;
         this.failure = null;
@@ -798,8 +796,8 @@
           mal: resolved.mal,
           anilist: resolved.anilist,
           via: resolved.via,
-          language: App.config.dubLanguage,
-          confidence: App.config.dubConfidence,
+          language,
+          confidence,
           dubbed
         });
       } catch (error) {
@@ -868,12 +866,19 @@
     },
 
     applyPreview(field, draft) {
-      if (field.preview === 'logging') {
-        setDebugLogging(draft.debugLogging, true);
-        return;
+      switch (field.preview) {
+        case 'logging': {
+          setDebugLogging(draft.debugLogging, true);
+          return;
+        }
+        case 'dub': {
+          DubService.reset();
+          return;
+        }
+        default: {
+          return;
+        }
       }
-
-      DubService.reset();
     },
 
     bindFields(overlay, draft) {
@@ -1004,7 +1009,7 @@
           return;
         }
         if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
-          const tabs = ['dubbing', 'about'];
+          const tabs = [...overlay.querySelectorAll('.rs-settings-tab')].map(tab => tab.dataset.tab);
           const index = tabs.indexOf(this.activeTab);
           const next = event.key === 'ArrowRight' ?
             tabs[(index + 1) % tabs.length] :
