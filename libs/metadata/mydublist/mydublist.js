@@ -5,7 +5,7 @@
 // @name         @journeyover/mydublist
 // @description  MyDubList client for checking multilingual anime dub availability
 // @license      MIT
-// @version      1.1.0
+// @version      2.0.0
 // @homepageURL  https://github.com/StylusThemes/Userscripts
 // ==/UserLibrary==
 // @connect      raw.githubusercontent.com
@@ -21,7 +21,8 @@
 this.MyDubList = class {
   /**
    * Supported dub languages as display name / StaffLanguage value pairs.
-   * @type {Array<{name: string, value: string}>}
+   * `file` overrides the dataset file name when it differs from the lowercased value.
+   * @type {Array<{name: string, value: string, file?: string}>}
    */
   static LANGUAGES = Object.freeze([
     { name: 'Arabic', value: 'ARABIC' },
@@ -47,14 +48,14 @@ this.MyDubList = class {
     { name: 'Russian', value: 'RUSSIAN' },
     { name: 'Spanish', value: 'SPANISH' },
     { name: 'Swedish', value: 'SWEDISH' },
-    { name: 'Filipino', value: 'FILIPINO' },
+    { name: 'Filipino', value: 'FILIPINO', file: 'tagalog' },
     { name: 'Thai', value: 'THAI' },
     { name: 'Turkish', value: 'TURKISH' },
     { name: 'Vietnamese', value: 'VIETNAMESE' }
   ]);
 
   /**
-   * Supported confidence levels as display name / value pairs.
+   * Supported confidence levels as display name / dataset value pairs.
    * @type {Array<{name: string, value: string}>}
    */
   static CONFIDENCES = Object.freeze([
@@ -64,6 +65,15 @@ this.MyDubList = class {
     { name: 'Very High', value: 'very-high' }
   ]);
 
+  /** Language used when none is given. */
+  static DEFAULT_LANGUAGE = 'english';
+
+  /** Confidence level used when none is given. */
+  static DEFAULT_CONFIDENCE = 'normal';
+
+  /** Request timeout in milliseconds. */
+  static TIMEOUT_MS = 15_000;
+
   constructor() {
     this._baseUrl = 'https://raw.githubusercontent.com/Joelis57/MyDubList/main/dubs/confidence';
     this._cache = new Map();
@@ -71,41 +81,70 @@ this.MyDubList = class {
     this._generation = 0;
   }
 
-  _normalizeLanguage(language) {
-    let normalized = String(language ?? 'english')
+  /**
+   * Reduce a language or confidence name to its dataset slug.
+   * @param {string} value Raw name such as 'Very High', 'very_high' or 'FILIPINO'.
+   * @returns {string} Slug such as 'very-high' or 'filipino'.
+   */
+  static _slug(value) {
+    return String(value ?? '')
       .trim()
       .toLowerCase()
       .replace(/[\s_]+/g, '-');
+  }
 
-    const aliases = {
-      filipino: 'tagalog'
-    };
+  /**
+   * Look up a supported language by value, display name or file name.
+   * @param {string} language Language name, value or alias (case-insensitive).
+   * @returns {{name: string, value: string, file?: string}|undefined} Matching entry.
+   */
+  _findLanguage(language) {
+    const slug = this.constructor._slug(language);
 
-    normalized = aliases[normalized] || normalized;
+    return this.constructor.LANGUAGES.find(entry =>
+      slug === entry.value.toLowerCase() || slug === entry.file
+    );
+  }
 
-    if (!/^[a-z][a-z-]*$/.test(normalized)) {
+  /**
+   * Resolve a language to its dataset slug.
+   * @param {string} [language] Language name, value or alias (case-insensitive).
+   * @returns {string} Dataset slug, e.g. 'english' or 'tagalog'.
+   */
+  _resolveLanguage(language = this.constructor.DEFAULT_LANGUAGE) {
+    const entry = this._findLanguage(language);
+    if (entry) return entry.file ?? entry.value.toLowerCase();
+
+    // Unknown but well-formed languages are allowed, so new upstream datasets
+    // keep working without a release.
+    const slug = this.constructor._slug(language);
+    if (!/^[a-z][a-z-]*$/.test(slug)) {
       throw new Error(`Unsupported MyDubList language: ${language}`);
     }
 
-    return normalized;
+    return slug;
   }
 
-  _normalizeConfidence(confidence) {
-    let normalized = String(confidence ?? 'normal')
-      .trim()
-      .toLowerCase()
-      .replace(/[\s_]+/g, '-');
+  /**
+   * Resolve a confidence level to its dataset slug.
+   * @param {string} [confidence] Confidence name or value (case-insensitive).
+   * @returns {string} Dataset slug, e.g. 'normal' or 'very-high'.
+   */
+  _resolveConfidence(confidence = this.constructor.DEFAULT_CONFIDENCE) {
+    const slug = this.constructor._slug(confidence).replace(/^veryhigh$/, 'very-high');
 
-    if (normalized === 'veryhigh') normalized = 'very-high';
-
-    const supported = new Set(['low', 'normal', 'high', 'very-high']);
-    if (!supported.has(normalized)) {
+    if (!this.constructor.CONFIDENCES.some(entry => entry.value === slug)) {
       throw new Error(`Unsupported MyDubList confidence: ${confidence}`);
     }
 
-    return normalized;
+    return slug;
   }
 
+  /**
+   * Normalize a MyAnimeList ID.
+   * @param {number|string} id Raw MyAnimeList ID.
+   * @returns {number} Positive integer ID.
+   */
   _normalizeMalId(id) {
     const normalized = Number(id);
     if (!Number.isInteger(normalized) || normalized <= 0) {
@@ -114,82 +153,90 @@ this.MyDubList = class {
     return normalized;
   }
 
-  _cacheKey(language, confidence) {
-    return `${language}:${confidence}`;
-  }
-
-  _buildUrl(language, confidence) {
-    return `${this._baseUrl}/${confidence}/dubbed_${language}.json`;
-  }
-
-  _load(language = 'english', confidence = 'normal') {
-    const normalizedLanguage = this._normalizeLanguage(language);
-    const normalizedConfidence = this._normalizeConfidence(confidence);
-    const key = this._cacheKey(normalizedLanguage, normalizedConfidence);
-
-    const cached = this._cache.get(key);
-    if (cached) return Promise.resolve(cached);
-
-    const pending = this._pending.get(key);
-    if (pending) return pending;
-
-    const url = this._buildUrl(normalizedLanguage, normalizedConfidence);
-    const generation = this._generation;
-    const request = new Promise((resolve, reject) => {
+  /**
+   * Fetch a dataset body.
+   * @param {string} url Dataset URL.
+   * @returns {Promise<string>} Raw response text.
+   */
+  _get(url) {
+    return new Promise((resolve, reject) => {
       GM_xmlhttpRequest({
         method: 'GET',
         url,
-        timeout: 15e3,
+        timeout: this.constructor.TIMEOUT_MS,
         onload: response => {
           if (response.status !== 200) {
             reject(new Error(`MyDubList request failed with status ${response.status}`));
             return;
           }
-
-          try {
-            const data = JSON.parse(response.responseText);
-            if (!Array.isArray(data?.dubbed)) {
-              reject(new Error('Unexpected MyDubList response structure'));
-              return;
-            }
-
-            const entry = {
-              data,
-              dubbed: new Set(data.dubbed.map(Number)),
-              language: normalizedLanguage,
-              confidence: normalizedConfidence
-            };
-
-            if (generation === this._generation) this._cache.set(key, entry);
-            resolve(entry);
-          } catch {
-            reject(new Error('Failed to parse MyDubList response'));
-          }
+          resolve(response.responseText);
         },
         onerror: () => reject(new Error('An error occurs while processing the MyDubList request')),
         ontimeout: () => reject(new Error('MyDubList request times out'))
       });
-    }).finally(() => {
-      if (this._pending.get(key) === request) this._pending.delete(key);
     });
+  }
+
+  /**
+   * Parse a dataset body into a lookup set.
+   * @param {string} text Raw response text.
+   * @returns {{dubbed: Set<number>}} Dubbed MyAnimeList IDs.
+   */
+  _parse(text) {
+    let payload;
+
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      throw new Error('Failed to parse MyDubList response');
+    }
+
+    if (!Array.isArray(payload?.dubbed)) {
+      throw new Error('Unexpected MyDubList response structure');
+    }
+
+    return { dubbed: new Set(payload.dubbed.map(Number)) };
+  }
+
+  /**
+   * Load a dataset, reusing cached and in-flight requests.
+   * @param {string} language Language name, value or alias (case-insensitive).
+   * @param {string} confidence Confidence name or value (case-insensitive).
+   * @returns {Promise<{dubbed: Set<number>}>} Dataset entry.
+   */
+  _load(language, confidence) {
+    const resolvedLanguage = this._resolveLanguage(language);
+    const resolvedConfidence = this._resolveConfidence(confidence);
+    const key = `${resolvedLanguage}:${resolvedConfidence}`;
+
+    const existing = this._cache.get(key) ?? this._pending.get(key);
+    if (existing) return Promise.resolve(existing);
+
+    const generation = this._generation;
+    const request = this._get(`${this._baseUrl}/${resolvedConfidence}/dubbed_${resolvedLanguage}.json`)
+      .then(text => this._parse(text))
+      .then(entry => {
+        if (generation === this._generation) this._cache.set(key, entry);
+        return entry;
+      })
+      .finally(() => {
+        if (this._pending.get(key) === request) this._pending.delete(key);
+      });
 
     this._pending.set(key, request);
     return request;
   }
 
-  async fetch(language = 'english', confidence = 'normal') {
-    const entry = await this._load(language, confidence);
-    return entry.data;
-  }
-
-  async isDubbed(id, language = 'english', confidence = 'normal') {
+  /**
+   * Check whether a title has a dub in the given language.
+   * @param {number|string} id MyAnimeList ID.
+   * @param {{language?: string, confidence?: string}} [options] Language and confidence overrides.
+   * @returns {Promise<boolean>} True when a dub exists.
+   */
+  async isDubbed(id, { language, confidence } = {}) {
     const malId = this._normalizeMalId(id);
-    const entry = await this._load(language, confidence);
-    return entry.dubbed.has(malId);
-  }
-
-  async getStatus(id, language = 'english', confidence = 'normal') {
-    return await this.isDubbed(id, language, confidence) ? 'dubbed' : null;
+    const { dubbed } = await this._load(language, confidence);
+    return dubbed.has(malId);
   }
 
   /**
@@ -198,14 +245,7 @@ this.MyDubList = class {
    * @returns {string} Display name from LANGUAGES, or 'Dub' when unknown.
    */
   languageName(language) {
-    let key = String(language ?? '').trim().toLowerCase();
-    try {
-      key = this._normalizeLanguage(key);
-    } catch {
-      return 'Dub';
-    }
-    if (key === 'tagalog') key = 'filipino';
-    return this.constructor.LANGUAGES.find(item => item.value.toLowerCase() === key)?.name || 'Dub';
+    return this._findLanguage(language)?.name ?? 'Dub';
   }
 
   /**
