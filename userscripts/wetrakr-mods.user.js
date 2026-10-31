@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       2.0.3
+// @version       2.0.4
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
@@ -41,7 +41,8 @@
     trackingTitle: '.detail-grid--min .title-stack .we-heading-1 span.we-link-none',
     externalLinks: '.detail-tags a.detail-tag',
     timestampTargets: '.entity-release-date, .detail-status-badge--airing, .media-item__progress-bar-text--episode',
-    collapsedReviews: '.review-card__readmore[aria-expanded="false"]',
+    reviewReadmore: '.comment-card__readmore',
+    reviewText: '.comment-card__text',
     overviewBlocks: '.overview-toggle.clickable',
     overviewToggles: '.overview-toggle .see-toggle',
     episodeToggles: '.episode-item__overview .item-more'
@@ -197,31 +198,32 @@
 
     /* ===== Review Controls ===== */
     /* Change the "Add New" text color to match "Top" */
-    .reviews-section__add-btn { color: #96a4af !important; }
+    .comments-section__add-btn { color: #96a4af !important; }
 
     /* ===== Review Card ===== */
     /* Give every review a visible containing shape so the author, text, pills, and Reply action clearly belong to one card */
-    we-review-card { display: block !important; background: rgba(255, 255, 255, 0.03) !important; border: 1px solid #2d2d48 !important; margin-bottom: 16px !important; padding: 16px !important; transition: border-color 0.15s !important; }
-    .review-card:not(.review-card--reply) { background: unset !important; }
+    we-comment-card { display: block !important; background: rgba(255, 255, 255, 0.03) !important; border: 1px solid #2d2d48 !important; padding: 16px !important; transition: border-color 0.15s !important; }
+    /* The card inside the host keeps the site's own box off so the host supplies the shape and the padding once */
+    .comment-card:not(.comment-card--reply) { background: unset !important; padding: 0 !important; }
     /* Tighten the gap between the profile picture and rating and slightly reduce the rating font size */
-    .review-card__rating { margin-top: 0 !important; font-size: 13px !important; }
+    .comment-card__rating { margin-top: 0 !important; font-size: 13px !important; }
     /* Slightly reduce the font size of the author name, date, and handle */
-    .review-card__author-name, .review-card__date, .review-card__handle { font-size: 13px !important; }
+    .comment-card__author-name, .comment-card__date, .comment-card__handle { font-size: 13px !important; }
     /* Match the reaction and reply pill text color to the other pills */
-    .review-card__reaction-pill, .review-card__view-replies { color: #96a4af !important; }
+    .comment-card__reaction-pill, .comment-card__view-replies { color: #96a4af !important; }
 
     /* ===== Review Text ===== */
     /* Slightly darken the text instead of using pure white */
-    .review-card__text { color: #cacdd1 !important; }
-    /* Make long reviews scrollable instead of clamping them. Short reviews are unaffected since they never exceed the cap */
-    .review-card__text--clamp, .review-card__text--highlight { display: block !important; -webkit-line-clamp: unset !important; max-height: 360px !important; overflow-y: auto !important; scrollbar-width: thin; scrollbar-color: #333348 transparent; padding-right: 6px; }
-    .review-card__text--clamp::-webkit-scrollbar, .review-card__text--highlight::-webkit-scrollbar { width: 6px; }
-    .review-card__text--clamp::-webkit-scrollbar-track, .review-card__text--highlight::-webkit-scrollbar-track { background: transparent; }
-    .review-card__text--clamp::-webkit-scrollbar-thumb, .review-card__text--highlight::-webkit-scrollbar-thumb { background: #333348; }
-    /* Hide the site's "Read More" button now that long reviews scroll instead */
-    .review-card__readmore { display: none !important; }
+    .comment-card__text { color: #cacdd1 !important; }
+    /* The site now truncates long reviews in JS, so the script expands them and this caps the result. Short reviews are unaffected since they never exceed the cap */
+    .comment-card__text, .comment-card__text--highlight { display: block !important; max-height: 360px !important; overflow-y: auto !important; scrollbar-width: thin; scrollbar-color: #333348 transparent; padding-right: 6px; }
+    .comment-card__text::-webkit-scrollbar { width: 6px; }
+    .comment-card__text::-webkit-scrollbar-track { background: transparent; }
+    .comment-card__text::-webkit-scrollbar-thumb { background: #333348; }
+    /* Hide the site's "Show more" toggle now that long reviews are expanded and scroll */
+    .comment-card__readmore { display: none !important; }
     /* Keep spoiler and non-spoiler review text at the same size */
-    .review-card__text, .review-card__text we-spoiler-text { font-size: 14px !important; }
+    .comment-card__text, .comment-card__text we-spoiler-text { font-size: 14px !important; }
 
     /* ========================================================================== */
     /* Media Items                                                                */
@@ -604,11 +606,26 @@
 
   const ReviewFeature = {
     apply() {
-      const buttons = document.querySelectorAll(SELECTORS.collapsedReviews);
+      const buttons = document.querySelectorAll(SELECTORS.reviewReadmore);
       if (!buttons.length) return;
 
-      for (const button of buttons) button.click();
-      logger.debug(`Expanded ${buttons.length} review card${buttons.length === 1 ? '' : 's'}`);
+      let expanded = 0;
+      for (const button of buttons) {
+        const card = button.closest('we-comment-card');
+        if (!card || card.dataset.rsReviewExpanded) continue;
+
+        card.dataset.rsReviewExpanded = 'true';
+
+        const text = card.querySelector(SELECTORS.reviewText)?.textContent.trimEnd() ?? '';
+        const truncated = /(…|\.\.\.)$/.test(text);
+
+        if (!truncated || /less/i.test(button.textContent)) continue;
+
+        button.click();
+        expanded++;
+      }
+
+      if (expanded) logger.debug(`Expanded ${expanded} review card${expanded === 1 ? '' : 's'}`);
     }
   };
 
