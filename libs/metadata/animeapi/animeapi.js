@@ -5,7 +5,7 @@
 // @name         @journeyover/animeapi
 // @description  AnimeAPI v3 client for fetching anime relations across 22 providers
 // @license      MIT
-// @version      1.2.0
+// @version      1.3.0
 // @homepageURL  https://github.com/StylusThemes/Userscripts
 // ==/UserLibrary==
 // @connect      animeapi.my.id
@@ -16,7 +16,59 @@
  * AnimeAPI v3 client for fetching anime relation mapping across 22 providers.
  * Supports canonical names and aliases (case-insensitive) with provider-exclusive path rules.
  */
-this.AnimeAPI = class {
+this.AnimeAPI = class AnimeAPI {
+  /**
+   * Canonical provider name to the aliases it answers to (lowercase).
+   * @type {Object<string, string[]>}
+   */
+  static PROVIDER_ALIASES = {
+    anidb: ['ad', 'adb', 'anidb.net'],
+    anilist: ['al', 'anilist.co'],
+    animenewsnetwork: ['an', 'ann', 'animenewsnetwork.com'],
+    animeplanet: ['ap', 'anime-planet', 'anime-planet.com', 'animeplanet.com'],
+    anisearch: ['as', 'anisearch.com', 'anisearch.de', 'anisearch.it', 'anisearch.es', 'anisearch.fr', 'anisearch.jp'],
+    annict: ['ac', 'anc', 'act', 'annict.com', 'annict.jp', 'en.annict.com'],
+    hikka: ['hk', 'hka', 'hikka.io'],
+    imdb: ['im', 'imdb.com'],
+    kaize: ['kz', 'kaize.io'],
+    kitsu: ['kt', 'kts', 'kitsu.io', 'kitsu.app'],
+    letterboxd: ['lb', 'lx', 'letterboxd.com'],
+    livechart: ['lc', 'livechart.me'],
+    myanimelist: ['ma', 'mal', 'myanimelist.net'],
+    nautiljon: ['nj', 'ntj', 'nautiljon.com'],
+    notify: ['nf', 'ntf', 'ntm', 'notifymoe', 'notify.moe'],
+    otakotaku: ['oo', 'otakotaku.com'],
+    shikimori: ['sh', 'shiki', 'shk', 'shiki.one', 'shikimori.io', 'shikimori.me', 'shikimori.one', 'shikimori.org'],
+    shoboi: ['sb', 'shb', 'syb', 'shobocal', 'syoboi', 'syobocal', 'cal.syoboi.jp'],
+    silveryasha: ['sy', 'dbti', 'db.silveryasha.id', 'db.silveryasha.web.id'],
+    simkl: ['sm', 'smk', 'simkl.com', 'animecountdown', 'animecountdown.com'],
+    themoviedb: ['tm', 'tmdb', 'themoviedb.org'],
+    thetvdb: ['tv', 'tvdb', 'thetvdb.com', 'tvtime', 'tt', 'tvtime.com'],
+    trakt: ['tr', 'trk', 'trakt.tv']
+  };
+
+  /**
+   * Flattened alias to canonical lookup, built once at load time.
+   * @type {Map<string, string>}
+   */
+  static SOURCE_LOOKUP = AnimeAPI._buildSourceLookup();
+
+  /**
+   * @returns {Map<string, string>} Lookup covering canonical names and aliases.
+   */
+  static _buildSourceLookup() {
+    const lookup = new Map();
+    for (const [canonical, aliases] of Object.entries(AnimeAPI.PROVIDER_ALIASES)) {
+      if (lookup.has(canonical)) throw new Error(`Duplicate AnimeAPI provider alias: ${canonical}`);
+      lookup.set(canonical, canonical);
+      for (const alias of aliases) {
+        if (lookup.has(alias)) throw new Error(`Duplicate AnimeAPI provider alias: ${alias}`);
+        lookup.set(alias, canonical);
+      }
+    }
+    return lookup;
+  }
+
   constructor() {
     this._mappingCache = new Map();
     this._mappingPending = new Map();
@@ -30,122 +82,7 @@ this.AnimeAPI = class {
    */
   _normalizeSource(source) {
     const key = String(source).trim().toLowerCase();
-    const map = {
-      'ad': 'anidb',
-      'adb': 'anidb',
-      'anidb': 'anidb',
-      'anidb.net': 'anidb',
-      'al': 'anilist',
-      'anilist': 'anilist',
-      'anilist.co': 'anilist',
-      'an': 'animenewsnetwork',
-      'ann': 'animenewsnetwork',
-      'animenewsnetwork': 'animenewsnetwork',
-      'animenewsnetwork.com': 'animenewsnetwork',
-      'ap': 'animeplanet',
-      'animeplanet': 'animeplanet',
-      'anime-planet': 'animeplanet',
-      'anime-planet.com': 'animeplanet',
-      'animeplanet.com': 'animeplanet',
-      'as': 'anisearch',
-      'anisearch': 'anisearch',
-      'anisearch.com': 'anisearch',
-      'anisearch.de': 'anisearch',
-      'anisearch.it': 'anisearch',
-      'anisearch.es': 'anisearch',
-      'anisearch.fr': 'anisearch',
-      'anisearch.jp': 'anisearch',
-      'ac': 'annict',
-      'anc': 'annict',
-      'act': 'annict',
-      'annict': 'annict',
-      'annict.com': 'annict',
-      'annict.jp': 'annict',
-      'en.annict.com': 'annict',
-      'hk': 'hikka',
-      'hka': 'hikka',
-      'hikka': 'hikka',
-      'hikka.io': 'hikka',
-      'im': 'imdb',
-      'imdb': 'imdb',
-      'imdb.com': 'imdb',
-      'kz': 'kaize',
-      'kaize': 'kaize',
-      'kaize.io': 'kaize',
-      'kt': 'kitsu',
-      'kts': 'kitsu',
-      'kitsu': 'kitsu',
-      'kitsu.io': 'kitsu',
-      'kitsu.app': 'kitsu',
-      'lb': 'letterboxd',
-      'lx': 'letterboxd',
-      'letterboxd': 'letterboxd',
-      'letterboxd.com': 'letterboxd',
-      'lc': 'livechart',
-      'livechart': 'livechart',
-      'livechart.me': 'livechart',
-      'ma': 'myanimelist',
-      'mal': 'myanimelist',
-      'myanimelist': 'myanimelist',
-      'myanimelist.net': 'myanimelist',
-      'nj': 'nautiljon',
-      'ntj': 'nautiljon',
-      'nautiljon': 'nautiljon',
-      'nautiljon.com': 'nautiljon',
-      'nf': 'notify',
-      'ntf': 'notify',
-      'ntm': 'notify',
-      'notify': 'notify',
-      'notifymoe': 'notify',
-      'notify.moe': 'notify',
-      'oo': 'otakotaku',
-      'otakotaku': 'otakotaku',
-      'otakotaku.com': 'otakotaku',
-      'sh': 'shikimori',
-      'shiki': 'shikimori',
-      'shk': 'shikimori',
-      'shikimori': 'shikimori',
-      'shiki.one': 'shikimori',
-      'shikimori.io': 'shikimori',
-      'shikimori.me': 'shikimori',
-      'shikimori.one': 'shikimori',
-      'shikimori.org': 'shikimori',
-      'sb': 'shoboi',
-      'shb': 'shoboi',
-      'syb': 'shoboi',
-      'shoboi': 'shoboi',
-      'shobocal': 'shoboi',
-      'syoboi': 'shoboi',
-      'syobocal': 'shoboi',
-      'cal.syoboi.jp': 'shoboi',
-      'sy': 'silveryasha',
-      'silveryasha': 'silveryasha',
-      'dbti': 'silveryasha',
-      'db.silveryasha.id': 'silveryasha',
-      'db.silveryasha.web.id': 'silveryasha',
-      'sm': 'simkl',
-      'smk': 'simkl',
-      'simkl': 'simkl',
-      'simkl.com': 'simkl',
-      'animecountdown': 'simkl',
-      'animecountdown.com': 'simkl',
-      'tm': 'themoviedb',
-      'tmdb': 'themoviedb',
-      'themoviedb': 'themoviedb',
-      'themoviedb.org': 'themoviedb',
-      'tv': 'thetvdb',
-      'tvdb': 'thetvdb',
-      'thetvdb': 'thetvdb',
-      'thetvdb.com': 'thetvdb',
-      'tvtime': 'thetvdb',
-      'tt': 'thetvdb',
-      'tvtime.com': 'thetvdb',
-      'tr': 'trakt',
-      'trk': 'trakt',
-      'trakt': 'trakt',
-      'trakt.tv': 'trakt'
-    };
-    return map[key] || key;
+    return AnimeAPI.SOURCE_LOOKUP.get(key) || key;
   }
 
   /**
