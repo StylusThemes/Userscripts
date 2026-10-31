@@ -1,12 +1,12 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       2.0.1
+// @version       2.0.2
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
 // @match         *://wetrakr.com/*
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@9e8f1b9bdc1acac2e76f3e8d2348f76817ec5bf4/libs/utils/utils.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@f17e24da0d574c5d73772603600ab198475b547f/libs/metadata/animeapi/animeapi.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@c35138874699baa81ebca91b8b428e04f71d2160/libs/metadata/animeapi/animeapi.min.js
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@f17e24da0d574c5d73772603600ab198475b547f/libs/metadata/mydublist/mydublist.min.js
 // @grant         GM_addStyle
 // @grant         GM_xmlhttpRequest
