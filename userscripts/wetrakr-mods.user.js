@@ -1,13 +1,13 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       2.0.2
+// @version       2.0.3
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
 // @match         *://wetrakr.com/*
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@9e8f1b9bdc1acac2e76f3e8d2348f76817ec5bf4/libs/utils/utils.min.js
 // @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@c35138874699baa81ebca91b8b428e04f71d2160/libs/metadata/animeapi/animeapi.min.js
-// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@f17e24da0d574c5d73772603600ab198475b547f/libs/metadata/mydublist/mydublist.min.js
+// @require       https://cdn.jsdelivr.net/gh/StylusThemes/Userscripts@f8b54eac2bf27233c791f9eef6e3ee12810d6227/libs/metadata/mydublist/mydublist.min.js
 // @grant         GM_addStyle
 // @grant         GM_xmlhttpRequest
 // @grant         GM_getValue
@@ -156,6 +156,10 @@
     .detail-grid--person .person-badge-department { margin-left: 0px !important; }
     /* Hide 'rate now' button */
     .detail-grid--person .detail-info-stats { display: none; }
+
+    /* ===== Status Badge ===== */
+    /* Hide the original badge once its clone takes the slot above the title */
+    .rs-hidden-original { display: none !important; }
 
     /* ===== Title Stack: Movies + Shows ===== */
     [class="detail-grid"] .title-stack { display: flex; flex-direction: column; }
@@ -529,7 +533,6 @@
       for (const clone of document.querySelectorAll('.rs-clone')) clone.remove();
       for (const original of document.querySelectorAll('.rs-hidden-original')) {
         original.classList.remove('rs-hidden-original');
-        original.style.removeProperty('display');
       }
     },
 
@@ -547,12 +550,10 @@
       if (!titleStack || !heading || !statusBadge || titleStack.querySelector('.rs-clone')) return;
 
       statusBadge.classList.add('rs-hidden-original');
-      statusBadge.style.display = 'none';
 
       const clone = statusBadge.cloneNode(true);
       clone.classList.remove('rs-hidden-original');
       clone.classList.add('rs-clone');
-      clone.style.display = '';
       titleStack.prepend(clone);
     }
   };
@@ -633,26 +634,23 @@
 
       for (const block of document.querySelectorAll(SELECTORS.overviewBlocks)) block.style.cursor = 'text';
 
+      const toggleGroups = [
+        { selector: SELECTORS.overviewToggles, expand: 'see more', collapse: 'see less' },
+        { selector: SELECTORS.episodeToggles, expand: 'read more', collapse: 'show less' }
+      ];
+
       let expanded = 0;
-      for (const toggle of document.querySelectorAll(SELECTORS.overviewToggles)) {
-        const label = toggle.textContent.trim().toLowerCase();
-        if (label.startsWith('see more')) {
-          toggle.click();
-          expanded++;
-        } else if (!label.startsWith('see less')) {
-          continue;
+      for (const { selector, expand, collapse } of toggleGroups) {
+        for (const toggle of document.querySelectorAll(selector)) {
+          const label = toggle.textContent.trim().toLowerCase();
+          if (label.startsWith(expand)) {
+            toggle.click();
+            expanded++;
+          } else if (!label.startsWith(collapse)) {
+            continue;
+          }
+          toggle.style.display = 'none';
         }
-        toggle.style.display = 'none';
-      }
-      for (const toggle of document.querySelectorAll(SELECTORS.episodeToggles)) {
-        const label = toggle.textContent.trim().toLowerCase();
-        if (label.startsWith('read more')) {
-          toggle.click();
-          expanded++;
-        } else if (!label.startsWith('show less')) {
-          continue;
-        }
-        toggle.style.display = 'none';
       }
       if (expanded) logger.debug(`Expanded ${expanded} overview${expanded === 1 ? '' : 's'}`);
     }
@@ -720,10 +718,6 @@
       DubView.clear();
     },
 
-    languageName(language) {
-      return Providers.mydublist.languageName(language);
-    },
-
     async apply() {
       if (SettingsUI.isOpen) return;
 
@@ -731,6 +725,8 @@
         DubView.clear();
         return;
       }
+
+      const { dubLanguage: language, dubConfidence: confidence } = App.config;
 
       const identity = PageContext.identity();
       if (!identity || !document.querySelector(SELECTORS.metaBox)) {
@@ -741,12 +737,7 @@
       const ids = PageContext.externalIds();
       if (!PageContext.hasRelevantIds(ids)) return;
 
-      const signature = PageContext.signature(
-        identity,
-        ids,
-        App.config.dubLanguage,
-        App.config.dubConfidence
-      );
+      const signature = PageContext.signature(identity, ids, language, confidence);
 
       if (this.settled?.signature === signature) {
         DubView.render(this.settled.label);
@@ -759,15 +750,9 @@
       const generation = this.generation;
       const isCurrent = () => generation === this.generation &&
         this.active?.signature === signature &&
-        PageContext.identity()?.key === identity.key &&
-        App.config.dubLanguage === this.active?.language &&
-        App.config.dubConfidence === this.active?.confidence;
+        PageContext.identity()?.key === identity.key;
 
-      this.active = {
-        signature,
-        language: App.config.dubLanguage,
-        confidence: App.config.dubConfidence
-      };
+      this.active = { signature };
 
       try {
         const resolved = await AnimeIdResolver.resolve(identity, ids);
@@ -780,14 +765,10 @@
           return;
         }
 
-        const dubbed = await Providers.mydublist.isDubbed(
-          resolved.mal,
-          App.config.dubLanguage,
-          App.config.dubConfidence
-        );
+        const dubbed = await Providers.mydublist.isDubbed(resolved.mal, { language, confidence });
         if (!isCurrent()) return;
 
-        const label = dubbed ? Providers.mydublist.formatDubLabel(App.config.dubLanguage) : null;
+        const label = dubbed ? Providers.mydublist.formatDubLabel(language) : null;
         this.settled = { signature, label };
         this.unresolvedSignature = null;
         this.failure = null;
@@ -798,8 +779,8 @@
           mal: resolved.mal,
           anilist: resolved.anilist,
           via: resolved.via,
-          language: App.config.dubLanguage,
-          confidence: App.config.dubConfidence,
+          language,
+          confidence,
           dubbed
         });
       } catch (error) {
@@ -868,12 +849,19 @@
     },
 
     applyPreview(field, draft) {
-      if (field.preview === 'logging') {
-        setDebugLogging(draft.debugLogging, true);
-        return;
+      switch (field.preview) {
+        case 'logging': {
+          setDebugLogging(draft.debugLogging, true);
+          return;
+        }
+        case 'dub': {
+          DubService.reset();
+          return;
+        }
+        default: {
+          return;
+        }
       }
-
-      DubService.reset();
     },
 
     bindFields(overlay, draft) {
@@ -1004,7 +992,7 @@
           return;
         }
         if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
-          const tabs = ['dubbing', 'about'];
+          const tabs = [...overlay.querySelectorAll('.rs-settings-tab')].map(tab => tab.dataset.tab);
           const index = tabs.indexOf(this.activeTab);
           const next = event.key === 'ArrowRight' ?
             tabs[(index + 1) % tabs.length] :
