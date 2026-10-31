@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       2.0.0
+// @version       2.0.1
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
@@ -97,7 +97,7 @@
   // Static styles
   // ============================================================================
 
-  GM_addStyle(`
+GM_addStyle(`
     /* ========================================================================== */
     /* Global                                                                     */
     /* ========================================================================== */
@@ -111,6 +111,10 @@
 
     /* ===== Actor Credit Bar ===== */
     .media-item__sort-badge { background: #6B3041 !important; }
+
+    /* ===== Chips + Filter Badges ===== */
+    /* Darken active filter chips and badges */
+    .active-chip, .filter-badge { background: #2a2f39 !important; }
 
     /* ========================================================================== */
     /* Detail Pages                                                               */
@@ -241,6 +245,14 @@
     [class="we-empty-card"] { display: none; }
     /* Restore the tracking layout to prevent a large gap between the tabs and Watching */
     [class="tracking-layout"] { display: unset !important; }
+
+    /* ========================================================================== */
+    /* Profile Overview                                                           */
+    /* ========================================================================== */
+
+    /* ===== Stats Cards ===== */
+    /* Lighten the stats card background */
+    .stats-card { background: #282e38 !important; }
 
     /* ========================================================================== */
     /* Navigation + Menus                                                         */
