@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       2.0.4
+// @version       2.0.5
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
@@ -259,6 +259,12 @@
     /* ===== Stats Cards ===== */
     /* Lighten the stats card background */
     .stats-card { background: #282e38 !important; }
+
+    /* ===== Badges ===== */
+    /* Hide the separater */
+    .profile-head .profile-headline-stats__sep { display: none !important; }
+    /* Hide the badges container */
+    .profile-head .earned-badges-link { display: none !important; }
 
     /* ========================================================================== */
     /* Navigation + Menus                                                         */
