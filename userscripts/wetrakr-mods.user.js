@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          WeTrakr - Mods
-// @version       2.0.5
+// @version       2.1.0
 // @description   Modifications and enhancements for WeTrakr
 // @author        Journey Over
 // @license       MIT
@@ -52,17 +52,43 @@
 
   const DUB_CONFIDENCE_LEVELS = MyDubList.CONFIDENCES;
 
+  const PROFILE_MENU_LINK_PREFIX = '.profile-menu .profile-menu-content a.profile-button-menu';
+
+  const PROFILE_MENU_OPTIONS = Object.freeze([
+    { key: 'profileMenuHeaderToggle', selector: '.profile-menu .profile-header-toggle', label: 'Header Toggle', hint: 'Show the button that collapses the profile header above the menu', defaultVisible: false },
+    { key: 'profileMenuOverview', selector: `${PROFILE_MENU_LINK_PREFIX}[href="/profile"]`, label: 'Overview', hint: 'Show the Overview button in the profile menu', defaultVisible: true },
+    { key: 'profileMenuNextToWatch', selector: `${PROFILE_MENU_LINK_PREFIX}[href="/profile/nexttowatch"]`, label: 'Next to Watch', hint: 'Show the Next to Watch button in the profile menu', defaultVisible: true },
+    { key: 'profileMenuTracking', selector: `${PROFILE_MENU_LINK_PREFIX}[href="/profile/tracking"]`, label: 'Tracking', hint: 'Show the Tracking button in the profile menu', defaultVisible: true },
+    { key: 'profileMenuProgress', selector: `${PROFILE_MENU_LINK_PREFIX}[href="/profile/progress"]`, label: 'Progress', hint: 'Show the Progress button in the profile menu', defaultVisible: true },
+    { key: 'profileMenuHistory', selector: `${PROFILE_MENU_LINK_PREFIX}[href="/profile/history"]`, label: 'Watch History', hint: 'Show the Watch History button in the profile menu', defaultVisible: true },
+    { key: 'profileMenuSocial', selector: `${PROFILE_MENU_LINK_PREFIX}[href="/profile/social"]`, label: 'Social', hint: 'Show the Social button in the profile menu', defaultVisible: true },
+    { key: 'profileMenuLists', selector: `${PROFILE_MENU_LINK_PREFIX}[href="/profile/lists"]`, label: 'Lists', hint: 'Show the Lists button in the profile menu', defaultVisible: true },
+    { key: 'profileMenuLibrary', selector: `${PROFILE_MENU_LINK_PREFIX}[href="/profile/library"]`, label: 'Library', hint: 'Show the Library button in the profile menu', defaultVisible: true },
+    { key: 'profileMenuMyStuff', selector: `${PROFILE_MENU_LINK_PREFIX}[href="/profile/mystuff"]`, label: 'My Stuff', hint: 'Show the My Stuff button in the profile menu', defaultVisible: true },
+    { key: 'profileMenuActivity', selector: `${PROFILE_MENU_LINK_PREFIX}[href="/profile/activity"]`, label: 'Activity', hint: 'Show the Activity button in the profile menu', defaultVisible: true },
+    { key: 'profileMenuStats', selector: `${PROFILE_MENU_LINK_PREFIX}[href="/profile/stats"]`, label: 'Stats', hint: 'Show the Stats button in the profile menu', defaultVisible: true },
+    { key: 'profileMenuSettings', selector: `${PROFILE_MENU_LINK_PREFIX}[href="/profile/settings"]`, label: 'Settings', hint: 'Show the Settings button in the profile menu', defaultVisible: true }
+  ]);
+
   const DEFAULT_CONFIG = Object.freeze({
     dubInfo: true,
     dubLanguage: 'ENGLISH',
     dubConfidence: 'normal',
-    debugLogging: false
+    debugLogging: false,
+    ...Object.fromEntries(PROFILE_MENU_OPTIONS.map(option => [option.key, option.defaultVisible]))
   });
 
   const SETTINGS_FIELDS = Object.freeze([
     { key: 'dubInfo', type: 'toggle', label: 'Dub Information', hint: 'Show dub availability for anime titles', preview: 'dub' },
     { key: 'dubLanguage', type: 'select', label: 'Preferred Dub Language', hint: 'Language to check for', options: DUB_LANGUAGES, preview: 'dub' },
     { key: 'dubConfidence', type: 'select', label: 'Dub Confidence', hint: 'Minimum verification confidence', options: DUB_CONFIDENCE_LEVELS, preview: 'dub' },
+    ...PROFILE_MENU_OPTIONS.map(option => ({
+      key: option.key,
+      type: 'toggle',
+      label: option.label,
+      hint: option.hint,
+      preview: 'profile'
+    })),
     { key: 'debugLogging', type: 'toggle', label: 'Debug Logging', hint: 'Show detailed diagnostic logs in the browser console', preview: 'logging' }
   ]);
 
@@ -274,10 +300,6 @@
     /* Allow profile menu content to overflow horizontally when needed */
     .profile-menu .profile-menu-content { overflow-x: unset !important; }
 
-    /* ===== Profile Header Toggle ===== */
-    /* Hide the profile header toggle */
-    .profile-menu .profile-header-toggle { display: none !important; }
-
     /* ========================================================================== */
     /* Settings Modal                                                             */
     /* ========================================================================== */
@@ -320,6 +342,7 @@
     .rs-settings-row + .rs-settings-row { margin-top: 6px; }
     .rs-settings-row strong { display: block; font-size: 13px; font-weight: 600; color: #e8e8f0; }
     .rs-settings-row small { display: block; margin-top: 2px; color: #8888a8; font-size: 11.5px; line-height: 1.4; }
+    .rs-settings-note { margin: 0 0 12px; color: #8888a8; font-size: 11.5px; line-height: 1.5; }
 
     /* ===== Toggle Switch ===== */
     .rs-settings-toggle { width: 42px; height: 24px; flex-shrink: 0; appearance: none; position: relative; background: #2d2d48; cursor: pointer; transition: background 0.25s; border-radius: 12px; }
@@ -376,12 +399,18 @@
       const validLanguage = DUB_LANGUAGES.some(language => language.value === config.dubLanguage);
       const validConfidence = DUB_CONFIDENCE_LEVELS.some(level => level.value === config.dubConfidence);
 
-      return {
+      const normalized = {
         dubInfo: config.dubInfo ?? DEFAULT_CONFIG.dubInfo,
         dubLanguage: validLanguage ? config.dubLanguage : DEFAULT_CONFIG.dubLanguage,
         dubConfidence: validConfidence ? config.dubConfidence : DEFAULT_CONFIG.dubConfidence,
         debugLogging: config.debugLogging ?? DEFAULT_CONFIG.debugLogging
       };
+
+      for (const option of PROFILE_MENU_OPTIONS) {
+        normalized[option.key] = typeof config[option.key] === 'boolean' ? config[option.key] : DEFAULT_CONFIG[option.key];
+      }
+
+      return normalized;
     },
 
     load() {
@@ -679,6 +708,38 @@
     }
   };
 
+  const ProfileMenuFeature = {
+    STYLE_ID: 'rs-profile-menu-visibility',
+    lastCss: null,
+
+    css(config) {
+      const selectors = PROFILE_MENU_OPTIONS
+        .filter(option => config?.[option.key] === false)
+        .map(option => option.selector);
+
+      return selectors.length ? `${selectors.join(',\n')} { display: none !important; }` : '';
+    },
+
+    styleElement() {
+      let style = document.getElementById(this.STYLE_ID);
+      if (!style) {
+        style = document.createElement('style');
+        style.id = this.STYLE_ID;
+        (document.head || document.documentElement).appendChild(style);
+      }
+      return style;
+    },
+
+    // Hiding happens through a generated stylesheet rather than inline styles, so the site re-rendering the menu cannot undo it
+    apply(config = App.config) {
+      const css = this.css(config);
+      if (css === this.lastCss) return;
+
+      this.lastCss = css;
+      this.styleElement().textContent = css;
+    }
+  };
+
   // ============================================================================
   // Dub UI
   // ============================================================================
@@ -881,6 +942,10 @@
           DubService.reset();
           return;
         }
+        case 'profile': {
+          ProfileMenuFeature.apply(draft);
+          return;
+        }
         default: {
           return;
         }
@@ -948,6 +1013,7 @@
       const draft = ConfigStore.normalize(saved);
 
       const dubFields = SETTINGS_FIELDS.filter(field => field.preview === 'dub');
+      const profileFields = SETTINGS_FIELDS.filter(field => field.preview === 'profile');
       const loggingField = SETTINGS_FIELDS.find(field => field.preview === 'logging');
 
       const overlay = document.createElement('div');
@@ -960,12 +1026,17 @@
           </div>
           <nav class="rs-settings-tabs" role="tablist" aria-label="Settings sections">
             <button type="button" class="rs-settings-tab rs-settings-tab--active" role="tab" aria-selected="true" aria-controls="rs-panel-dubbing" data-tab="dubbing">Dubbing</button>
+            <button type="button" class="rs-settings-tab" role="tab" aria-selected="false" aria-controls="rs-panel-profile" data-tab="profile">Profile Menu</button>
             <button type="button" class="rs-settings-tab" role="tab" aria-selected="false" aria-controls="rs-panel-about" data-tab="about">About</button>
           </nav>
           <div class="rs-settings-body">
             <div class="rs-settings-tab-panel rs-settings-tab-panel--active" role="tabpanel" id="rs-panel-dubbing" data-panel="dubbing">
               ${dubFields.map(field => this.renderField(field, draft)).join('')}
               ${loggingField ? '<div class="rs-about-divider"></div>' + this.renderField(loggingField, draft) : ''}
+            </div>
+            <div class="rs-settings-tab-panel" role="tabpanel" id="rs-panel-profile" data-panel="profile">
+              <p class="rs-settings-note">Uncheck a button to remove it from the profile menu. Changes preview live and only stick once saved.</p>
+              ${profileFields.map(field => this.renderField(field, draft)).join('')}
             </div>
             <div class="rs-settings-tab-panel" role="tabpanel" id="rs-panel-about" data-panel="about">
               <div class="rs-about-header">
@@ -983,7 +1054,7 @@
               </div>
               <div class="rs-about-card">
                 <h4>AnimeAPI <span class="rs-about-badge">ODbL v1.0</span></h4>
-                <p>Contains information from <a href="https://github.com/nattadasu/animeApi" target="_blank" rel="noopener noreferrer">AnimeAPI</a> and <a href="https://github.com/manami-project/anime-offline-database" target="_blank" rel="noopener noreferrer">Anime Offline Database</a>, which are made available under the <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener noreferrer">Open Database License (ODbL) v1.0</a>.<br>Data via <a href="https://animeapi.my.id" target="_blank" rel="noopener noreferrer">animeapi.my.id</a> (MIT / ODbL / DbCL)</p>
+                <p>Contains information from <a href="https://github.com/nattadasu/animeApi" target="_blank" rel="noopener noreferrer">AnimeAPI</a> and <a href="https://github.com/cedya77/anime-offline-database" target="_blank" rel="noopener noreferrer">Anime Offline Database</a>, which are made available under the <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener noreferrer">Open Database License (ODbL) v1.0</a>.<br>Data via <a href="https://animeapi.my.id" target="_blank" rel="noopener noreferrer">animeapi.my.id</a> (MIT / ODbL / DbCL)</p>
               </div>
               <div class="rs-about-footer">
                 <span>&copy; Journey Over</span>
@@ -1028,6 +1099,7 @@
       const cancel = () => {
         setDebugLogging(saved.debugLogging, true);
         DubService.reset();
+        ProfileMenuFeature.apply(saved);
         this.close();
         App.schedule();
       };
@@ -1050,6 +1122,7 @@
         this.syncFields(overlay, draft);
         setDebugLogging(draft.debugLogging, true);
         DubService.reset();
+        ProfileMenuFeature.apply(draft);
         logger('Settings restored to defaults');
         this.flashButton(event.currentTarget, 'Restored!', 'Restore Defaults');
       });
@@ -1058,11 +1131,15 @@
         App.config = ConfigStore.save(draft);
         setDebugLogging(App.config.debugLogging, true);
         DubService.reset();
+        ProfileMenuFeature.apply(App.config);
 
         logger('Settings saved', {
           dubInfo: App.config.dubInfo,
           dubLanguage: App.config.dubLanguage,
           dubConfidence: App.config.dubConfidence,
+          hiddenProfileButtons: PROFILE_MENU_OPTIONS
+            .filter(option => !App.config[option.key])
+            .map(option => option.label),
           debugLogging: App.config.debugLogging
         });
 
@@ -1140,6 +1217,7 @@
     start() {
       this.config = ConfigStore.load();
       setDebugLogging(this.config.debugLogging);
+      ProfileMenuFeature.apply(this.config);
 
       GM_registerMenuCommand('WeTrakr Mods Settings', () => SettingsUI.open());
 
